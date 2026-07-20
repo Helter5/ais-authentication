@@ -15,7 +15,7 @@ frontend/   React + TypeScript dashboard (pribudne v milestone 5)
 
 - [x] **M0** — Projekt skeleton (Maven, PostgreSQL, Flyway, CI)
 - [x] **M1** — Doména (Student, VerificationCode), REST API, Spring LDAP, Spring Mail
-- [ ] **M2** — Spring Security + vlastný JWT login pre admin dashboard
+- [x] **M2** — Spring Security + Discord OAuth2 + vlastný JWT login pre admin dashboard (zatiaľ super-admin-only, per-guild manager role príde s M3)
 - [ ] **M3** — Discord bot modul (JDA) napojený na REST vrstvu
 - [ ] **M4** — Audit log, tickety, warns, scheduler, XML export/import (JAXB)
 - [ ] **M5** — Frontend napojený na nové API
