@@ -77,7 +77,7 @@ public class AuthController {
     }
 
     @PostMapping("/exchange")
-    public ResponseEntity<CurrentUserResponse> exchange(
+    public ResponseEntity<SessionResponse> exchange(
             @RequestBody ExchangeRequest request, HttpServletResponse response) {
         String token = exchangeStore.consumeToken(request.code());
         if (token == null) {
@@ -86,13 +86,13 @@ public class AuthController {
 
         Claims claims = jwtService.parseToken(token);
         response.addCookie(authCookie(token));
-        return ResponseEntity.ok(CurrentUserResponse.fromClaims(claims));
+        return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
 
     @GetMapping("/session")
-    public ResponseEntity<CurrentUserResponse> session(@AuthenticationPrincipal Claims claims) {
-        return ResponseEntity.ok(CurrentUserResponse.fromClaims(claims));
+    public ResponseEntity<SessionResponse> session(@AuthenticationPrincipal Claims claims) {
+        return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
     @PostMapping("/logout")
@@ -126,6 +126,9 @@ public class AuthController {
     }
 
     public record ExchangeRequest(String code) {
+    }
+
+    public record SessionResponse(CurrentUserResponse user) {
     }
 
     public record CurrentUserResponse(String id, String username, String avatar) {
