@@ -19,10 +19,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
-  # LDAP a mail sa dopĺňajú v milestone 1, zatiaľ len placeholder hodnoty
   ldap:
     urls: ${LDAP_URL:ldap://localhost:389}
-    base: ${LDAP_BASE:dc=stuba,dc=sk}
+    base: ${LDAP_BASE:ou=People,dc=stuba,dc=sk}
     username: ${LDAP_USERNAME:}
     password: ${LDAP_PASSWORD:}
 
@@ -39,6 +38,10 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+  verification:
+    allowed-faculties:
+      - fei-stud
+    required-account-status: student:active
 
 logging:
   level:
