@@ -15,16 +15,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class VerificationController {
 
+    private final VerificationFacade verificationFacade;
     private final VerificationService verificationService;
-    private final VerificationEmailSender verificationEmailSender;
 
     @PostMapping
     public ResponseEntity<Void> initiateVerification(@Valid @RequestBody InitiateVerificationRequest request) {
-        VerificationCode verificationCode = verificationService.initiateVerification(
-                request.discordId(), request.guildId(), request.aisId());
-        verificationEmailSender.send(verificationCode.getEmail(), verificationCode.getCode());
+        verificationFacade.initiateAndNotify(request.discordId(), request.guildId(), request.aisId());
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
+
 
     @PostMapping("/confirm")
     public ResponseEntity<VerifiedUserResponse> confirmVerification(@Valid @RequestBody ConfirmVerificationRequest request) {
