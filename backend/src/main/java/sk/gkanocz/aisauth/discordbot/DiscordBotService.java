@@ -13,16 +13,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-class DiscordBotRunner implements ApplicationRunner {
+public class DiscordBotService implements ApplicationRunner {
 
     private final DiscordBotProperties discordBotProperties;
     private final VerificationSlashCommandListener verificationSlashCommandListener;
+
+    private volatile JDA jda;
+
+    public Optional<JDA> jda() {
+        return Optional.ofNullable(jda);
+    }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
@@ -31,11 +38,15 @@ class DiscordBotRunner implements ApplicationRunner {
             return;
         }
 
-        JDA jda = JDABuilder.createLight(discordBotProperties.token())
+        jda = JDABuilder.createLight(discordBotProperties.token())
                 .addEventListeners(verificationSlashCommandListener)
                 .build()
                 .awaitReady();
 
+        registerCommands();
+    }
+
+    private void registerCommands() {
         List<SlashCommandData> commands = List.of(
                 slash("verify", "Over svoje AIS ID")
                         .addOption(OptionType.STRING, "ais_id", "Tvoje AIS ID", true),
