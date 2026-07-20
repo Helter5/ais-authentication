@@ -1,0 +1,54 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ais_auth
+          POSTGRES_USER: ais_auth
+          POSTGRES_PASSWORD: ais_auth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ais_auth -d ais_auth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: ais_auth
+      DB_USER: ais_auth
+      DB_PASSWORD: ais_auth
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Build and test
+        working-directory: backend
+        run: ./mvnw -B verify

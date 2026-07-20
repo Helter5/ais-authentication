@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: ais-auth-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ais_auth}
+    username: ${DB_USER:ais_auth}
+    password: ${DB_PASSWORD:ais_auth}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # schéma sa spravuje výhradne cez Flyway migrácie, nie auto-generovaním
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # LDAP a mail sa dopĺňajú v milestone 1, zatiaľ len placeholder hodnoty
+  ldap:
+    urls: ${LDAP_URL:ldap://localhost:389}
+    base: ${LDAP_BASE:dc=stuba,dc=sk}
+    username: ${LDAP_USERNAME:}
+    password: ${LDAP_PASSWORD:}
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+
+logging:
+  level:
+    sk.gkanocz.aisauth: DEBUG

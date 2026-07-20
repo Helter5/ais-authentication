@@ -1,0 +1,19 @@
+# Env files (obsahujú heslá/secrets, nikdy necommitovať)
+.env
+*.env
+!.env.example
+
+# OS
+.DS_Store
+
+# Claude Code lokálne nastavenia
+.claude/settings.local.json
+
+# IDE (repo-wide, projektové .gitignore v backend/frontend riešia zvyšok)
+.idea/
+.vscode/
+*.iml
+
+# Frontend (kým nepribudne frontend/.gitignore)
+node_modules/
+dist/
