@@ -1,0 +1,62 @@
+package sk.gkanocz.aisauth.directory;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.ldap.core.LdapTemplate;
+import org.springframework.ldap.query.LdapQueryBuilder;
+import org.springframework.stereotype.Service;
+
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+
+@Service
+@RequiredArgsConstructor
+class LdapStudentDirectoryService implements StudentDirectoryService {
+
+    private final LdapTemplate ldapTemplate;
+
+    @Override
+    public Optional<StudentRecord> findByAisId(String aisId) {
+        List<StudentRecord> results = ldapTemplate.search(
+                LdapQueryBuilder.query().where("uisId").is(aisId),
+                this::mapAttributes);
+
+        return results.stream().findFirst();
+    }
+
+    private StudentRecord mapAttributes(Attributes attributes) throws NamingException {
+        return new StudentRecord(
+                getSingleValue(attributes, "uisId"),
+                getSingleValue(attributes, "mail"),
+                getMultiValue(attributes, "host"),
+                getMultiValue(attributes, "accountStatus"),
+                getSingleValue(attributes, "givenName"),
+                getSingleValue(attributes, "sn"),
+                getSingleValue(attributes, "displayName"),
+                getSingleValue(attributes, "cn"));
+    }
+
+    private String getSingleValue(Attributes attributes, String id) throws NamingException {
+        Attribute attribute = attributes.get(id);
+        return attribute == null ? null : (String) attribute.get();
+    }
+
+    private List<String> getMultiValue(Attributes attributes, String id) throws NamingException {
+        Attribute attribute = attributes.get(id);
+        if (attribute == null) {
+            return Collections.emptyList();
+        }
+        List<String> values = new ArrayList<>();
+        NamingEnumeration<?> enumeration = attribute.getAll();
+        while (enumeration.hasMore()) {
+            values.add((String) enumeration.next());
+        }
+        return values;
+    }
+}

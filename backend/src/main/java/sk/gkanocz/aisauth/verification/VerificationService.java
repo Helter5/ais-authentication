@@ -3,6 +3,9 @@ package sk.gkanocz.aisauth.verification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sk.gkanocz.aisauth.directory.StudentDirectoryService;
+import sk.gkanocz.aisauth.directory.StudentRecord;
+import sk.gkanocz.aisauth.directory.VerificationProperties;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -20,9 +23,11 @@ public class VerificationService {
 
     private final VerificationCodeRepository verificationCodeRepository;
     private final VerifiedUserRepository verifiedUserRepository;
+    private final StudentDirectoryService studentDirectoryService;
+    private final VerificationProperties verificationProperties;
 
     @Transactional
-    public VerificationCode initiateVerification(String discordId, String guildId, String aisId, String email) {
+    public VerificationCode initiateVerification(String discordId, String guildId, String aisId) {
         if (verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId)) {
             throw AlreadyVerifiedException.discordUserAlreadyVerified(discordId);
         }
@@ -30,12 +35,23 @@ public class VerificationService {
             throw AlreadyVerifiedException.aisIdAlreadyVerified(aisId);
         }
 
+        StudentRecord student = studentDirectoryService.findByAisId(aisId)
+                .orElseThrow(() -> StudentNotFoundException.withAisId(aisId));
+
+        if (!student.hasAccountStatus(verificationProperties.requiredAccountStatus())) {
+            throw StudentNotEligibleException.notActiveStudent();
+        }
+        if (!student.belongsToAnyFaculty(verificationProperties.allowedFaculties())) {
+            throw StudentNotEligibleException.wrongFaculty();
+        }
+
         // nahrádza INSERT OR REPLACE zo SQLite - zmažeme predchádzajúci pending kód, ak existuje
         verificationCodeRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
 
         String code = generateCode();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(CODE_VALIDITY_MINUTES);
-        VerificationCode verificationCode = new VerificationCode(discordId, guildId, code, email, aisId, expiresAt);
+        VerificationCode verificationCode =
+                new VerificationCode(discordId, guildId, code, student.mail(), aisId, expiresAt);
         return verificationCodeRepository.save(verificationCode);
     }
 

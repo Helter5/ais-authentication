@@ -42,6 +42,8 @@ app:
     allowed-faculties:
       - fei-stud
     required-account-status: student:active
+  mail:
+    from: ${MAIL_FROM:Verifikácia <noreply@stuba.sk>}
 
 logging:
   level:

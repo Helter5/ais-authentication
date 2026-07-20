@@ -16,11 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class VerificationController {
 
     private final VerificationService verificationService;
+    private final VerificationEmailSender verificationEmailSender;
 
     @PostMapping
     public ResponseEntity<Void> initiateVerification(@Valid @RequestBody InitiateVerificationRequest request) {
-        verificationService.initiateVerification(
-                request.discordId(), request.guildId(), request.aisId(), request.email());
+        VerificationCode verificationCode = verificationService.initiateVerification(
+                request.discordId(), request.guildId(), request.aisId());
+        verificationEmailSender.send(verificationCode.getEmail(), verificationCode.getCode());
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
@@ -34,9 +36,9 @@ public class VerificationController {
     public record InitiateVerificationRequest(
             @NotBlank String discordId,
             @NotBlank String guildId,
-            @NotBlank String aisId,
-            @NotBlank String email) {
+            @NotBlank String aisId) {
     }
+
 
     public record ConfirmVerificationRequest(
             @NotBlank String discordId,
