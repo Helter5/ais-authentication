@@ -34,6 +34,12 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true # /actuator/health/liveness a /readiness - nezavisia od LDAP (na rozdiel od agregovaneho /actuator/health), pouzivane v Docker HEALTHCHECK
+
 app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
