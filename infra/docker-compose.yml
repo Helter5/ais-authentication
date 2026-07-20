@@ -25,5 +25,50 @@ services:
       - "1025:1025" # SMTP
       - "8025:8025" # web UI (http://localhost:8025)
 
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ais-auth-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-ais_auth}
+      DB_USER: ${DB_USER:-ais_auth}
+      DB_PASSWORD: ${DB_PASSWORD:-ais_auth}
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-change-me}
+      SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/api/auth/discord/callback}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
+      LDAP_URL: ${LDAP_URL:-ldap://localhost:389}
+      LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: /api # relativna cesta - nginx proxuje /api/ na backend, jeden origin, ziadne CORS netreba
+    container_name: ais-auth-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
 volumes:
   postgres_data:
