@@ -9,6 +9,7 @@ import sk.gkanocz.aisauth.directory.VerificationProperties;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,16 +29,7 @@ public class VerificationService {
 
     @Transactional
     public VerificationCode initiateVerification(String discordId, String guildId, String aisId) {
-        if (!aisId.matches("\\d+")) {
-            throw InvalidAisIdException.withValue(aisId);
-        }
-        
-        if (verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId)) {
-            throw AlreadyVerifiedException.discordUserAlreadyVerified(discordId);
-        }
-        if (verifiedUserRepository.existsByAisIdAndGuildId(aisId, guildId)) {
-            throw AlreadyVerifiedException.aisIdAlreadyVerified(aisId);
-        }
+        assertValidAndNotAlreadyVerified(discordId, guildId, aisId);
 
         StudentRecord student = studentDirectoryService.findByAisId(aisId)
                 .orElseThrow(() -> StudentNotFoundException.withAisId(aisId));
@@ -80,6 +72,34 @@ public class VerificationService {
         verificationCodeRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
 
         return verifiedUser;
+    }
+
+    @Transactional
+    public VerifiedUser manuallyVerify(String discordId, String guildId, String aisId, String email) {
+        assertValidAndNotAlreadyVerified(discordId, guildId, aisId);
+        return verifiedUserRepository.save(new VerifiedUser(aisId, discordId, guildId, email));
+    }
+
+    public Optional<VerifiedUser> findVerifiedUser(String aisId, String guildId) {
+        return verifiedUserRepository.findByAisIdAndGuildId(aisId, guildId);
+    }
+
+    @Transactional
+    public void cleanupDepartedMember(String discordId, String guildId) {
+        verificationCodeRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
+        verifiedUserRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
+    }
+
+    private void assertValidAndNotAlreadyVerified(String discordId, String guildId, String aisId) {
+        if (!aisId.matches("\\d+")) {
+            throw InvalidAisIdException.withValue(aisId);
+        }
+        if (verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId)) {
+            throw AlreadyVerifiedException.discordUserAlreadyVerified(discordId);
+        }
+        if (verifiedUserRepository.existsByAisIdAndGuildId(aisId, guildId)) {
+            throw AlreadyVerifiedException.aisIdAlreadyVerified(aisId);
+        }
     }
 
     private String generateCode() {
