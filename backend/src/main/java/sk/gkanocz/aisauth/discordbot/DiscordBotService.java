@@ -4,14 +4,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Icon;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +30,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final DiscordBotProperties discordBotProperties;
     private final VerificationSlashCommandListener verificationSlashCommandListener;
     private final WarnSlashCommandListener warnSlashCommandListener;
+    private final GuildLifecycleListener guildLifecycleListener;
 
     private volatile JDA jda;
 
@@ -40,11 +46,21 @@ public class DiscordBotService implements ApplicationRunner {
         }
 
         jda = JDABuilder.createLight(discordBotProperties.token())
-                .addEventListeners(verificationSlashCommandListener, warnSlashCommandListener)
+                .addEventListeners(verificationSlashCommandListener, warnSlashCommandListener, guildLifecycleListener)
                 .build()
                 .awaitReady();
 
+        jda.getPresence().setActivity(Activity.playing("/verify & /code"));
+        updateAvatar();
         registerCommands();
+    }
+
+    private void updateAvatar() {
+        try (InputStream avatar = new ClassPathResource("discord/avatar.png").getInputStream()) {
+            jda.getSelfUser().getManager().setAvatar(Icon.from(avatar)).queue();
+        } catch (IOException e) {
+            log.warn("Nepodarilo sa nastaviť avatar bota", e);
+        }
     }
 
     private void registerCommands() {
@@ -53,6 +69,12 @@ public class DiscordBotService implements ApplicationRunner {
                         .addOption(OptionType.STRING, "ais_id", "Tvoje AIS ID", true),
                 slash("code", "Zadaj verifikačný kód z mailu")
                         .addOption(OptionType.STRING, "code", "Kód z mailu", true),
+                slash("find", "Find a verified user by their AIS ID")
+                        .addOption(OptionType.STRING, "ais_id", "AIS ID to search for", true),
+                slash("manualverify", "Manually verify a user by their Discord mention and AIS ID")
+                        .addOption(OptionType.USER, "user", "The Discord user to verify", true)
+                        .addOption(OptionType.STRING, "ais_id", "The AIS ID to assign to this user", true)
+                        .addOption(OptionType.STRING, "email", "Email address of the user", true),
                 slash("warn", "Warn a user")
                         .addOption(OptionType.USER, "user", "User to warn", true)
                         .addOption(OptionType.STRING, "reason", "Reason for the warning", true),
