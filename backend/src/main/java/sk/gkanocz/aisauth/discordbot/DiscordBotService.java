@@ -24,6 +24,7 @@ public class DiscordBotService implements ApplicationRunner {
 
     private final DiscordBotProperties discordBotProperties;
     private final VerificationSlashCommandListener verificationSlashCommandListener;
+    private final WarnSlashCommandListener warnSlashCommandListener;
 
     private volatile JDA jda;
 
@@ -39,7 +40,7 @@ public class DiscordBotService implements ApplicationRunner {
         }
 
         jda = JDABuilder.createLight(discordBotProperties.token())
-                .addEventListeners(verificationSlashCommandListener)
+                .addEventListeners(verificationSlashCommandListener, warnSlashCommandListener)
                 .build()
                 .awaitReady();
 
@@ -51,7 +52,17 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("verify", "Over svoje AIS ID")
                         .addOption(OptionType.STRING, "ais_id", "Tvoje AIS ID", true),
                 slash("code", "Zadaj verifikačný kód z mailu")
-                        .addOption(OptionType.STRING, "code", "Kód z mailu", true)
+                        .addOption(OptionType.STRING, "code", "Kód z mailu", true),
+                slash("warn", "Warn a user")
+                        .addOption(OptionType.USER, "user", "User to warn", true)
+                        .addOption(OptionType.STRING, "reason", "Reason for the warning", true),
+                slash("warns", "View warnings - for a specific user or all warnings in this server")
+                        .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false),
+                slash("mywarns", "Show your own warnings on this server"),
+                slash("removewarn", "Remove a specific warning by its ID")
+                        .addOption(OptionType.INTEGER, "id", "Warning ID to remove", true),
+                slash("clearwarns", "Clear all warnings for a user")
+                        .addOption(OptionType.USER, "user", "User to clear warnings for", true)
         );
 
         Guild guild = StringUtils.hasText(discordBotProperties.guildId())
