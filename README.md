@@ -14,7 +14,7 @@ frontend/   React + TypeScript dashboard (pribudne v milestone 5)
 ## Roadmapa
 
 - [x] **M0** — Projekt skeleton (Maven, PostgreSQL, Flyway, CI)
-- [ ] **M1** — Doména (Student, VerificationCode), REST API, Spring LDAP, Spring Mail
+- [x] **M1** — Doména (Student, VerificationCode), REST API, Spring LDAP, Spring Mail
 - [ ] **M2** — Spring Security + vlastný JWT login pre admin dashboard
 - [ ] **M3** — Discord bot modul (JDA) napojený na REST vrstvu
 - [ ] **M4** — Audit log, tickety, warns, scheduler, XML export/import (JAXB)
