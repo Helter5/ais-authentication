@@ -16,7 +16,7 @@ frontend/   React + TypeScript dashboard (pribudne v milestone 5)
 - [x] **M0** — Projekt skeleton (Maven, PostgreSQL, Flyway, CI)
 - [x] **M1** — Doména (Student, VerificationCode), REST API, Spring LDAP, Spring Mail
 - [x] **M2** — Spring Security + Discord OAuth2 + vlastný JWT login pre admin dashboard (zatiaľ super-admin-only, per-guild manager role príde s M3)
-- [ ] **M3** — Discord bot modul (JDA) napojený na REST vrstvu
+- [x] **M3** — Discord bot modul (JDA), `/verify` + `/code` napojené priamo na service vrstvu (rovnaký Spring kontext ako REST API — nie samostatný proces cez HTTP, presne ako v pôvodnom Node bote). Priraďovanie Discord roly po verifikácii príde s per-guild admin nastaveniami (M4).
 - [ ] **M4** — Audit log, tickety, warns, scheduler, XML export/import (JAXB)
 - [ ] **M5** — Frontend napojený na nové API
 - [ ] **M6** — Docker (multi-stage build), plný docker-compose, GitHub Actions, Jenkinsfile
