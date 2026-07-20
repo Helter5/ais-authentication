@@ -28,6 +28,10 @@ public class VerificationService {
 
     @Transactional
     public VerificationCode initiateVerification(String discordId, String guildId, String aisId) {
+        if (!aisId.matches("\\d+")) {
+            throw InvalidAisIdException.withValue(aisId);
+        }
+        
         if (verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId)) {
             throw AlreadyVerifiedException.discordUserAlreadyVerified(discordId);
         }
