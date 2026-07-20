@@ -1,0 +1,59 @@
+package sk.gkanocz.aisauth.warn;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+public class WarnService {
+
+    private final WarnRepository warnRepository;
+    private final WarnThresholdRepository warnThresholdRepository;
+
+    @Transactional
+    public Warn addWarn(String guildId, String discordId, String moderatorId, String reason) {
+        if (discordId.equals(moderatorId)) {
+            throw SelfWarnException.create();
+        }
+        return warnRepository.save(new Warn(guildId, discordId, moderatorId, reason));
+    }
+
+    public long countWarns(String discordId, String guildId) {
+        return warnRepository.countByDiscordIdAndGuildId(discordId, guildId);
+    }
+
+    public List<Warn> getWarns(String discordId, String guildId) {
+        return warnRepository.findByDiscordIdAndGuildIdOrderByCreatedAtDesc(discordId, guildId);
+    }
+
+    public List<Warn> getGuildWarns(String guildId) {
+        return warnRepository.findByGuildIdOrderByCreatedAtDesc(guildId);
+    }
+
+    public List<WarnThreshold> getThresholds(String guildId) {
+        return warnThresholdRepository.findByGuildIdOrderByWarnLimitAsc(guildId);
+    }
+
+    public Optional<WarnThreshold> matchingThreshold(String guildId, long warnCount) {
+        return warnThresholdRepository.findByGuildIdAndWarnLimit(guildId, (int) warnCount)
+                .filter(threshold -> !"none".equals(threshold.getAction()));
+    }
+
+    @Transactional
+    public void removeWarn(Long warnId, String guildId) {
+        Warn warn = warnRepository.findByIdAndGuildId(warnId, guildId)
+                .orElseThrow(() -> WarnNotFoundException.withId(warnId));
+        warnRepository.delete(warn);
+    }
+
+    @Transactional
+    public long clearWarns(String discordId, String guildId) {
+        long count = countWarns(discordId, guildId);
+        warnRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
+        return count;
+    }
+}
