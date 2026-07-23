@@ -56,4 +56,17 @@ public class WarnService {
         warnRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
         return count;
     }
+
+    @Transactional
+    public void upsertThreshold(String guildId, Integer warnLimit, String action) {
+        warnThresholdRepository.findByGuildIdAndWarnLimit(guildId, warnLimit)
+                .ifPresentOrElse(
+                        threshold -> threshold.setAction(action),
+                        () -> warnThresholdRepository.save(new WarnThreshold(guildId, warnLimit, action)));
+    }
+
+    @Transactional
+    public void removeThreshold(String guildId, Integer warnLimit) {
+        warnThresholdRepository.deleteByGuildIdAndWarnLimit(guildId, warnLimit);
+    }
 }

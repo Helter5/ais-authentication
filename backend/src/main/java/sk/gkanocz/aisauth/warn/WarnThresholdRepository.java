@@ -10,4 +10,6 @@ public interface WarnThresholdRepository extends JpaRepository<WarnThreshold, Lo
     List<WarnThreshold> findByGuildIdOrderByWarnLimitAsc(String guildId);
 
     Optional<WarnThreshold> findByGuildIdAndWarnLimit(String guildId, Integer warnLimit);
+
+    void deleteByGuildIdAndWarnLimit(String guildId, Integer warnLimit);
 }

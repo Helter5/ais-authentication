@@ -36,4 +36,8 @@ public class WarnThreshold {
         this.warnLimit = warnLimit;
         this.action = action;
     }
+
+    public void setAction(String action) {
+        this.action = action;
+    }
 }
