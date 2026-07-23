@@ -47,11 +47,8 @@ export function Modules() {
   const guildId = useSelectedGuildId();
   const [trapSettings, setTrapSettings] = useState<HackedAccountTrapSettings | null>(null);
   const [spamLogChannelId, setSpamLogChannelId] = useState<string | null>(null);
-  const [rrEnabled, setRrEnabled] = useState<boolean | null>(null);
   const [trapToggling, setTrapToggling] = useState(false);
-  const [rrToggling, setRrToggling] = useState(false);
   const [trapError, setTrapError] = useState<string | null>(null);
-  const [rrError, setRrError] = useState<string | null>(null);
   const [adEnabled, setAdEnabled] = useState<boolean | null>(null);
   const [adToggling, setAdToggling] = useState(false);
   const [adError, setAdError] = useState<string | null>(null);
@@ -60,10 +57,8 @@ export function Modules() {
     let cancelled = false;
     setTrapSettings(null);
     setSpamLogChannelId(null);
-    setRrEnabled(null);
     setAdEnabled(null);
     setTrapError(null);
-    setRrError(null);
     setAdError(null);
     if (!guildId) return () => { cancelled = true; };
     adminApi.getHackedAccountTrap(guildId)
@@ -71,9 +66,6 @@ export function Modules() {
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getSettings(guildId)
       .then(s => { if (!cancelled) setSpamLogChannelId(s.spam_log_channel_id); })
-      .catch(error => { if (!cancelled) console.error(error); });
-    adminApi.getReactionRolesEnabled(guildId)
-      .then(r => { if (!cancelled) setRrEnabled(r.enabled); })
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getAutoDeleteEnabled(guildId)
       .then(r => { if (!cancelled) setAdEnabled(r.enabled); })
@@ -103,21 +95,6 @@ export function Modules() {
       setTrapError(apiError.response?.data?.error ?? "Failed to change the module state.");
     } finally {
       setTrapToggling(false);
-    }
-  };
-
-  const toggleRR = async (enabled: boolean) => {
-    setRrError(null);
-    setRrToggling(true);
-    setRrEnabled(enabled);
-    try {
-      await adminApi.setReactionRolesEnabled(guildId, enabled);
-    } catch (err: unknown) {
-      setRrEnabled(prev => prev !== null ? !prev : prev);
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setRrError(apiError.response?.data?.error ?? "Failed to change the module state.");
-    } finally {
-      setRrToggling(false);
     }
   };
 
@@ -157,16 +134,6 @@ export function Modules() {
               toggling={trapToggling}
               loading={trapSettings === null}
               error={trapError}
-            />
-            <ModuleCard
-              name="Reaction Roles"
-              description="Let members self-assign roles by reacting to a message with emojis."
-              href="/modules/reaction-roles"
-              enabled={rrEnabled ?? false}
-              onToggle={toggleRR}
-              toggling={rrToggling}
-              loading={rrEnabled === null}
-              error={rrError}
             />
             <ModuleCard
               name="Auto Delete"

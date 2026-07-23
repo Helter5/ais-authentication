@@ -123,35 +123,6 @@ export interface TicketTranscript {
   messages: TicketTranscriptMessage[];
 }
 
-export interface ReactionRoleConfig {
-  id: number;
-  guild_id: string;
-  name: string;
-  channel_id: string | null;
-  message_id: string | null;
-  message_type: 'plain' | 'embed' | 'existing';
-  message_content: string;
-  embed_data: {
-    color?: string;
-    title?: string;
-    title_url?: string;
-    description?: string;
-    author_name?: string;
-    author_icon_url?: string;
-    image_url?: string;
-    thumbnail_url?: string;
-    footer_text?: string;
-    footer_icon_url?: string;
-    fields?: { name: string; value: string; inline: boolean }[];
-  };
-  existing_message_ref: string;
-  role_type: 'normal' | 'unique';
-  allowed_role_ids: string[];
-  ignored_role_ids: string[];
-  allow_multiple: boolean;
-  reactions: { emoji: string; roleId: string }[];
-}
-
 export interface AutoDeleteConfig {
   id: number;
   guild_id: string;
@@ -522,43 +493,6 @@ export const adminApi = {
     error?: string;
   }> => {
     const res = await api.post('/semester', { guildId, rocnik, semester, visible });
-    return res.data;
-  },
-
-  // ── Reaction Roles ─────────────────────────────────────────────────────────
-
-  getReactionRoles: async (guildId: string): Promise<ReactionRoleConfig[]> => {
-    const res = await api.get('/reaction-roles', { params: { guildId } });
-    return res.data;
-  },
-
-  createReactionRole: async (guildId: string, data: Partial<ReactionRoleConfig>): Promise<ReactionRoleConfig> => {
-    const res = await api.post('/reaction-roles', { guildId, ...data });
-    return res.data;
-  },
-
-  updateReactionRole: async (id: number, guildId: string, data: Partial<ReactionRoleConfig>): Promise<ReactionRoleConfig> => {
-    const res = await api.patch(`/reaction-roles/${id}`, { guildId, ...data });
-    return res.data;
-  },
-
-  deleteReactionRole: async (id: number, guildId: string): Promise<{ success: boolean }> => {
-    const res = await api.delete(`/reaction-roles/${id}`, { params: { guildId } });
-    return res.data;
-  },
-
-  postReactionRoleMessage: async (id: number, guildId: string): Promise<{ success: boolean; messageId: string; channelName: string; action: string }> => {
-    const res = await api.post(`/reaction-roles/${id}/post`, { guildId });
-    return res.data;
-  },
-
-  getReactionRolesEnabled: async (guildId: string): Promise<{ enabled: boolean }> => {
-    const res = await api.get('/reaction-roles/enabled', { params: { guildId } });
-    return res.data;
-  },
-
-  setReactionRolesEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
-    const res = await api.post('/reaction-roles/enabled', { guildId, enabled });
     return res.data;
   },
 
