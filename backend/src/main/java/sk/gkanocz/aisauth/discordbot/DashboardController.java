@@ -16,13 +16,7 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public DashboardResponse getDashboard(@RequestParam String guildId) {
-        Guild guild = discordBotService.jda()
-                .orElseThrow(GuildNotAvailableException::botNotConnected)
-                .getGuildById(guildId);
-
-        if (guild == null) {
-            throw GuildNotAvailableException.guildNotFound(guildId);
-        }
+        Guild guild = discordBotService.requireGuild(guildId);
 
         DashboardResponse.ServerInfo server = new DashboardResponse.ServerInfo(
                 guild.getId(),

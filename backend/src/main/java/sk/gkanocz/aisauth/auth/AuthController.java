@@ -1,23 +1,31 @@
 package sk.gkanocz.aisauth.auth;
 
 import io.jsonwebtoken.Claims;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.discordbot.DiscordBotService;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.settings.DashboardSettings;
+import tools.jackson.core.type.TypeReference;
 
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,6 +40,8 @@ public class AuthController {
     private final JwtService jwtService;
     private final AdminSessionRepository adminSessionRepository;
     private final OAuthExchangeStore exchangeStore;
+    private final DiscordBotService discordBotService;
+    private final AdminSettingsService adminSettingsService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -63,11 +73,15 @@ public class AuthController {
         DiscordOAuthClient.DiscordTokenResponse tokenResponse = discordOAuthClient.exchangeCodeForToken(code);
         DiscordOAuthClient.DiscordUserResponse user = discordOAuthClient.fetchUser(tokenResponse.accessToken());
 
-        if (!adminProperties.superAdminIds().contains(user.id())) {
+        boolean isSuperAdmin = adminProperties.superAdminIds().contains(user.id());
+        List<String> eligibleGuildIds = computeEligibleGuildIds(user.id(), isSuperAdmin);
+
+        if (!isSuperAdmin && eligibleGuildIds.isEmpty()) {
             return redirectToFrontendLogin("unauthorized_manager_required");
         }
 
-        JwtService.IssuedToken issuedToken = jwtService.issueToken(user.id(), user.username(), user.avatar());
+        JwtService.IssuedToken issuedToken =
+                jwtService.issueToken(user.id(), user.username(), user.avatar(), isSuperAdmin, eligibleGuildIds);
         adminSessionRepository.save(new AdminSession(issuedToken.jti(), user.id(), issuedToken.expiresAt()));
 
         String exchangeCode = exchangeStore.putToken(issuedToken.token());
@@ -89,7 +103,6 @@ public class AuthController {
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
-
     @GetMapping("/session")
     public ResponseEntity<SessionResponse> session(@AuthenticationPrincipal Claims claims) {
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
@@ -102,6 +115,49 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Super admins can manage every guild the bot is in. Regular managers are restricted to
+     * guilds explicitly onboarded via allowed_guild_ids AND where they hold one of that guild's
+     * configured manager roles.
+     */
+    private List<String> computeEligibleGuildIds(String discordId, boolean isSuperAdmin) {
+        return discordBotService.jda().map(jda -> {
+            List<String> allowedGuildIds = adminSettingsService.get(
+                    "allowed_guild_ids", new TypeReference<List<String>>() { }, List.of());
+
+            List<String> eligible = new ArrayList<>();
+            for (Guild guild : jda.getGuilds()) {
+                if (isSuperAdmin) {
+                    eligible.add(guild.getId());
+                    continue;
+                }
+                if (!allowedGuildIds.contains(guild.getId())) {
+                    continue;
+                }
+                DashboardSettings dashboardSettings = adminSettingsService.get(
+                        "dashboard_settings_" + guild.getId(), DashboardSettings.class, DashboardSettings.empty());
+                if (dashboardSettings.managerRoleIds().isEmpty()) {
+                    continue;
+                }
+                Member member = fetchMemberSafely(guild, discordId);
+                boolean hasManagerRole = member != null && member.getRoles().stream()
+                        .anyMatch(role -> dashboardSettings.managerRoleIds().contains(role.getId()));
+                if (hasManagerRole) {
+                    eligible.add(guild.getId());
+                }
+            }
+            return eligible;
+        }).orElseGet(List::of);
+    }
+
+    private Member fetchMemberSafely(Guild guild, String discordId) {
+        try {
+            return guild.retrieveMemberById(discordId).complete();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Cookie logoutCookie() {
         Cookie cookie = new Cookie(AUTH_COOKIE_NAME, "");
         cookie.setHttpOnly(true);
@@ -109,7 +165,6 @@ public class AuthController {
         cookie.setMaxAge(0);
         return cookie;
     }
-
 
     private Cookie authCookie(String token) {
         Cookie cookie = new Cookie(AUTH_COOKIE_NAME, token);
@@ -131,12 +186,19 @@ public class AuthController {
     public record SessionResponse(CurrentUserResponse user) {
     }
 
-    public record CurrentUserResponse(String id, String username, String avatar) {
+    public record CurrentUserResponse(String id, String username, String avatar, List<String> guildIds) {
         static CurrentUserResponse fromClaims(Claims claims) {
             return new CurrentUserResponse(
                     claims.getSubject(),
                     claims.get("username", String.class),
-                    claims.get("avatar", String.class));
+                    claims.get("avatar", String.class),
+                    guildIdsFromClaims(claims));
+        }
+
+        @SuppressWarnings("unchecked")
+        private static List<String> guildIdsFromClaims(Claims claims) {
+            List<String> guildIds = claims.get("guildIds", List.class);
+            return guildIds == null ? List.of() : guildIds;
         }
     }
 }

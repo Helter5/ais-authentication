@@ -43,8 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            String role = Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class)) ? "ROLE_SUPER_ADMIN" : "ROLE_MANAGER";
             var authentication = new UsernamePasswordAuthenticationToken(
-                    claims, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN")));
+                    claims, null, List.of(new SimpleGrantedAuthority(role)));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (JwtException | IllegalArgumentException e) {
             // neplatný/expirovaný token - necháme request neautentifikovaný, Security ho zamietne nižšie

@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
-import sk.gkanocz.aisauth.discordbot.GuildNotAvailableException;
 
 import java.util.Map;
 
@@ -26,12 +25,7 @@ public class GuildSettingsController {
     @GetMapping("/settings")
     public GuildSettingsResponse getSettings(@RequestParam String guildId) {
         GuildSettings settings = guildSettingsService.getOrCreate(guildId);
-        Guild guild = discordBotService.jda()
-                .orElseThrow(GuildNotAvailableException::botNotConnected)
-                .getGuildById(guildId);
-        if (guild == null) {
-            throw GuildNotAvailableException.guildNotFound(guildId);
-        }
+        Guild guild = discordBotService.requireGuild(guildId);
 
         GuildSettingsResponse.LogChannelHealth health = new GuildSettingsResponse.LogChannelHealth(
                 checkChannelHealth(guild, settings.getLogChannelId()),

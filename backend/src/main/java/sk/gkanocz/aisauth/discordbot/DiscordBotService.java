@@ -38,6 +38,18 @@ public class DiscordBotService implements ApplicationRunner {
         return Optional.ofNullable(jda);
     }
 
+    /**
+     * Fetches a guild the bot is a member of, or throws a 503/404-mapped DomainException.
+     * Shared by every controller that needs live Discord data for a specific guild.
+     */
+    public Guild requireGuild(String guildId) {
+        Guild guild = jda().orElseThrow(GuildNotAvailableException::botNotConnected).getGuildById(guildId);
+        if (guild == null) {
+            throw GuildNotAvailableException.guildNotFound(guildId);
+        }
+        return guild;
+    }
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if (!StringUtils.hasText(discordBotProperties.token())) {

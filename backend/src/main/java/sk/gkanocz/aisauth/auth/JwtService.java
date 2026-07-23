@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -21,7 +22,7 @@ public class JwtService {
 
     private final JwtProperties jwtProperties;
 
-    public IssuedToken issueToken(String discordId, String username, String avatar) {
+    public IssuedToken issueToken(String discordId, String username, String avatar, boolean superAdmin, List<String> guildIds) {
         String jti = UUID.randomUUID().toString();
         Instant now = Instant.now();
         Instant expiresAt = now.plus(jwtProperties.expirationMinutes(), ChronoUnit.MINUTES);
@@ -30,6 +31,8 @@ public class JwtService {
                 .subject(discordId)
                 .claim("username", username)
                 .claim("avatar", avatar)
+                .claim("superAdmin", superAdmin)
+                .claim("guildIds", guildIds)
                 .id(jti)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
