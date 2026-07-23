@@ -15,6 +15,8 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import sk.gkanocz.aisauth.automod.AutoDeleteListener;
+import sk.gkanocz.aisauth.automod.HackedAccountTrapListener;
+import sk.gkanocz.aisauth.ticket.TicketButtonListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +34,8 @@ public class DiscordBotService implements ApplicationRunner {
     private final CommandInteractionListener commandInteractionListener;
     private final GuildLifecycleListener guildLifecycleListener;
     private final AutoDeleteListener autoDeleteListener;
+    private final HackedAccountTrapListener hackedAccountTrapListener;
+    private final TicketButtonListener ticketButtonListener;
 
     private volatile JDA jda;
 
@@ -59,7 +63,8 @@ public class DiscordBotService implements ApplicationRunner {
         }
 
         jda = JDABuilder.createLight(discordBotProperties.token())
-                .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener)
+                .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
+                        hackedAccountTrapListener, ticketButtonListener)
                 .build()
                 .awaitReady();
 

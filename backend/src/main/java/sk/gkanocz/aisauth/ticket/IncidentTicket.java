@@ -51,4 +51,18 @@ public class IncidentTicket {
         this.status = "open";
         this.createdAt = LocalDateTime.now();
     }
+
+    public void reopen() {
+        this.status = "open";
+        this.closedBy = null;
+        this.closedAt = null;
+        this.transcript = null;
+    }
+
+    public void close(String closedBy, String transcript) {
+        this.status = "closed";
+        this.closedBy = closedBy;
+        this.closedAt = LocalDateTime.now();
+        this.transcript = transcript;
+    }
 }
