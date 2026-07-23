@@ -17,4 +17,6 @@ public interface VerifiedUserRepository extends JpaRepository<VerifiedUser, Long
     boolean existsByAisIdAndGuildId(String aisId, String guildId);
 
     void deleteByDiscordIdAndGuildId(String discordId, String guildId);
+
+    long countByGuildId(String guildId);
 }

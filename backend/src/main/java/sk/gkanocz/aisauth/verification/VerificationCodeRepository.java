@@ -11,4 +11,6 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
     void deleteByDiscordIdAndGuildId(String discordId, String guildId);
 
     void deleteByExpiresAtBefore(LocalDateTime dateTime);
+
+    long countByExpiresAtAfter(LocalDateTime dateTime);
 }
