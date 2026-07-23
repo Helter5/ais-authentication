@@ -8,4 +8,6 @@ import java.util.List;
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     List<AuditLog> findByCategoryOrderByCreatedAtDesc(String category, Pageable pageable);
+
+    List<AuditLog> findByCategoryAndGuildIdOrderByCreatedAtDesc(String category, String guildId, Pageable pageable);
 }
