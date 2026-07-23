@@ -30,12 +30,14 @@ import java.util.Set;
 class CommandInteractionListener extends ListenerAdapter {
 
     private static final Set<String> KNOWN_COMMANDS = Set.of(
-            "verify", "code", "find", "manualverify", "warn", "warns", "mywarns", "removewarn", "clearwarns");
+            "verify", "code", "find", "manualverify", "warn", "warns", "mywarns", "removewarn", "clearwarns",
+            "info", "exportrole", "say", "serverinfo", "user");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
     private static final Set<String> REDACT_OPTIONS = Set.of("email");
 
     private final VerificationSlashCommandListener verificationCommandHandler;
     private final WarnSlashCommandListener warnCommandHandler;
+    private final UtilityCommandListener utilityCommandHandler;
     private final AdminSettingsService adminSettingsService;
     private final AuditLogService auditLogService;
 
@@ -95,6 +97,7 @@ class CommandInteractionListener extends ListenerAdapter {
         try {
             verificationCommandHandler.dispatch(event, ephemeralOverride);
             warnCommandHandler.dispatch(event, ephemeralOverride);
+            utilityCommandHandler.dispatch(event, ephemeralOverride);
             logCommand(event, "success", startedAt, null);
         } catch (Exception e) {
             log.error("Command execution error in guild {}", guildId, e);

@@ -7,7 +7,9 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Icon;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
@@ -108,7 +110,21 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("removewarn", "Remove a specific warning by its ID")
                         .addOption(OptionType.INTEGER, "id", "Warning ID to remove", true),
                 slash("clearwarns", "Clear all warnings for a user")
-                        .addOption(OptionType.USER, "user", "User to clear warnings for", true)
+                        .addOption(OptionType.USER, "user", "User to clear warnings for", true),
+                slash("info", "Show bot configuration information"),
+                slash("exportrole", "Export server members with a specific role")
+                        .addOption(OptionType.ROLE, "role", "Role to filter members by", true)
+                        .addOption(OptionType.BOOLEAN, "only",
+                                "true = members with ONLY this role | false = members with this role AND others", false),
+                slash("say", "Send a message as the bot")
+                        .addOptions(
+                                new OptionData(OptionType.STRING, "message", "Message to send", true).setMaxLength(2000),
+                                new OptionData(OptionType.CHANNEL, "channel",
+                                        "Channel to send the message in (defaults to this channel)", false)
+                                        .setChannelTypes(ChannelType.TEXT, ChannelType.NEWS)),
+                slash("serverinfo", "Display information about the server"),
+                slash("user", "Show detailed info about a server member")
+                        .addOption(OptionType.USER, "user", "Member to inspect", true)
         );
 
         Guild guild = StringUtils.hasText(discordBotProperties.guildId())
