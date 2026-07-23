@@ -2,10 +2,13 @@ package sk.gkanocz.aisauth.discordbot;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.verification.VerificationFacade;
 import sk.gkanocz.aisauth.verification.VerificationService;
@@ -22,6 +25,7 @@ class VerificationSlashCommandListener extends ListenerAdapter {
 
     private final VerificationFacade verificationFacade;
     private final VerificationService verificationService;
+    private final GuildSettingsService guildSettingsService;
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
@@ -64,6 +68,7 @@ class VerificationSlashCommandListener extends ListenerAdapter {
 
         try {
             verificationService.confirmVerification(discordId, guildId, code);
+            assignVerifiedRoleIfConfigured(event.getGuild(), event.getMember());
             event.getHook().sendMessage("Úspešne overené! Vitaj.").queue();
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
@@ -95,13 +100,19 @@ class VerificationSlashCommandListener extends ListenerAdapter {
     private void handleManualVerify(SlashCommandInteractionEvent event) {
         event.deferReply(true).queue();
 
-        User target = event.getOption("user").getAsUser();
+        Member target = event.getOption("user").getAsMember();
         String aisId = event.getOption("ais_id").getAsString();
         String email = event.getOption("email").getAsString();
         String guildId = event.getGuild().getId();
 
+        if (target == null) {
+            event.getHook().sendMessage("User not found in this server.").queue();
+            return;
+        }
+
         try {
             verificationService.manuallyVerify(target.getId(), guildId, aisId, email);
+            assignVerifiedRoleIfConfigured(event.getGuild(), target);
             event.getHook().sendMessage(
                     "<@" + target.getId() + "> has been manually verified with AIS ID `" + aisId + "`.").queue();
         } catch (DomainException e) {
@@ -110,5 +121,23 @@ class VerificationSlashCommandListener extends ListenerAdapter {
             log.error("Manual verify command failed", e);
             event.getHook().sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.").queue();
         }
+    }
+
+    private void assignVerifiedRoleIfConfigured(Guild guild, Member member) {
+        if (member == null) {
+            return;
+        }
+        String verifiedRoleId = guildSettingsService.getOrCreate(guild.getId()).getVerifiedRoleId();
+        if (verifiedRoleId == null) {
+            return;
+        }
+        Role role = guild.getRoleById(verifiedRoleId);
+        if (role == null) {
+            log.warn("Configured verified role {} not found in guild {}", verifiedRoleId, guild.getId());
+            return;
+        }
+        guild.addRoleToMember(member, role).reason("Verified").queue(
+                success -> { },
+                failure -> log.warn("Failed to assign verified role to {}: {}", member.getId(), failure.getMessage()));
     }
 }
