@@ -28,8 +28,7 @@ import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 public class DiscordBotService implements ApplicationRunner {
 
     private final DiscordBotProperties discordBotProperties;
-    private final VerificationSlashCommandListener verificationSlashCommandListener;
-    private final WarnSlashCommandListener warnSlashCommandListener;
+    private final CommandInteractionListener commandInteractionListener;
     private final GuildLifecycleListener guildLifecycleListener;
 
     private volatile JDA jda;
@@ -58,7 +57,7 @@ public class DiscordBotService implements ApplicationRunner {
         }
 
         jda = JDABuilder.createLight(discordBotProperties.token())
-                .addEventListeners(verificationSlashCommandListener, warnSlashCommandListener, guildLifecycleListener)
+                .addEventListeners(commandInteractionListener, guildLifecycleListener)
                 .build()
                 .awaitReady();
 

@@ -6,7 +6,6 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.shared.DomainException;
@@ -19,7 +18,7 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-class VerificationSlashCommandListener extends ListenerAdapter {
+class VerificationSlashCommandListener {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -27,20 +26,19 @@ class VerificationSlashCommandListener extends ListenerAdapter {
     private final VerificationService verificationService;
     private final GuildSettingsService guildSettingsService;
 
-    @Override
-    public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+    void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
-            case "verify" -> handleVerify(event);
-            case "code" -> handleCode(event);
-            case "find" -> handleFind(event);
-            case "manualverify" -> handleManualVerify(event);
+            case "verify" -> handleVerify(event, ephemeralOverride);
+            case "code" -> handleCode(event, ephemeralOverride);
+            case "find" -> handleFind(event, ephemeralOverride);
+            case "manualverify" -> handleManualVerify(event, ephemeralOverride);
             default -> {
             }
         }
     }
 
-    private void handleVerify(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleVerify(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
 
         String aisId = event.getOption("ais_id").getAsString();
         String discordId = event.getUser().getId();
@@ -59,8 +57,8 @@ class VerificationSlashCommandListener extends ListenerAdapter {
         }
     }
 
-    private void handleCode(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleCode(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
 
         String code = event.getOption("code").getAsString();
         String discordId = event.getUser().getId();
@@ -78,8 +76,8 @@ class VerificationSlashCommandListener extends ListenerAdapter {
         }
     }
 
-    private void handleFind(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleFind(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
 
         String aisId = event.getOption("ais_id").getAsString();
         String guildId = event.getGuild().getId();
@@ -97,8 +95,8 @@ class VerificationSlashCommandListener extends ListenerAdapter {
         event.getHook().sendMessage(message).queue();
     }
 
-    private void handleManualVerify(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleManualVerify(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
 
         Member target = event.getOption("user").getAsMember();
         String aisId = event.getOption("ais_id").getAsString();

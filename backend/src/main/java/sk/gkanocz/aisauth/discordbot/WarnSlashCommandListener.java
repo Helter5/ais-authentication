@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
@@ -25,28 +24,27 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-class WarnSlashCommandListener extends ListenerAdapter {
+class WarnSlashCommandListener {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final WarnService warnService;
     private final AuditLogService auditLogService;
 
-    @Override
-    public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+    void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
-            case "warn" -> handleWarn(event);
-            case "warns" -> handleWarns(event);
-            case "mywarns" -> handleMyWarns(event);
-            case "removewarn" -> handleRemoveWarn(event);
-            case "clearwarns" -> handleClearWarns(event);
+            case "warn" -> handleWarn(event, ephemeralOverride);
+            case "warns" -> handleWarns(event, ephemeralOverride);
+            case "mywarns" -> handleMyWarns(event, ephemeralOverride);
+            case "removewarn" -> handleRemoveWarn(event, ephemeralOverride);
+            case "clearwarns" -> handleClearWarns(event, ephemeralOverride);
             default -> {
             }
         }
     }
 
-    private void handleWarn(SlashCommandInteractionEvent event) {
-        event.deferReply().queue();
+    private void handleWarn(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
 
         Member target = event.getOption("user").getAsMember();
         String reason = event.getOption("reason").getAsString();
@@ -122,8 +120,8 @@ class WarnSlashCommandListener extends ListenerAdapter {
         }
     }
 
-    private void handleWarns(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
 
         OptionMapping userOption = event.getOption("user");
         String guildId = event.getGuild().getId();
@@ -139,14 +137,14 @@ class WarnSlashCommandListener extends ListenerAdapter {
         event.getHook().sendMessage(formatWarnList("Warnings for " + target.getName(), warns, false)).queue();
     }
 
-    private void handleMyWarns(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleMyWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
         List<Warn> warns = warnService.getWarns(event.getUser().getId(), event.getGuild().getId());
         event.getHook().sendMessage(formatWarnList("Your warnings", warns, false)).queue();
     }
 
-    private void handleRemoveWarn(SlashCommandInteractionEvent event) {
-        event.deferReply().queue();
+    private void handleRemoveWarn(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
         long warnId = event.getOption("id").getAsLong();
         String guildId = event.getGuild().getId();
 
@@ -158,8 +156,8 @@ class WarnSlashCommandListener extends ListenerAdapter {
         }
     }
 
-    private void handleClearWarns(SlashCommandInteractionEvent event) {
-        event.deferReply().queue();
+    private void handleClearWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
+        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
         User target = event.getOption("user").getAsUser();
         String guildId = event.getGuild().getId();
 
