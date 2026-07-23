@@ -14,6 +14,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import sk.gkanocz.aisauth.automod.AutoDeleteListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +31,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final DiscordBotProperties discordBotProperties;
     private final CommandInteractionListener commandInteractionListener;
     private final GuildLifecycleListener guildLifecycleListener;
+    private final AutoDeleteListener autoDeleteListener;
 
     private volatile JDA jda;
 
@@ -57,7 +59,7 @@ public class DiscordBotService implements ApplicationRunner {
         }
 
         jda = JDABuilder.createLight(discordBotProperties.token())
-                .addEventListeners(commandInteractionListener, guildLifecycleListener)
+                .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener)
                 .build()
                 .awaitReady();
 
