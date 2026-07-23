@@ -182,7 +182,7 @@ export const adminApi = {
     return res.data;
   },
 
-  getAccessLogs: async (guildId: string, limit = 100): Promise<{ id: number; discord_id: string; username: string; action: string; guild_ids: string[]; ip: string | null; details: string | null; created_at: string }[]> => {
+  getAccessLogs: async (guildId: string, limit = 100): Promise<{ id: number; discord_id: string; username: string; action: string; guild_id: string; ip: string | null; created_at: string }[]> => {
     const res = await api.get('/access-logs', { params: { guildId, limit } });
     return res.data;
   },

@@ -2,6 +2,7 @@ package sk.gkanocz.aisauth.auth;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.entities.Guild;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.admin.AccessLog;
+import sk.gkanocz.aisauth.admin.AccessLogRepository;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
@@ -42,6 +45,7 @@ public class AuthController {
     private final OAuthExchangeStore exchangeStore;
     private final DiscordBotService discordBotService;
     private final AdminSettingsService adminSettingsService;
+    private final AccessLogRepository accessLogRepository;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -64,7 +68,8 @@ public class AuthController {
     @GetMapping("/discord/callback")
     public ResponseEntity<Void> discordCallback(
             @RequestParam(required = false) String code,
-            @RequestParam(required = false) String state) {
+            @RequestParam(required = false) String state,
+            HttpServletRequest request) {
 
         if (code == null || state == null || !exchangeStore.consumeState(state)) {
             return redirectToFrontendLogin("invalid_state");
@@ -83,11 +88,26 @@ public class AuthController {
         JwtService.IssuedToken issuedToken =
                 jwtService.issueToken(user.id(), user.username(), user.avatar(), isSuperAdmin, eligibleGuildIds);
         adminSessionRepository.save(new AdminSession(issuedToken.jti(), user.id(), issuedToken.expiresAt()));
+        recordAccessLog(user, eligibleGuildIds, clientIp(request));
 
         String exchangeCode = exchangeStore.putToken(issuedToken.token());
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(frontendUrl + "/select-server?code=" + exchangeCode))
                 .build();
+    }
+
+    private void recordAccessLog(DiscordOAuthClient.DiscordUserResponse user, List<String> guildIds, String ip) {
+        for (String guildId : guildIds) {
+            accessLogRepository.save(new AccessLog(user.id(), user.username(), "login", guildId, ip));
+        }
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/exchange")
