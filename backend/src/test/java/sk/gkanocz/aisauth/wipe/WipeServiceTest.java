@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -97,15 +98,20 @@ class WipeServiceTest {
                 .thenReturn(List.of(new VerifiedUser("ais-1", "discord-1", "guild-1", "user@stuba.sk")));
 
         // Blocks the background wipe worker so "running" stays true until this test releases it,
-        // instead of racing the async completion of runWipe().
+        // instead of racing the async completion of runWipe(). reachedRoleLookup additionally
+        // confirms the worker actually entered the stubbed call before we assert on it, so this
+        // doesn't race Mockito's own unnecessary-stubbing check at test teardown either.
+        CountDownLatch reachedRoleLookup = new CountDownLatch(1);
         CountDownLatch releaseWorker = new CountDownLatch(1);
         when(guild.getRoleById(anyString())).thenAnswer(invocation -> {
+            reachedRoleLookup.countDown();
             releaseWorker.await(5, TimeUnit.SECONDS);
             return null;
         });
 
         try {
             wipeService.start(guild, false, List.of(), "actor-1", "actor");
+            assertThat(reachedRoleLookup.await(5, TimeUnit.SECONDS)).isTrue();
 
             assertThatThrownBy(() -> wipeService.start(guild, false, List.of(), "actor-1", "actor"))
                     .isInstanceOf(WipeInProgressException.class)
