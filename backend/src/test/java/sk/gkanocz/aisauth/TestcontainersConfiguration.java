@@ -12,7 +12,7 @@ import org.testcontainers.utility.DockerImageName;
  * (ddl-auto=validate) on every test run, not just at deploy time.
  */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
     @Bean
     @ServiceConnection

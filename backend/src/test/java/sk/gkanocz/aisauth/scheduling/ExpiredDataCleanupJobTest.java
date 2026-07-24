@@ -1,0 +1,58 @@
+package sk.gkanocz.aisauth.scheduling;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import sk.gkanocz.aisauth.TestcontainersConfiguration;
+import sk.gkanocz.aisauth.auth.AdminSession;
+import sk.gkanocz.aisauth.auth.AdminSessionRepository;
+import sk.gkanocz.aisauth.verification.VerificationCode;
+import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
+
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Regression test for a real bug: cleanupExpired() called repository.deleteByExpiresAtBefore()
+ * without @Transactional, which threw TransactionRequiredException the moment there was actually
+ * a matching row to delete (silent no-op when the table was empty, which is why it went unnoticed
+ * until expired rows had actually accumulated in a long-running container).
+ */
+@SpringBootTest
+@Import(TestcontainersConfiguration.class)
+class ExpiredDataCleanupJobTest {
+
+    @Autowired
+    private ExpiredDataCleanupJob expiredDataCleanupJob;
+    @Autowired
+    private VerificationCodeRepository verificationCodeRepository;
+    @Autowired
+    private AdminSessionRepository adminSessionRepository;
+
+    @Test
+    void deletesExpiredVerificationCodesAndSessionsWithoutThrowing() {
+        LocalDateTime past = LocalDateTime.now().minusMinutes(1);
+        VerificationCode savedCode = verificationCodeRepository.save(new VerificationCode(
+                "discord-1", "guild-1", "CODE123", "s@stuba.sk", "12345", past));
+        adminSessionRepository.save(new AdminSession("jti-1", "discord-1", past));
+
+        expiredDataCleanupJob.cleanupExpired();
+
+        assertThat(verificationCodeRepository.findById(savedCode.getId())).isEmpty();
+        assertThat(adminSessionRepository.findById("jti-1")).isEmpty();
+    }
+
+    @Test
+    void doesNotDeleteStillValidRows() {
+        LocalDateTime future = LocalDateTime.now().plusMinutes(15);
+        verificationCodeRepository.save(new VerificationCode(
+                "discord-2", "guild-1", "CODE456", "s2@stuba.sk", "67890", future));
+        adminSessionRepository.save(new AdminSession("jti-2", "discord-2", future));
+
+        expiredDataCleanupJob.cleanupExpired();
+
+        assertThat(adminSessionRepository.findById("jti-2")).isPresent();
+    }
+}

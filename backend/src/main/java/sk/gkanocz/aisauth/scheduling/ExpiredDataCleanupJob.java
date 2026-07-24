@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
@@ -19,6 +20,7 @@ public class ExpiredDataCleanupJob {
     private final AdminSessionRepository adminSessionRepository;
 
     @Scheduled(fixedRate = 15, timeUnit = TimeUnit.MINUTES)
+    @Transactional
     public void cleanupExpired() {
         LocalDateTime now = LocalDateTime.now();
         verificationCodeRepository.deleteByExpiresAtBefore(now);

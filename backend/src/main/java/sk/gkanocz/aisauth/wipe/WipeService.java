@@ -12,6 +12,8 @@ import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.StudentDirectoryService;
@@ -48,6 +50,7 @@ public class WipeService {
     private final StudentDirectoryService studentDirectoryService;
     private final VerificationProperties verificationProperties;
     private final AuditLogService auditLogService;
+    private final PlatformTransactionManager transactionManager;
 
     private final Map<String, WipeState> progress = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
@@ -199,7 +202,8 @@ public class WipeService {
             }
 
             try {
-                verifiedUserRepository.deleteByDiscordIdAndGuildId(user.getDiscordId(), guild.getId());
+                new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                        verifiedUserRepository.deleteByDiscordIdAndGuildId(user.getDiscordId(), guild.getId()));
             } catch (Exception e) {
                 state.stats.errors.incrementAndGet();
                 return;
