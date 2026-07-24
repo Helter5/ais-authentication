@@ -25,6 +25,25 @@ services:
       - "1025:1025" # SMTP
       - "8025:8025" # web UI (http://localhost:8025)
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: ais-auth-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-dev-only-change-me}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-dev-only-client-secret-change-me}
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: ../backend
@@ -36,6 +55,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      keycloak:
+        condition: service_healthy
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -44,7 +65,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-ais_auth}
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-change-me}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-ais-auth}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-ais-auth-backend}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-dev-only-client-secret-change-me}
+      KEYCLOAK_TOKEN_CLIENT_ID: ${KEYCLOAK_TOKEN_CLIENT_ID:-ais-auth-tokens}
       SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:-}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
