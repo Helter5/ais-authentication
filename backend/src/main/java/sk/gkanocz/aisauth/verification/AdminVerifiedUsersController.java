@@ -1,11 +1,14 @@
 package sk.gkanocz.aisauth.verification;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.auth.GuildAccessService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,9 +19,11 @@ import java.util.List;
 public class AdminVerifiedUsersController {
 
     private final VerifiedUserRepository verifiedUserRepository;
+    private final GuildAccessService guildAccessService;
 
     @GetMapping("/users")
-    public List<VerifiedUserResponse> getUsers(@RequestParam String guildId) {
+    public List<VerifiedUserResponse> getUsers(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
         return verifiedUserRepository.findByGuildId(guildId).stream()
                 .map(VerifiedUserResponse::from)
                 .toList();

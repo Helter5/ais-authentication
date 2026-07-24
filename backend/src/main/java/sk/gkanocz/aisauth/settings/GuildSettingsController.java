@@ -1,15 +1,18 @@
 package sk.gkanocz.aisauth.settings;
 
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
 import java.util.Map;
@@ -21,9 +24,11 @@ public class GuildSettingsController {
 
     private final GuildSettingsService guildSettingsService;
     private final DiscordBotService discordBotService;
+    private final GuildAccessService guildAccessService;
 
     @GetMapping("/settings")
-    public GuildSettingsResponse getSettings(@RequestParam String guildId) {
+    public GuildSettingsResponse getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
         GuildSettings settings = guildSettingsService.getOrCreate(guildId);
         Guild guild = discordBotService.requireGuild(guildId);
 
@@ -47,7 +52,9 @@ public class GuildSettingsController {
     }
 
     @PatchMapping("/settings")
-    public Map<String, Boolean> updateSetting(@RequestBody UpdateSettingRequest request) {
+    public Map<String, Boolean> updateSetting(
+            @AuthenticationPrincipal Claims claims, @RequestBody UpdateSettingRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
         guildSettingsService.updateField(request.guildId(), request.field(), request.value());
         return Map.of("success", true);
     }
