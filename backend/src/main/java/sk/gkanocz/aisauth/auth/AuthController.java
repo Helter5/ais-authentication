@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.admin.AccessLog;
 import sk.gkanocz.aisauth.admin.AccessLogRepository;
+import sk.gkanocz.aisauth.auth.keycloak.KeycloakUserService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
@@ -41,7 +43,8 @@ public class AuthController {
     private final DiscordOAuthProperties discordOAuthProperties;
     private final AdminProperties adminProperties;
     private final DiscordOAuthClient discordOAuthClient;
-    private final JwtService jwtService;
+    private final KeycloakUserService keycloakUserService;
+    private final JwtDecoder jwtDecoder;
     private final AdminSessionRepository adminSessionRepository;
     private final OAuthExchangeStore exchangeStore;
     private final DiscordBotService discordBotService;
@@ -86,8 +89,8 @@ public class AuthController {
             return redirectToFrontendLogin("unauthorized_manager_required");
         }
 
-        JwtService.IssuedToken issuedToken =
-                jwtService.issueToken(user.id(), user.username(), user.avatar(), isSuperAdmin, eligibleGuildIds);
+        KeycloakUserService.IssuedToken issuedToken = keycloakUserService.provisionAndIssueToken(
+                user.id(), user.username(), user.avatar(), isSuperAdmin, eligibleGuildIds);
         adminSessionRepository.save(new AdminSession(issuedToken.jti(), user.id(), issuedToken.expiresAt()));
         recordAccessLog(user, eligibleGuildIds, clientIp(request));
 
@@ -119,7 +122,7 @@ public class AuthController {
             return ResponseEntity.badRequest().build();
         }
 
-        Claims claims = jwtService.parseToken(token);
+        Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(token));
         response.addCookie(authCookie(token));
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }

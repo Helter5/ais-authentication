@@ -31,6 +31,12 @@ spring:
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:ais-auth}
+
 server:
   port: ${SERVER_PORT:8080}
 
@@ -41,9 +47,12 @@ management:
         enabled: true # /actuator/health/liveness a /readiness - nezavisia od LDAP (na rozdiel od agregovaneho /actuator/health), pouzivane v Docker HEALTHCHECK
 
 app:
-  jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
-    expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440} # 24h, ako v povodnom systeme
+  keycloak:
+    server-url: ${KEYCLOAK_URL:http://localhost:8180}
+    realm: ${KEYCLOAK_REALM:ais-auth}
+    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:ais-auth-backend}
+    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    token-client-id: ${KEYCLOAK_TOKEN_CLIENT_ID:ais-auth-tokens}
   verification:
     allowed-faculties:
       - fei-stud

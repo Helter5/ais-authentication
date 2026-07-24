@@ -1,7 +1,6 @@
 package sk.gkanocz.aisauth.auth;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -11,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String AUTH_COOKIE_NAME = "auth_token";
 
-    private final JwtService jwtService;
+    private final JwtDecoder jwtDecoder;
     private final AdminSessionRepository adminSessionRepository;
 
     @Override
@@ -38,7 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(String token) {
         try {
-            Claims claims = jwtService.parseToken(token);
+            Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(token));
             if (!adminSessionRepository.existsByJtiAndExpiresAtAfter(claims.getId(), LocalDateTime.now())) {
                 return;
             }
