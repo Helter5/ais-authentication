@@ -27,8 +27,6 @@ class AuthControllerIntegrationTest {
     private AuthenticatedRequestHelper auth;
     @Autowired
     private AdminSessionRepository adminSessionRepository;
-    @Autowired
-    private JwtService jwtService;
 
     @Test
     void sessionWithoutAnyTokenIsUnauthorized() throws Exception {
@@ -49,7 +47,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     void sessionWithTokenWhoseSessionRowWasRevokedIsUnauthorized() throws Exception {
-        JwtService.IssuedToken issued = jwtService.issueToken("discord-1", "u", null, false, java.util.List.of());
+        AuthenticatedRequestHelper.IssuedToken issued = auth.rawIssue("discord-1", "u", false, java.util.List.of());
         // deliberately not saving an AdminSession row for this jti - simulates a revoked/logged-out session
 
         mockMvc.perform(get("/api/auth/session").header(HttpHeaders.AUTHORIZATION, auth.bearer(issued.token())))
@@ -58,7 +56,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     void logoutActuallyDeletesTheSessionRow() throws Exception {
-        JwtService.IssuedToken issued = jwtService.issueToken("discord-7", "u", null, false, java.util.List.of());
+        AuthenticatedRequestHelper.IssuedToken issued = auth.rawIssue("discord-7", "u", false, java.util.List.of());
         adminSessionRepository.save(new AdminSession(
                 issued.jti(), "discord-7", java.time.LocalDateTime.now().plusHours(1)));
 
