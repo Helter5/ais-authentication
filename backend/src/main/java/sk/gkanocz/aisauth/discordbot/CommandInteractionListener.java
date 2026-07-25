@@ -57,7 +57,7 @@ class CommandInteractionListener extends ListenerAdapter {
 
         List<String> allowedGuildIds = adminSettingsService.get(
                 "allowed_guild_ids", new TypeReference<List<String>>() { }, List.of());
-        if (!allowedGuildIds.isEmpty() && !allowedGuildIds.contains(guildId)) {
+        if (!allowedGuildIds.contains(guildId)) {
             logCommand(event, "blocked", startedAt, "Server is not allowed");
             event.reply("**Bot príkazy nie sú povolené na tomto serveri.**").queue();
             return;
