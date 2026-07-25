@@ -258,10 +258,10 @@ export function Admin() {
           </div>
         </div>
 
-        <Panel icon={Shield} title="Super Admin" description="Configured via SUPER_USER_ID in .env — cannot be changed from the dashboard.">
+        <Panel icon={Shield} title="Super Admin" description="Configured via SUPER_ADMIN_IDS in .env — cannot be changed from the dashboard.">
           <div className="space-y-2">
             {superAdminIds.length === 0 ? (
-              <p className="text-xs text-zinc-600">No SUPER_USER_ID set in environment.</p>
+              <p className="text-xs text-zinc-600">No SUPER_ADMIN_IDS set in environment.</p>
             ) : superAdminIds.map(id => (
               <div key={id} className="flex items-center gap-3 rounded border border-zinc-800 bg-zinc-950/50 px-3 py-2.5 opacity-60 cursor-not-allowed select-none">
                 <Shield className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
@@ -269,7 +269,7 @@ export function Admin() {
                 <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-zinc-600 border border-zinc-700 rounded px-1.5 py-0.5">env only</span>
               </div>
             ))}
-            <p className="text-[11px] text-zinc-600 pt-1">Edit <span className="font-mono text-zinc-500">SUPER_USER_ID</span> in <span className="font-mono text-zinc-500">.env</span> and restart the bot to change super admins.</p>
+            <p className="text-[11px] text-zinc-600 pt-1">Edit <span className="font-mono text-zinc-500">SUPER_ADMIN_IDS</span> in <span className="font-mono text-zinc-500">.env</span> and restart the bot to change super admins.</p>
           </div>
         </Panel>
 
