@@ -54,4 +54,19 @@ class AdminControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nodeVersion").exists());
     }
+
+    @Test
+    void settingsIsForbiddenForRegularManager() throws Exception {
+        String token = auth.managerTokenFor("some-guild");
+
+        mockMvc.perform(get("/api/admin/settings").header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void settingsIsOkForSuperAdmin() throws Exception {
+        mockMvc.perform(get("/api/admin/settings").header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.super_admin_users").exists());
+    }
 }

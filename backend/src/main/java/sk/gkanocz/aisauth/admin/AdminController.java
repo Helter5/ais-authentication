@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.auth.AdminProperties;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
@@ -32,9 +33,16 @@ public class AdminController {
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
     private final AdminSettingsService adminSettingsService;
+    private final AdminProperties adminProperties;
     private final VerifiedUserRepository verifiedUserRepository;
     private final VerificationCodeRepository verificationCodeRepository;
     private final WarnRepository warnRepository;
+
+    @GetMapping("/settings")
+    public Map<String, String> getSettings(@AuthenticationPrincipal Claims claims) {
+        guildAccessService.assertSuperAdmin(claims);
+        return Map.of("super_admin_users", String.join(",", adminProperties.superAdminIds()));
+    }
 
     @GetMapping("/access")
     public Map<String, Boolean> getAccess(@AuthenticationPrincipal Claims claims) {
