@@ -358,6 +358,11 @@ export const adminApi = {
     return res.data;
   },
 
+  setCommandStatesBulk: async (guildId: string, commands: Record<string, boolean>): Promise<{ success: boolean }> => {
+    const res = await api.patch('/command-states/bulk', { guildId, commands });
+    return res.data;
+  },
+
   getCommandPermissionsSummary: async (guildId: string): Promise<{ command: string; allowedRoles: string[]; ignoredRoles: string[]; allowedChannels: string[]; ignoredChannels: string[]; adminOnly: boolean }[]> => {
     const res = await api.get('/command-permissions/summary', { params: { guildId } });
     return res.data;

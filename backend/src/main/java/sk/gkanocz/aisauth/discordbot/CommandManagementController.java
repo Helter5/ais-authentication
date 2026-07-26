@@ -67,6 +67,24 @@ public class CommandManagementController {
         return Map.of("success", true);
     }
 
+    /**
+     * Toggling many commands at once (the dashboard's "enable/disable all") must not go through
+     * N parallel PATCH /command-states calls: each does a read-modify-write of the same
+     * cmd_states_<guildId> blob, so concurrent requests race and only the last writer's single
+     * command survives. This applies every change in one read-modify-write instead.
+     */
+    @PatchMapping("/command-states/bulk")
+    public Map<String, Boolean> setCommandStates(@AuthenticationPrincipal Claims claims, @RequestBody BulkCommandStateRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        String key = "cmd_states_" + request.guildId();
+        Map<String, Boolean> states = new HashMap<>(
+                adminSettingsService.get(key, new TypeReference<Map<String, Boolean>>() { }, Map.of()));
+        states.putAll(request.commands());
+        adminSettingsService.set(key, states);
+        logDashboardChange(claims, "Bulk updated command states", request.guildId(), Map.of("commands", request.commands()));
+        return Map.of("success", true);
+    }
+
     @GetMapping("/command-permissions/summary")
     public List<CommandPermissionsSummary> getPermissionsSummary(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -190,6 +208,9 @@ public class CommandManagementController {
     }
 
     public record CommandStateRequest(String guildId, String command, boolean enabled) {
+    }
+
+    public record BulkCommandStateRequest(String guildId, Map<String, Boolean> commands) {
     }
 
     public record SavePermissionsRequest(

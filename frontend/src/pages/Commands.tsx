@@ -605,7 +605,7 @@ export function Commands() {
     cmds.forEach(cmd => { patch[cmd.name] = value; });
     setCmdStates(prev => ({ ...prev, ...patch }));
     try {
-      await Promise.all(cmds.map(cmd => adminApi.setCommandEnabled(guildId, cmd.name, value)));
+      await adminApi.setCommandStatesBulk(guildId, patch);
     } catch {
       setCmdStates(oldStates);
     } finally {
