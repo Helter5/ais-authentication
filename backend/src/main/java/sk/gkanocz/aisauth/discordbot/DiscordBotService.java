@@ -89,8 +89,16 @@ public class DiscordBotService implements ApplicationRunner {
         }
     }
 
-    private void registerCommands() {
-        List<SlashCommandData> commands = List.of(
+    /**
+     * The canonical command list - single source of truth for both startup registration and
+     * the dashboard's "Sync Visibility" redeploy. Reading commands back via jda.retrieveCommands()
+     * would return Discord's *global* application commands, which this bot never registers
+     * (commands go to a single fixed guild below), so that lookup is always empty; anything
+     * built from it and pushed with updateCommands() wipes the guild's commands instead of
+     * syncing them.
+     */
+    public List<SlashCommandData> baseCommands() {
+        return List.of(
                 slash("verify", "Over svoje AIS ID")
                         .addOption(OptionType.STRING, "ais_id", "Tvoje AIS ID", true),
                 slash("code", "Zadaj verifikačný kód z mailu")
@@ -126,6 +134,10 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("user", "Show detailed info about a server member")
                         .addOption(OptionType.USER, "user", "Member to inspect", true)
         );
+    }
+
+    private void registerCommands() {
+        List<SlashCommandData> commands = baseCommands();
 
         Guild guild = StringUtils.hasText(discordBotProperties.guildId())
                 ? jda.getGuildById(discordBotProperties.guildId())

@@ -3,14 +3,11 @@ package sk.gkanocz.aisauth.discordbot;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
-import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -167,13 +164,11 @@ public class CommandManagementController {
     public Map<String, Object> deployCommands(@AuthenticationPrincipal Claims claims, @RequestBody GuildIdRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
         Guild guild = discordBotService.requireGuild(request.guildId());
-        JDA jda = guild.getJDA();
 
-        List<Command> globalCommands = jda.retrieveCommands().complete();
         Map<String, Boolean> states = adminSettingsService.get(
                 "cmd_states_" + request.guildId(), new TypeReference<Map<String, Boolean>>() { }, Map.of());
 
-        List<CommandData> guildCommands = globalCommands.stream()
+        List<CommandData> guildCommands = discordBotService.baseCommands().stream()
                 .map(command -> toGuildCommandData(command, request.guildId(), states))
                 .toList();
 
@@ -181,14 +176,13 @@ public class CommandManagementController {
         return Map.of("success", true, "count", guildCommands.size());
     }
 
-    private CommandData toGuildCommandData(Command command, String guildId, Map<String, Boolean> states) {
+    private CommandData toGuildCommandData(SlashCommandData command, String guildId, Map<String, Boolean> states) {
         CommandPermissions permissions = adminSettingsService.get(
                 "cmd_perms_" + guildId + "_" + command.getName(), CommandPermissions.class, CommandPermissions.empty());
         boolean disabled = Boolean.FALSE.equals(states.get("/" + command.getName()));
 
-        SlashCommandData data = Commands.slash(command.getName(), command.getDescription());
-        command.getOptions().forEach(option -> data.addOptions(
-                new OptionData(option.getType(), option.getName(), option.getDescription(), option.isRequired())));
+        SlashCommandData data = Commands.slash(command.getName(), command.getDescription())
+                .addOptions(command.getOptions());
 
         if (disabled || permissions.adminOnly()) {
             data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR));
