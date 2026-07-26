@@ -49,7 +49,7 @@ public class KeycloakAdminClient {
         if (userId == null) {
             return createUser(adminToken, discordId, username, attributes);
         }
-        updateUserAttributes(adminToken, userId, attributes);
+        updateUserAttributes(adminToken, userId, discordId, username, attributes);
         return userId;
     }
 
@@ -132,16 +132,10 @@ public class KeycloakAdminClient {
     }
 
     private String createUser(String adminToken, String discordId, String username, Map<String, List<String>> attributes) {
-        Map<String, Object> body = Map.of(
-                "username", keycloakUsername(discordId),
-                "enabled", true,
-                // Keycloak's VERIFY_PROFILE required action blocks the later token grant unless
-                // these are set - identity was already proven via Discord OAuth2, so we mark it verified.
-                "email", discordId + "@discord.invalid",
-                "emailVerified", true,
-                "firstName", username,
-                "lastName", "Discord",
-                "attributes", attributes);
+        Map<String, Object> body = new HashMap<>(profileFields(discordId, username));
+        body.put("username", keycloakUsername(discordId));
+        body.put("enabled", true);
+        body.put("attributes", attributes);
 
         ResponseEntity<Void> response = restClient.post()
                 .uri(adminUrl() + "/users")
@@ -155,14 +149,32 @@ public class KeycloakAdminClient {
         return location.substring(location.lastIndexOf('/') + 1);
     }
 
-    private void updateUserAttributes(String adminToken, String userId, Map<String, List<String>> attributes) {
+    private void updateUserAttributes(
+            String adminToken, String userId, String discordId, String username, Map<String, List<String>> attributes) {
+        Map<String, Object> body = new HashMap<>(profileFields(discordId, username));
+        body.put("attributes", attributes);
         restClient.put()
                 .uri(adminUrl() + "/users/{id}", userId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("attributes", attributes))
+                .body(body)
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    /**
+     * Keycloak's VERIFY_PROFILE required action silently blocks the later token grant
+     * ("Account is not fully set up") unless every required profile field is populated -
+     * identity was already proven via Discord OAuth2, so we mark it verified. Applied on
+     * both create and update so a user who somehow exists in Keycloak without these fields
+     * (e.g. created by hand) gets repaired on their next login instead of staying broken.
+     */
+    private Map<String, Object> profileFields(String discordId, String username) {
+        return Map.of(
+                "email", discordId + "@discord.invalid",
+                "emailVerified", true,
+                "firstName", username,
+                "lastName", "Discord");
     }
 
     private String findUserId(String adminToken, String discordId) {
