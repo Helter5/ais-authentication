@@ -15,6 +15,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
 import sk.gkanocz.aisauth.ticket.TicketService;
@@ -41,6 +42,7 @@ public class HackedAccountTrapListener extends ListenerAdapter {
     private final AdminSettingsService adminSettingsService;
     private final AuditLogService auditLogService;
     private final TicketService ticketService;
+    private final DiscordModerationService moderationService;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
@@ -113,23 +115,25 @@ public class HackedAccountTrapListener extends ListenerAdapter {
 
         int totalDeleted = settings.deleteRecentMessages() ? sweepRecentMessages(guild, authorId, settings.cleanupMinutes()) : 0;
 
-        String action = settings.action();
-        boolean actionSucceeded = false;
+        // Anything other than "ban"/"kick" has always meant "timeout" here (the settings UI only
+        // ever offers these three), so normalize before handing off to the shared moderation service.
+        String action = "ban".equals(settings.action()) || "kick".equals(settings.action()) ? settings.action() : "timeout";
+        DiscordModerationService.Outcome outcome = moderationService.apply(
+                member, action, settings.reason(), Duration.ofMinutes(settings.timeoutMinutes()));
+        boolean actionSucceeded = outcome != null && outcome.success();
         String actionError = null;
-        try {
-            switch (action) {
-                case "ban" -> member.ban(0, java.util.concurrent.TimeUnit.SECONDS).reason(settings.reason()).complete();
-                case "kick" -> member.kick().reason(settings.reason()).complete();
-                default -> member.timeoutFor(Duration.ofMinutes(settings.timeoutMinutes())).reason(settings.reason()).complete();
-            }
-            actionSucceeded = true;
-        } catch (Exception e) {
-            actionError = e.getMessage();
-            log.error("HackedAccountTrap: Failed to {} user {}: {}", action, authorId, e.getMessage());
+        String result;
+        if (outcome == null) {
+            result = action + " failed";
+        } else if (outcome.success()) {
+            result = outcome.detail() + " applied";
+        } else {
+            actionError = outcome.detail();
+            result = action + " failed";
         }
-        String result = actionSucceeded
-                ? ("timeout".equals(action) ? settings.timeoutMinutes() + " minute timeout" : action) + " applied"
-                : action + " failed";
+        if (actionError != null) {
+            log.error("HackedAccountTrap: Failed to {} user {}: {}", action, authorId, actionError);
+        }
 
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("status", actionSucceeded ? "success" : "failed");

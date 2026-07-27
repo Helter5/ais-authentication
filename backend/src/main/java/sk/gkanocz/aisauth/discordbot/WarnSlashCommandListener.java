@@ -19,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -27,9 +26,11 @@ import java.util.concurrent.TimeUnit;
 class WarnSlashCommandListener {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final Duration THRESHOLD_TIMEOUT_DURATION = Duration.ofHours(24);
 
     private final WarnService warnService;
     private final AuditLogService auditLogService;
+    private final DiscordModerationService moderationService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -56,18 +57,34 @@ class WarnSlashCommandListener {
         }
 
         try {
+            long prospectiveCount = warnService.countWarns(target.getId(), guildId) + 1;
+            Optional<WarnThreshold> active = warnService.activeThreshold(guildId, prospectiveCount);
+
+            if (active.isPresent()) {
+                String blocker = moderationService.missingPermission(target, active.get().getAction());
+                if (blocker != null) {
+                    event.getHook().sendMessage("⚠️ Warn not recorded: the \"" + active.get().getAction()
+                            + "\" threshold at " + active.get().getWarnLimit() + " warns is in effect, but " + blocker + ".").queue();
+                    return;
+                }
+            }
+
             warnService.addWarn(guildId, target.getId(), event.getUser().getId(), reason);
             long warnCount = warnService.countWarns(target.getId(), guildId);
             Optional<WarnThreshold> matched = warnService.matchingThreshold(guildId, warnCount);
 
-            String actionTaken = matched.map(threshold -> applyPunishment(target, threshold, warnCount)).orElse(null);
+            Optional<PunishmentOutcome> outcome = matched.map(threshold -> applyPunishment(target, threshold, warnCount));
 
             StringBuilder message = new StringBuilder()
                     .append("**").append(target.getUser().getName()).append("** warned. Reason: ").append(reason)
                     .append("\nTotal warns: ").append(warnCount);
-            if (actionTaken != null) {
-                message.append("\nAuto-action: ").append(actionTaken);
-            }
+            outcome.ifPresent(o -> {
+                if (o.success()) {
+                    message.append("\nAuto-action: ").append(o.detail());
+                } else {
+                    message.append("\n⚠️ Auto-action (").append(o.action()).append(") failed: ").append(o.detail());
+                }
+            });
 
             event.getHook().sendMessage(message.toString()).queue();
         } catch (DomainException e) {
@@ -78,46 +95,32 @@ class WarnSlashCommandListener {
         }
     }
 
-    private String applyPunishment(Member target, WarnThreshold threshold, long warnCount) {
+    private PunishmentOutcome applyPunishment(Member target, WarnThreshold threshold, long warnCount) {
         String action = threshold.getAction();
-        String reason = "Reached " + warnCount + " warns";
-        String result;
-
-        try {
-            switch (action) {
-                case "ban" -> {
-                    target.ban(0, TimeUnit.SECONDS).reason(reason).complete();
-                    result = "banned";
-                }
-                case "kick" -> {
-                    target.kick().reason(reason).complete();
-                    result = "kicked";
-                }
-                case "timeout" -> {
-                    target.timeoutFor(Duration.ofHours(24)).reason(reason).complete();
-                    result = "timed out (24h)";
-                }
-                default -> {
-                    return null;
-                }
-            }
-
-            auditLogService.log(new AuditLogEntry(
-                    "automod", "Warning threshold " + action,
-                    target.getGuild().getId(), target.getGuild().getName(),
-                    null, null, target.getId(), target.getUser().getName(),
-                    Map.of("status", "success", "warningCount", warnCount, "result", result)));
-
-            return result;
-        } catch (Exception e) {
-            log.error("Auto-punishment failed", e);
-            auditLogService.log(new AuditLogEntry(
-                    "automod", "Warning threshold " + action,
-                    target.getGuild().getId(), target.getGuild().getName(),
-                    null, null, target.getId(), target.getUser().getName(),
-                    Map.of("status", "failed", "warningCount", warnCount, "error", String.valueOf(e.getMessage()))));
+        if ("none".equals(action)) {
             return null;
         }
+        String reason = "Reached " + warnCount + " warns";
+
+        DiscordModerationService.Outcome outcome = moderationService.apply(target, action, reason, THRESHOLD_TIMEOUT_DURATION);
+        if (outcome == null) {
+            return null;
+        }
+        if (!outcome.success()) {
+            log.error("Auto-punishment failed: {}", outcome.detail());
+        }
+        auditLogService.log(new AuditLogEntry(
+                "automod", "Warning threshold " + action,
+                target.getGuild().getId(), target.getGuild().getName(),
+                null, null, target.getId(), target.getUser().getName(),
+                outcome.success()
+                        ? Map.of("status", "success", "warningCount", warnCount, "result", outcome.detail())
+                        : Map.of("status", "failed", "warningCount", warnCount, "error", outcome.detail())));
+
+        return new PunishmentOutcome(action, outcome.success(), outcome.detail());
+    }
+
+    private record PunishmentOutcome(String action, boolean success, String detail) {
     }
 
     private void handleWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {

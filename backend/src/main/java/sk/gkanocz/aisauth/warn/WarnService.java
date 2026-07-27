@@ -43,6 +43,18 @@ public class WarnService {
                 .filter(threshold -> !"none".equals(threshold.getAction()));
     }
 
+    /**
+     * The highest configured threshold already reached at warnCount, i.e. the punishment tier
+     * currently in effect for this user - not just the one exact warn that first crossed it.
+     * Used to gate every subsequent warn on the same permission check, not only the triggering one.
+     */
+    public Optional<WarnThreshold> activeThreshold(String guildId, long warnCount) {
+        return warnThresholdRepository.findByGuildIdOrderByWarnLimitAsc(guildId).stream()
+                .filter(threshold -> !"none".equals(threshold.getAction()))
+                .filter(threshold -> threshold.getWarnLimit() <= warnCount)
+                .reduce((first, second) -> second);
+    }
+
     @Transactional
     public void removeWarn(Long warnId, String guildId) {
         Warn warn = warnRepository.findByIdAndGuildId(warnId, guildId)
