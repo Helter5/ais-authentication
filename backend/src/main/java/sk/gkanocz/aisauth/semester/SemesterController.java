@@ -10,9 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -32,7 +31,7 @@ public class SemesterController {
     private final AdminSettingsService adminSettingsService;
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
     private final SemesterVisibilityService semesterVisibilityService;
 
     @GetMapping("/semester/mappings")
@@ -62,7 +61,7 @@ public class SemesterController {
         }
         List<CategoryRef> previous = categories(request.guildId(), request.rocnik(), request.semester());
         adminSettingsService.set(mappingKey(request.guildId(), request.rocnik(), request.semester()), request.categories());
-        logDashboardChange(claims, request.guildId(), "Updated semester category mapping", Map.of(
+        dashboardAuditLogger.log(claims, request.guildId(), "Updated semester category mapping", Map.of(
                 "year", request.rocnik(), "semester", request.semester(), "before", previous, "after", request.categories()));
         return Map.of("success", true);
     }
@@ -85,7 +84,7 @@ public class SemesterController {
         boolean visible = Boolean.TRUE.equals(request.visible());
         SemesterVisibilityService.Result result = semesterVisibilityService.apply(guild, categoryIds, visible, false);
 
-        logDashboardChange(claims, request.guildId(), (visible ? "Showed" : "Hid") + " semester categories", Map.of(
+        dashboardAuditLogger.log(claims, request.guildId(), (visible ? "Showed" : "Hid") + " semester categories", Map.of(
                 "year", request.rocnik(), "semester", request.semester(),
                 "categoriesUpdated", result.categoriesUpdated(), "channelsUpdated", result.channelsUpdated(),
                 "rolesUpdated", result.rolesUpdated()));
@@ -113,7 +112,7 @@ public class SemesterController {
         settings.remove("guildId");
         Map<String, Object> previous = adminSettingsService.get(configsKey(guildId), new TypeReference<Map<String, Object>>() { }, Map.of());
         adminSettingsService.set(configsKey(guildId), settings);
-        logDashboardChange(claims, guildId, "Updated switchsemester settings", Map.of("before", previous, "after", settings));
+        dashboardAuditLogger.log(claims, guildId, "Updated switchsemester settings", Map.of("before", previous, "after", settings));
         return Map.of("success", true);
     }
 
@@ -142,17 +141,6 @@ public class SemesterController {
 
     static String configsKey(String guildId) {
         return "cmd_settings_" + guildId + "_switchsemester";
-    }
-
-    private void logDashboardChange(Claims claims, String guildId, String action, Map<String, Object> details) {
-        try {
-            Guild guild = discordBotService.jda().map(jda -> jda.getGuildById(guildId)).orElse(null);
-            auditLogService.log(new AuditLogEntry(
-                    "dashboard", action, guildId, guild == null ? null : guild.getName(),
-                    null, null, claims.getSubject(), claims.get("username", String.class), details));
-        } catch (Exception e) {
-            // best-effort audit trail; never block the underlying change on a logging failure
-        }
     }
 
     public record SaveMappingRequest(String guildId, Integer rocnik, Integer semester, List<CategoryRef> categories) {

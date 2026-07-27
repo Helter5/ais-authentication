@@ -6,15 +6,13 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.utils.FileUpload;
 import org.springframework.stereotype.Service;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
+import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
+import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +29,9 @@ import java.util.stream.Stream;
 public class SemesterOperationService {
 
     private final AdminSettingsService adminSettingsService;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
+    private final RecapChannelPoster recapChannelPoster;
+    private final DiscordModerationService moderationService;
     private final SemesterVisibilityService semesterVisibilityService;
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -148,7 +148,7 @@ public class SemesterOperationService {
                 try {
                     List<Member> allMembers = guild.loadMembers().get();
                     int removed = 0;
-                    int failed = 0;
+                    Map<String, Integer> failureReasons = new LinkedHashMap<>();
                     for (String roleId : sem.semesterRolesOrEmpty()) {
                         Role role = guild.getRoleById(roleId);
                         List<Member> targets = allMembers.stream().filter(m -> hasRole(m, roleId) && !m.getUser().isBot()).toList();
@@ -160,16 +160,18 @@ public class SemesterOperationService {
                                     guild.removeRoleFromMember(member, role).complete();
                                     removed++;
                                 } catch (Exception e) {
-                                    failed++;
+                                    recordFailure(failureReasons, e);
                                 }
                             }
                         }
                     }
+                    int failed = failureReasons.values().stream().mapToInt(Integer::intValue).sum();
                     errorCount += failed;
                     if (failed == 0) {
                         tracker.completeStep("cleanupRoles");
                     }
-                    tracker.save(95, "Subject roles cleared: " + removed + " removed" + (failed > 0 ? ", " + failed + " failed" : ""));
+                    tracker.save(95, "Subject roles cleared: " + removed + " removed"
+                            + (failed > 0 ? ", " + failed + " failed: " + summarizeFailures(failureReasons) : ""));
                 } catch (Exception e) {
                     errorCount++;
                     tracker.save(95, "[ERROR] Could not clear subject roles: " + e.getMessage());
@@ -348,6 +350,7 @@ public class SemesterOperationService {
                 tracker.save(95, "Role mappings already completed — skipped");
             } else if (!roleMappings.isEmpty()) {
                 tracker.save(70, "Applying " + roleMappings.size() + " role mapping(s)...");
+                Map<String, Integer> mappingFailureReasons = new LinkedHashMap<>();
                 for (int i = 0; i < roleMappings.size(); i++) {
                     SemesterDefinition.RoleMapping mapping = roleMappings.get(i);
                     if (mapping.fromRoleId() == null || mapping.toRoleIdsOrEmpty().isEmpty()) {
@@ -380,15 +383,17 @@ public class SemesterOperationService {
                             }
                             rolesProcessed++;
                         } catch (Exception e) {
-                            rolesFailed++;
+                            recordFailure(mappingFailureReasons, e);
                         }
                     }
                 }
+                rolesFailed = mappingFailureReasons.values().stream().mapToInt(Integer::intValue).sum();
                 errorCount += rolesFailed;
                 if (rolesFailed == 0) {
                     tracker.completeStep("roleMappings");
                 }
-                tracker.save(95, "Roles: " + rolesProcessed + " switched" + (rolesFailed > 0 ? ", " + rolesFailed + " failed" : ""));
+                tracker.save(95, "Roles: " + rolesProcessed + " switched"
+                        + (rolesFailed > 0 ? ", " + rolesFailed + " failed: " + summarizeFailures(mappingFailureReasons) : ""));
             } else {
                 tracker.completeStep("roleMappings");
                 tracker.save(95, "No role mappings — skipped");
@@ -401,7 +406,7 @@ public class SemesterOperationService {
                 tracker.save(96, "Removing " + semesterRoles.size() + " semester role(s) from " + oldName + " members...");
                 try {
                     int removed = 0;
-                    int removeFailed = 0;
+                    Map<String, Integer> failureReasons = new LinkedHashMap<>();
                     for (String roleId : semesterRoles) {
                         Role role = guild.getRoleById(roleId);
                         List<Member> targets = allMembers.stream().filter(m -> hasRole(m, roleId) && !m.getUser().isBot()).toList();
@@ -413,16 +418,18 @@ public class SemesterOperationService {
                                     guild.removeRoleFromMember(member, role).complete();
                                     removed++;
                                 } catch (Exception e) {
-                                    removeFailed++;
+                                    recordFailure(failureReasons, e);
                                 }
                             }
                         }
                     }
+                    int removeFailed = failureReasons.values().stream().mapToInt(Integer::intValue).sum();
                     errorCount += removeFailed;
                     if (removeFailed == 0) {
                         tracker.completeStep("cleanupRoles");
                     }
-                    tracker.save(98, "Semester roles cleared: " + removed + " removed" + (removeFailed > 0 ? ", " + removeFailed + " failed" : ""));
+                    tracker.save(98, "Semester roles cleared: " + removed + " removed"
+                            + (removeFailed > 0 ? ", " + removeFailed + " failed: " + summarizeFailures(failureReasons) : ""));
                 } catch (Exception e) {
                     errorCount++;
                     tracker.save(98, "[ERROR] Could not clear semester roles: " + e.getMessage());
@@ -476,27 +483,26 @@ public class SemesterOperationService {
     }
 
     private void logAudit(String actorId, String actorName, Guild guild, String action, Map<String, Object> details) {
-        try {
-            auditLogService.log(new AuditLogEntry(
-                    "dashboard", action, guild.getId(), guild.getName(), null, null, actorId, actorName, details));
-        } catch (Exception e) {
-            // best-effort audit trail; never block the underlying operation on a logging failure
-        }
+        dashboardAuditLogger.log(actorId, actorName, guild, action, details);
     }
 
     private void postRecap(Guild guild, String recapChannelId, String content, List<String> logs, String filename) {
-        try {
-            TextChannel recapChannel = guild.getTextChannelById(recapChannelId);
-            if (recapChannel == null) {
-                return;
-            }
-            String logText = String.join("\n", logs);
-            recapChannel.sendMessage(content)
-                    .addFiles(FileUpload.fromData(logText.getBytes(StandardCharsets.UTF_8), filename))
-                    .queue();
-        } catch (Exception e) {
-            log.error("Semester: failed to post recap: {}", e.getMessage());
-        }
+        recapChannelPoster.post(guild, recapChannelId, content, logs, filename);
+    }
+
+    /**
+     * Records why a single member's role change failed (missing permission, role hierarchy, ...)
+     * instead of the old behavior of just incrementing a bare counter with no explanation - so a
+     * "3 failed" result on the dashboard can actually be diagnosed without digging through logs.
+     */
+    private void recordFailure(Map<String, Integer> reasons, Exception e) {
+        reasons.merge(moderationService.describeFailure(e), 1, Integer::sum);
+    }
+
+    private String summarizeFailures(Map<String, Integer> reasons) {
+        return reasons.entrySet().stream()
+                .map(entry -> entry.getKey() + " (x" + entry.getValue() + ")")
+                .collect(Collectors.joining(", "));
     }
 
     public SemesterOperationState status(String guildId, String operation) {

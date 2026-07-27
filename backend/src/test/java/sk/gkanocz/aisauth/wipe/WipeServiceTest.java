@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.StudentDirectoryService;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
@@ -42,6 +43,8 @@ class WipeServiceTest {
     @Mock
     private AuditLogService auditLogService;
     @Mock
+    private RecapChannelPoster recapChannelPoster;
+    @Mock
     private Guild guild;
 
     private WipeService wipeService;
@@ -50,7 +53,7 @@ class WipeServiceTest {
     void setUp() {
         wipeService = new WipeService(
                 verifiedUserRepository, guildSettingsService, adminSettingsService,
-                studentDirectoryService, verificationProperties, auditLogService, null);
+                studentDirectoryService, verificationProperties, auditLogService, null, recapChannelPoster);
         lenient().when(guild.getId()).thenReturn("guild-1");
     }
 

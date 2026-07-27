@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -112,7 +111,7 @@ public class AutoDeleteController {
     }
 
     private List<String> readJson(String json) {
-        return objectMapper.readValue(json, new TypeReference<List<String>>() { });
+        return IgnoreListJson.read(objectMapper, json);
     }
 
     private AutoDeleteConfigResponse toResponse(AutoDeleteConfig config) {

@@ -12,9 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
@@ -28,7 +27,7 @@ public class RecapChannelsController {
     private final AdminSettingsService adminSettingsService;
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
 
     @GetMapping
     public RecapChannelsResponse getRecapChannels(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -49,7 +48,9 @@ public class RecapChannelsController {
         validate(guild, request.semesterChannelId());
         save(request.guildId(), "wipe", request.wipeChannelId());
         save(request.guildId(), "semester", request.semesterChannelId());
-        logDashboardChange(claims, guild, request);
+        dashboardAuditLogger.log(claims, guild, "Updated recap log channels",
+                Map.of("wipeChannelId", String.valueOf(request.wipeChannelId()),
+                        "semesterChannelId", String.valueOf(request.semesterChannelId())));
         return Map.of("success", true);
     }
 
@@ -82,18 +83,6 @@ public class RecapChannelsController {
         }
         boolean canSend = guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_SEND);
         return new RecapChannelsResponse.HealthEntry(canSend, true, canSend ? null : "Missing Send Messages permission");
-    }
-
-    private void logDashboardChange(Claims claims, Guild guild, SetRecapChannelsRequest request) {
-        try {
-            auditLogService.log(new AuditLogEntry(
-                    "dashboard", "Updated recap log channels", guild.getId(), guild.getName(),
-                    null, null, claims.getSubject(), claims.get("username", String.class),
-                    Map.of("wipeChannelId", String.valueOf(request.wipeChannelId()),
-                            "semesterChannelId", String.valueOf(request.semesterChannelId()))));
-        } catch (Exception e) {
-            // best-effort audit trail; never block the underlying change on a logging failure
-        }
     }
 
     public record SetRecapChannelsRequest(String guildId, String wipeChannelId, String semesterChannelId) {

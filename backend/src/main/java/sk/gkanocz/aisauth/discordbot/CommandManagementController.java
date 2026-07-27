@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.settings.AdminSetting;
 import sk.gkanocz.aisauth.settings.AdminSettingRepository;
@@ -40,7 +38,7 @@ public class CommandManagementController {
     private final AdminSettingsService adminSettingsService;
     private final AdminSettingRepository adminSettingRepository;
     private final GuildAccessService guildAccessService;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
     private final DiscordBotService discordBotService;
     private final ObjectMapper objectMapper;
 
@@ -59,7 +57,7 @@ public class CommandManagementController {
         Boolean previous = states.getOrDefault(request.command(), true);
         states.put(request.command(), request.enabled());
         adminSettingsService.set(key, states);
-        logDashboardChange(claims, (request.enabled() ? "Enabled " : "Disabled ") + request.command() + " command", request.guildId(),
+        dashboardAuditLogger.log(claims, request.guildId(), (request.enabled() ? "Enabled " : "Disabled ") + request.command() + " command",
                 Map.of("command", request.command(), "before", previous, "after", request.enabled()));
         return Map.of("success", true);
     }
@@ -78,7 +76,7 @@ public class CommandManagementController {
                 adminSettingsService.get(key, new TypeReference<Map<String, Boolean>>() { }, Map.of()));
         states.putAll(request.commands());
         adminSettingsService.set(key, states);
-        logDashboardChange(claims, "Bulk updated command states", request.guildId(), Map.of("commands", request.commands()));
+        dashboardAuditLogger.log(claims, request.guildId(), "Bulk updated command states", Map.of("commands", request.commands()));
         return Map.of("success", true);
     }
 
@@ -128,7 +126,7 @@ public class CommandManagementController {
                 request.ignoredRoles() == null ? List.of() : request.ignoredRoles(),
                 Boolean.TRUE.equals(request.adminOnly()));
         adminSettingsService.set(key, next);
-        logDashboardChange(claims, "Updated /" + request.command() + " permissions", request.guildId(),
+        dashboardAuditLogger.log(claims, request.guildId(), "Updated /" + request.command() + " permissions",
                 Map.of("command", request.command(), "before", previous, "after", next));
         return Map.of("success", true);
     }
@@ -155,7 +153,7 @@ public class CommandManagementController {
         LEGACY_SETTING_KEYS.forEach(settings::remove);
 
         adminSettingsService.set(key, settings);
-        logDashboardChange(claims, "Updated /" + command + " settings", guildId,
+        dashboardAuditLogger.log(claims, guildId, "Updated /" + command + " settings",
                 Map.of("command", command, "before", previous, "after", settings));
         return Map.of("success", true);
     }
@@ -188,17 +186,6 @@ public class CommandManagementController {
             data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR));
         }
         return data;
-    }
-
-    private void logDashboardChange(Claims claims, String action, String guildId, Map<String, Object> details) {
-        try {
-            Guild guild = discordBotService.jda().map(jda -> jda.getGuildById(guildId)).orElse(null);
-            auditLogService.log(new AuditLogEntry(
-                    "dashboard", action, guildId, guild == null ? null : guild.getName(),
-                    null, null, claims.getSubject(), claims.get("username", String.class), details));
-        } catch (Exception e) {
-            // best-effort audit trail; never block the underlying change on a logging failure
-        }
     }
 
     public record CommandStateRequest(String guildId, String command, boolean enabled) {

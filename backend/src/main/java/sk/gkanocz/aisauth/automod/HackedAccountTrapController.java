@@ -10,9 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
 import java.util.Map;
@@ -25,7 +24,7 @@ public class HackedAccountTrapController {
     private final HackedAccountTrapService hackedAccountTrapService;
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
 
     @GetMapping
     public HackedAccountTrapSettings getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -41,19 +40,7 @@ public class HackedAccountTrapController {
         Guild guild = discordBotService.requireGuild(request.guildId());
         HackedAccountTrapSettings previous = hackedAccountTrapService.get(request.guildId());
         HackedAccountTrapSettings saved = hackedAccountTrapService.save(guild, request);
-        logDashboardChange(claims, guild, previous, saved);
+        dashboardAuditLogger.log(claims, guild, "Updated Hacked Account Trap module", Map.of("before", previous, "after", saved));
         return saved;
-    }
-
-    private void logDashboardChange(
-            Claims claims, Guild guild, HackedAccountTrapSettings before, HackedAccountTrapSettings after) {
-        try {
-            auditLogService.log(new AuditLogEntry(
-                    "dashboard", "Updated Hacked Account Trap module", guild.getId(), guild.getName(),
-                    null, null, claims.getSubject(), claims.get("username", String.class),
-                    Map.of("before", before, "after", after)));
-        } catch (Exception e) {
-            // best-effort audit trail; never block the underlying change on a logging failure
-        }
     }
 }

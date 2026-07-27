@@ -10,7 +10,6 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.requests.ErrorResponse;
-import net.dv8tion.jda.api.utils.FileUpload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -19,6 +18,7 @@ import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.StudentDirectoryService;
 import sk.gkanocz.aisauth.directory.StudentRecord;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
@@ -26,7 +26,6 @@ import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +50,7 @@ public class WipeService {
     private final VerificationProperties verificationProperties;
     private final AuditLogService auditLogService;
     private final PlatformTransactionManager transactionManager;
+    private final RecapChannelPoster recapChannelPoster;
 
     private final Map<String, WipeState> progress = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
@@ -262,25 +262,11 @@ public class WipeService {
     }
 
     private void sendRecapChannel(Guild guild, GuildSettings guildSettings, int processed, int inactive, int errors, WipeState state) {
-        try {
-            String recapChannelId = adminSettingsService.get("recap_channel_wipe_" + guild.getId(), String.class, null);
-            if (recapChannelId == null) {
-                return;
-            }
-            TextChannel recapChannel = guild.getTextChannelById(recapChannelId);
-            if (recapChannel == null) {
-                return;
-            }
-            String logText = state.logs.stream()
-                    .map(e -> "[" + e.time() + "] " + e.msg())
-                    .reduce((a, b) -> a + "\n" + b).orElse("");
-            FileUpload attachment = FileUpload.fromData(logText.getBytes(StandardCharsets.UTF_8), "wipe-report.txt");
-            recapChannel.sendMessage(
-                    "**Wipe Complete** — " + processed + " checked, **" + inactive + " inactive removed**, " + errors + " errors")
-                    .addFiles(attachment).queue();
-        } catch (Exception e) {
-            log.error("Wipe: failed to post recap: {}", e.getMessage());
-        }
+        String recapChannelId = adminSettingsService.get("recap_channel_wipe_" + guild.getId(), String.class, null);
+        List<String> logLines = state.logs.stream().map(e -> "[" + e.time() + "] " + e.msg()).toList();
+        recapChannelPoster.post(guild, recapChannelId,
+                "**Wipe Complete** — " + processed + " checked, **" + inactive + " inactive removed**, " + errors + " errors",
+                logLines, "wipe-report.txt");
     }
 
     private record InactiveEntry(VerifiedUser user, Member member) {

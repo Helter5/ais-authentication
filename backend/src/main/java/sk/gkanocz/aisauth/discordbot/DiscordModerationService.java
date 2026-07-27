@@ -78,7 +78,13 @@ public class DiscordModerationService {
         };
     }
 
-    private String describeFailure(Exception e) {
+    /**
+     * Turns a JDA exception from any member-targeting action (not just ban/kick/timeout - also
+     * role add/remove, channel edits, etc.) into a human-readable reason. Public so callers doing
+     * their own bulk member operations (e.g. semester role sync) can report *why* an action failed
+     * instead of just counting it as a failure.
+     */
+    public String describeFailure(Exception e) {
         if (e instanceof InsufficientPermissionException ipe) {
             return "bot is missing the " + ipe.getPermission() + " permission";
         }

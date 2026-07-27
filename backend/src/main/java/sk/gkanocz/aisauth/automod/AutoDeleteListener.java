@@ -10,7 +10,6 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -112,6 +111,6 @@ public class AutoDeleteListener extends ListenerAdapter {
     }
 
     private List<String> readJson(String json) {
-        return objectMapper.readValue(json, new TypeReference<List<String>>() { });
+        return IgnoreListJson.read(objectMapper, json);
     }
 }
