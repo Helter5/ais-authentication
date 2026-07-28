@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class GuildSettingsService {
@@ -17,7 +19,23 @@ public class GuildSettingsService {
 
     @Transactional
     public void updateField(String guildId, String field, Object value) {
+        applyField(getOrCreate(guildId), field, value);
+    }
+
+    /**
+     * Applies every field in one load-mutate-save, so a caller updating several fields at once
+     * (e.g. the dashboard's log-channels form) doesn't fire N concurrent single-field PATCHes
+     * against this same row - Hibernate writes every mapped column on flush, so N racing
+     * transactions each loading their own stale snapshot would otherwise silently clobber each
+     * other's changes, leaving only the last writer's single field actually saved.
+     */
+    @Transactional
+    public void updateFields(String guildId, Map<String, Object> fields) {
         GuildSettings settings = getOrCreate(guildId);
+        fields.forEach((field, value) -> applyField(settings, field, value));
+    }
+
+    private void applyField(GuildSettings settings, String field, Object value) {
         switch (field) {
             case "verified_role_id" -> settings.setVerifiedRoleId(asString(value));
             case "inactive_role_id" -> settings.setInactiveRoleId(asString(value));

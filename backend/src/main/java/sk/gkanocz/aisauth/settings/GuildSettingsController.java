@@ -59,6 +59,14 @@ public class GuildSettingsController {
         return Map.of("success", true);
     }
 
+    @PatchMapping("/settings/bulk")
+    public Map<String, Boolean> updateSettings(
+            @AuthenticationPrincipal Claims claims, @RequestBody UpdateSettingsBulkRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        guildSettingsService.updateFields(request.guildId(), request.fields());
+        return Map.of("success", true);
+    }
+
     private GuildSettingsResponse.LogChannelHealthEntry checkChannelHealth(Guild guild, String channelId) {
         if (channelId == null) {
             return new GuildSettingsResponse.LogChannelHealthEntry(false, false, null, null, null);
@@ -73,5 +81,8 @@ public class GuildSettingsController {
     }
 
     public record UpdateSettingRequest(String guildId, String field, Object value) {
+    }
+
+    public record UpdateSettingsBulkRequest(String guildId, Map<String, Object> fields) {
     }
 }

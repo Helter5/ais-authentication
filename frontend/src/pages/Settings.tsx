@@ -680,12 +680,12 @@ function LogChannelsSection({ guildId, settings, channels }: {
   }, [settings.log_channel_id, settings.warn_log_channel_id, settings.spam_log_channel_id, settings.transcript_log_channel_id]);
 
   const handleSave = () => save(async () => {
-    await Promise.all([
-      adminApi.updateSetting(guildId, "log_channel_id", verificationLog || null),
-      adminApi.updateSetting(guildId, "warn_log_channel_id", moderationLog || null),
-      adminApi.updateSetting(guildId, "spam_log_channel_id", automodLog || null),
-      adminApi.updateSetting(guildId, "transcript_log_channel_id", transcriptLog || null),
-    ]);
+    await adminApi.updateSettingsBulk(guildId, {
+      log_channel_id: verificationLog || null,
+      warn_log_channel_id: moderationLog || null,
+      spam_log_channel_id: automodLog || null,
+      transcript_log_channel_id: transcriptLog || null,
+    });
   });
 
   return (

@@ -298,6 +298,11 @@ export const adminApi = {
     return res.data;
   },
 
+  updateSettingsBulk: async (guildId: string, fields: Record<string, unknown>): Promise<{ success: boolean }> => {
+    const res = await api.patch('/settings/bulk', { guildId, fields });
+    return res.data;
+  },
+
   getHackedAccountTrap: async (guildId: string): Promise<HackedAccountTrapSettings> => {
     const res = await api.get('/modules/hacked-account-trap', { params: { guildId } });
     return res.data;
