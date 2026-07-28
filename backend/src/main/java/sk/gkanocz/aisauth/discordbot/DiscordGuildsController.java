@@ -21,10 +21,11 @@ public class DiscordGuildsController {
 
     @GetMapping("/guilds")
     public List<GuildResponse> getGuilds(@AuthenticationPrincipal Claims claims) {
+        boolean isSuperAdmin = guildAccessService.isSuperAdmin(claims);
         List<String> eligibleGuildIds = guildAccessService.guildIds(claims);
         return discordBotService.jda()
                 .map(jda -> jda.getGuilds().stream()
-                        .filter(guild -> eligibleGuildIds.contains(guild.getId()))
+                        .filter(guild -> isSuperAdmin || eligibleGuildIds.contains(guild.getId()))
                         .map(GuildResponse::from)
                         .toList())
                 .orElseGet(List::of);

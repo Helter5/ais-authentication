@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -77,6 +79,14 @@ public class AuthController {
 
         if (code == null || state == null || !exchangeStore.consumeState(state)) {
             return redirectToFrontendLogin("invalid_state");
+        }
+
+        if (discordBotService.jda().isEmpty()) {
+            // Bot not connected yet (e.g. right after a deploy) - computeEligibleGuildIds would
+            // return an empty list for everyone, including super admins, and that empty list gets
+            // baked into the Keycloak user's guild_ids attribute and the minted token for its full
+            // lifetime. Refuse the login instead of silently granting a zero-guild session.
+            return redirectToFrontendLogin("bot_not_ready");
         }
 
         DiscordOAuthClient.DiscordTokenResponse tokenResponse = discordOAuthClient.exchangeCodeForToken(code);
@@ -179,6 +189,8 @@ public class AuthController {
         try {
             return guild.retrieveMemberById(discordId).complete();
         } catch (Exception e) {
+            log.warn("Could not fetch member {} in guild {} while computing manager-role eligibility: {}",
+                    discordId, guild.getId(), e.getMessage());
             return null;
         }
     }

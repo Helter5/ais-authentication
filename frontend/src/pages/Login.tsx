@@ -17,6 +17,8 @@ export function Login() {
       setErrorMessage("Access denied: configured Manager Role or Super Admin access required.");
     } else if (errorParam === 'access_revoked') {
       setErrorMessage("Your dashboard access has been revoked. Contact an administrator.");
+    } else if (errorParam === 'bot_not_ready') {
+      setErrorMessage("The bot just restarted and isn't connected yet. Please try again in a few seconds.");
     } else if (errorParam) {
       setErrorMessage(`Authentication failed: ${errorParam}`);
     }
