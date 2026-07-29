@@ -13,6 +13,7 @@ import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
@@ -45,6 +46,8 @@ class WipeServiceTest {
     @Mock
     private RecapChannelPoster recapChannelPoster;
     @Mock
+    private LogRoutingService logRoutingService;
+    @Mock
     private Guild guild;
 
     private WipeService wipeService;
@@ -53,7 +56,8 @@ class WipeServiceTest {
     void setUp() {
         wipeService = new WipeService(
                 verifiedUserRepository, guildSettingsService, adminSettingsService,
-                studentDirectoryService, verificationProperties, auditLogService, null, recapChannelPoster);
+                studentDirectoryService, verificationProperties, auditLogService, null, recapChannelPoster,
+                logRoutingService);
         lenient().when(guild.getId()).thenReturn("guild-1");
     }
 

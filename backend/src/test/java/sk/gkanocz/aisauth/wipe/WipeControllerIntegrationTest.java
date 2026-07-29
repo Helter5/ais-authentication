@@ -9,7 +9,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import sk.gkanocz.aisauth.TestcontainersConfiguration;
-import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.settings.LogChannelSubscription;
+import sk.gkanocz.aisauth.settings.LogChannelSubscriptionRepository;
+import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.support.AuthenticatedRequestHelper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -27,7 +29,7 @@ class WipeControllerIntegrationTest {
     @Autowired
     private AuthenticatedRequestHelper auth;
     @Autowired
-    private AdminSettingsService adminSettingsService;
+    private LogChannelSubscriptionRepository logChannelSubscriptionRepository;
 
     @Test
     void getSettingsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
@@ -108,7 +110,7 @@ class WipeControllerIntegrationTest {
     @Test
     void accessAllowedWhenRecapChannelIsConfigured() throws Exception {
         String guildId = "guild-wipe-access-3";
-        adminSettingsService.set("recap_channel_wipe_" + guildId, "channel-1");
+        logChannelSubscriptionRepository.save(new LogChannelSubscription(guildId, "channel-1", LogEventType.WIPE_RECAP));
         String token = auth.managerTokenFor(guildId);
 
         mockMvc.perform(get("/api/wipe/access")

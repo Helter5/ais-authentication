@@ -12,14 +12,14 @@ import sk.gkanocz.aisauth.TestcontainersConfiguration;
 import sk.gkanocz.aisauth.support.AuthenticatedRequestHelper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
-class RecapChannelsControllerIntegrationTest {
+class LogChannelsControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -27,10 +27,10 @@ class RecapChannelsControllerIntegrationTest {
     private AuthenticatedRequestHelper auth;
 
     @Test
-    void getRecapChannelsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+    void getLogChannelsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(get("/api/recap-channels")
+        mockMvc.perform(get("/api/log-channels")
                         .param("guildId", "some-other-guild")
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isForbidden())
@@ -38,13 +38,13 @@ class RecapChannelsControllerIntegrationTest {
     }
 
     @Test
-    void setRecapChannelsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+    void updateLogChannelsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(post("/api/recap-channels")
+        mockMvc.perform(put("/api/log-channels")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"some-other-guild\",\"wipeChannelId\":\"chan-1\",\"semesterChannelId\":\"chan-2\"}"))
+                        .content("{\"guildId\":\"some-other-guild\",\"assignments\":{\"WARN_ISSUED\":\"chan-1\"}}"))
                 .andExpect(status().isForbidden());
     }
 }

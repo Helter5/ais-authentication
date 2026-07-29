@@ -90,11 +90,11 @@ class GuildSettingsServiceTest {
     @Test
     void updateFieldAcceptsNullToClearAChannelId() {
         GuildSettings settings = new GuildSettings("guild-1");
-        settings.setLogChannelId("some-channel");
+        settings.setSpamTrapChannelId("some-channel");
         when(guildSettingsRepository.findById("guild-1")).thenReturn(Optional.of(settings));
 
-        guildSettingsService.updateField("guild-1", "log_channel_id", null);
+        guildSettingsService.updateField("guild-1", "spam_trap_channel_id", null);
 
-        assertThat(settings.getLogChannelId()).isNull();
+        assertThat(settings.getSpamTrapChannelId()).isNull();
     }
 }
