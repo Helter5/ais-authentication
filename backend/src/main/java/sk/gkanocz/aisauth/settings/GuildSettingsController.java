@@ -2,9 +2,6 @@ package sk.gkanocz.aisauth.settings;
 
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -13,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
-import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
 import java.util.Map;
 
@@ -23,32 +19,19 @@ import java.util.Map;
 public class GuildSettingsController {
 
     private final GuildSettingsService guildSettingsService;
-    private final DiscordBotService discordBotService;
     private final GuildAccessService guildAccessService;
 
     @GetMapping("/settings")
     public GuildSettingsResponse getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         GuildSettings settings = guildSettingsService.getOrCreate(guildId);
-        Guild guild = discordBotService.requireGuild(guildId);
-
-        GuildSettingsResponse.LogChannelHealth health = new GuildSettingsResponse.LogChannelHealth(
-                checkChannelHealth(guild, settings.getLogChannelId()),
-                checkChannelHealth(guild, settings.getWarnLogChannelId()),
-                checkChannelHealth(guild, settings.getSpamLogChannelId()),
-                checkChannelHealth(guild, settings.getTranscriptLogChannelId()));
 
         return new GuildSettingsResponse(
                 settings.getVerifiedRoleId(),
                 settings.getInactiveRoleId(),
-                settings.getLogChannelId(),
-                settings.getWarnLogChannelId(),
                 settings.getSpamTrapChannelId(),
-                settings.getSpamLogChannelId(),
                 settings.getSpamDeleteInterval(),
-                settings.isVerificationEnabled(),
-                settings.getTranscriptLogChannelId(),
-                health);
+                settings.isVerificationEnabled());
     }
 
     @PatchMapping("/settings")
@@ -65,19 +48,6 @@ public class GuildSettingsController {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
         guildSettingsService.updateFields(request.guildId(), request.fields());
         return Map.of("success", true);
-    }
-
-    private GuildSettingsResponse.LogChannelHealthEntry checkChannelHealth(Guild guild, String channelId) {
-        if (channelId == null) {
-            return new GuildSettingsResponse.LogChannelHealthEntry(false, false, null, null, null);
-        }
-        TextChannel channel = guild.getTextChannelById(channelId);
-        if (channel == null) {
-            return new GuildSettingsResponse.LogChannelHealthEntry(false, true, channelId, null, "Channel not found");
-        }
-        boolean canSend = guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_SEND);
-        return new GuildSettingsResponse.LogChannelHealthEntry(
-                canSend, true, channelId, channel.getName(), canSend ? null : "Missing Send Messages permission");
     }
 
     public record UpdateSettingRequest(String guildId, String field, Object value) {

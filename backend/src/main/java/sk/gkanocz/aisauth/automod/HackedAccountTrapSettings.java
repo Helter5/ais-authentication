@@ -7,7 +7,6 @@ public record HackedAccountTrapSettings(
         String trapChannelId,
         String action,
         int timeoutMinutes,
-        String logChannelId,
         boolean deleteTriggerMessage,
         boolean deleteRecentMessages,
         int cleanupMinutes,
@@ -26,23 +25,13 @@ public record HackedAccountTrapSettings(
         boolean incidentChannelTagRoles,
         List<String> incidentChannelTagRoleIds) {
 
-    public static HackedAccountTrapSettings defaults(String trapChannelId, String logChannelId, int cleanupMinutes) {
+    public static HackedAccountTrapSettings defaults(String trapChannelId, int cleanupMinutes) {
         return new HackedAccountTrapSettings(
-                trapChannelId != null, trapChannelId, "timeout", 1440, logChannelId,
+                trapChannelId != null, trapChannelId, "timeout", 1440,
                 true, true, cleanupMinutes, List.of(), true,
                 false, "Your account triggered the hacked-account trap in {server}. Please contact a server administrator if this was a mistake.",
                 "Hacked account trap triggered",
                 false, null, null, "hacked-{user}", false,
                 "Hacked account trap triggered by {user}.", false, false, List.of());
-    }
-
-    public HackedAccountTrapSettings withLogChannelId(String resolvedLogChannelId) {
-        return new HackedAccountTrapSettings(
-                enabled, trapChannelId, action, timeoutMinutes, resolvedLogChannelId,
-                deleteTriggerMessage, deleteRecentMessages, cleanupMinutes, exemptRoleIds, ignoreAdministrators,
-                dmUser, dmMessage, reason,
-                incidentChannelEnabled, incidentChannelCategoryId, incidentChannelClosedCategoryId,
-                incidentChannelNameTemplate, incidentChannelIncludeUser, incidentChannelMessage,
-                incidentChannelPostDmStatus, incidentChannelTagRoles, incidentChannelTagRoleIds);
     }
 }

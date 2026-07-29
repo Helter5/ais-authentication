@@ -14,6 +14,8 @@ import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import tools.jackson.core.type.TypeReference;
 
@@ -29,6 +31,7 @@ public class SemesterController {
     private static final List<Integer> VALID_ROCNIK = List.of(1, 2, 3);
 
     private final AdminSettingsService adminSettingsService;
+    private final LogRoutingService logRoutingService;
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
     private final DashboardAuditLogger dashboardAuditLogger;
@@ -124,8 +127,7 @@ public class SemesterController {
         if (!guildAccessService.canManageGuild(claims, guildId)) {
             return Map.of("allowed", false, "reason", "no_permission");
         }
-        String channelId = adminSettingsService.get("recap_channel_semester_" + guildId, String.class, null);
-        if (channelId == null) {
+        if (logRoutingService.channelIdFor(guildId, LogEventType.SEMESTER_RECAP).isEmpty()) {
             return Map.of("allowed", false, "reason", "no_channel");
         }
         return Map.of("allowed", true);

@@ -23,26 +23,14 @@ public class GuildSettings {
     @Column(name = "inactive_role_id", length = 32)
     private String inactiveRoleId;
 
-    @Column(name = "log_channel_id", length = 32)
-    private String logChannelId;
-
-    @Column(name = "warn_log_channel_id", length = 32)
-    private String warnLogChannelId;
-
     @Column(name = "spam_trap_channel_id", length = 32)
     private String spamTrapChannelId;
-
-    @Column(name = "spam_log_channel_id", length = 32)
-    private String spamLogChannelId;
 
     @Column(name = "spam_delete_interval", nullable = false)
     private int spamDeleteInterval = 60;
 
     @Column(name = "verification_enabled", nullable = false)
     private boolean verificationEnabled = true;
-
-    @Column(name = "transcript_log_channel_id", length = 32)
-    private String transcriptLogChannelId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -70,23 +58,8 @@ public class GuildSettings {
         touch();
     }
 
-    public void setLogChannelId(String logChannelId) {
-        this.logChannelId = logChannelId;
-        touch();
-    }
-
-    public void setWarnLogChannelId(String warnLogChannelId) {
-        this.warnLogChannelId = warnLogChannelId;
-        touch();
-    }
-
     public void setSpamTrapChannelId(String spamTrapChannelId) {
         this.spamTrapChannelId = spamTrapChannelId;
-        touch();
-    }
-
-    public void setSpamLogChannelId(String spamLogChannelId) {
-        this.spamLogChannelId = spamLogChannelId;
         touch();
     }
 
@@ -97,11 +70,6 @@ public class GuildSettings {
 
     public void setVerificationEnabled(boolean verificationEnabled) {
         this.verificationEnabled = verificationEnabled;
-        touch();
-    }
-
-    public void setTranscriptLogChannelId(String transcriptLogChannelId) {
-        this.transcriptLogChannelId = transcriptLogChannelId;
         touch();
     }
 

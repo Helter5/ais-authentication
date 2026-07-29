@@ -2,18 +2,24 @@ package sk.gkanocz.aisauth.discordbot;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
 import sk.gkanocz.aisauth.warn.WarnThreshold;
 
+import java.awt.Color;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -31,6 +37,7 @@ class WarnSlashCommandListener {
     private final WarnService warnService;
     private final AuditLogService auditLogService;
     private final DiscordModerationService moderationService;
+    private final LogRoutingService logRoutingService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -71,6 +78,15 @@ class WarnSlashCommandListener {
 
             warnService.addWarn(guildId, target.getId(), event.getUser().getId(), reason);
             long warnCount = warnService.countWarns(target.getId(), guildId);
+
+            sendLog(event.getGuild(), LogEventType.WARN_ISSUED, new EmbedBuilder()
+                    .setColor(new Color(0xF59E0B))
+                    .setTitle("Warning Issued")
+                    .addField("User", "<@" + target.getId() + "> (" + target.getUser().getName() + ")", true)
+                    .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                    .addField("Total Warns", String.valueOf(warnCount), true)
+                    .addField("Reason", reason, false));
+
             Optional<WarnThreshold> matched = warnService.matchingThreshold(guildId, warnCount);
 
             Optional<PunishmentOutcome> outcome = matched.map(threshold -> applyPunishment(target, threshold, warnCount));
@@ -117,6 +133,13 @@ class WarnSlashCommandListener {
                         ? Map.of("status", "success", "warningCount", warnCount, "result", outcome.detail())
                         : Map.of("status", "failed", "warningCount", warnCount, "error", outcome.detail())));
 
+        sendLog(target.getGuild(), LogEventType.WARN_THRESHOLD_ACTION, new EmbedBuilder()
+                .setColor(outcome.success() ? new Color(0xF97316) : new Color(0xEF4444))
+                .setTitle("Warn Threshold Action")
+                .addField("User", "<@" + target.getId() + "> (" + target.getUser().getName() + ")", true)
+                .addField("Warn Count", String.valueOf(warnCount), true)
+                .addField("Result", outcome.success() ? outcome.detail() + " applied" : action + " failed: " + outcome.detail(), false));
+
         return new PunishmentOutcome(action, outcome.success(), outcome.detail());
     }
 
@@ -152,8 +175,16 @@ class WarnSlashCommandListener {
         String guildId = event.getGuild().getId();
 
         try {
-            warnService.removeWarn(warnId, guildId);
+            Warn removed = warnService.removeWarn(warnId, guildId);
             event.getHook().sendMessage("Warn #" + warnId + " removed.").queue();
+
+            sendLog(event.getGuild(), LogEventType.WARN_REMOVED, new EmbedBuilder()
+                    .setColor(new Color(0x22C55E))
+                    .setTitle("Warning Removed")
+                    .addField("Warn ID", "#" + warnId, true)
+                    .addField("User", "<@" + removed.getDiscordId() + ">", true)
+                    .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                    .addField("Original Reason", removed.getReason(), false));
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         }
@@ -170,6 +201,29 @@ class WarnSlashCommandListener {
             return;
         }
         event.getHook().sendMessage("Cleared " + cleared + " warning(s) for " + target.getName() + ".").queue();
+
+        sendLog(event.getGuild(), LogEventType.WARNS_CLEARED, new EmbedBuilder()
+                .setColor(new Color(0x22C55E))
+                .setTitle("Warnings Cleared")
+                .addField("User", "<@" + target.getId() + "> (" + target.getName() + ")", true)
+                .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                .addField("Warnings Cleared", String.valueOf(cleared), true));
+    }
+
+    private void sendLog(Guild guild, LogEventType eventType, EmbedBuilder embed) {
+        String logChannelId = logRoutingService.channelIdFor(guild.getId(), eventType).orElse(null);
+        if (logChannelId == null) {
+            return;
+        }
+        TextChannel logChannel = guild.getTextChannelById(logChannelId);
+        if (logChannel == null) {
+            return;
+        }
+        try {
+            logChannel.sendMessageEmbeds(embed.build()).queue();
+        } catch (Exception e) {
+            log.error("Warn log: failed to send {} log: {}", eventType, e.getMessage());
+        }
     }
 
     private String formatWarnList(String title, List<Warn> warns, boolean includeTarget) {

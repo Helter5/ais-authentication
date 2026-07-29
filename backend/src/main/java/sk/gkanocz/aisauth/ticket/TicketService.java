@@ -15,7 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import sk.gkanocz.aisauth.auth.AdminProperties;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
-import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import tools.jackson.databind.ObjectMapper;
 
 import java.awt.Color;
@@ -31,7 +32,7 @@ public class TicketService {
     private final IncidentTicketRepository incidentTicketRepository;
     private final AdminSettingsService adminSettingsService;
     private final AdminProperties adminProperties;
-    private final GuildSettingsService guildSettingsService;
+    private final LogRoutingService logRoutingService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.frontend.url}")
@@ -91,7 +92,8 @@ public class TicketService {
     }
 
     public boolean saveTranscriptToLogChannel(TextChannel sourceChannel, IncidentTicket ticket, String url) {
-        String logChannelId = guildSettingsService.getOrCreate(ticket.getGuildId()).getTranscriptLogChannelId();
+        String logChannelId = logRoutingService.channelIdFor(ticket.getGuildId(), LogEventType.TICKET_TRANSCRIPT_SAVED)
+                .orElse(null);
         if (logChannelId == null) {
             return false;
         }

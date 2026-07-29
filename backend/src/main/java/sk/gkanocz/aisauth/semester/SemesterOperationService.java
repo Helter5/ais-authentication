@@ -11,6 +11,8 @@ import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
 import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ public class SemesterOperationService {
     private final RecapChannelPoster recapChannelPoster;
     private final DiscordModerationService moderationService;
     private final SemesterVisibilityService semesterVisibilityService;
+    private final LogRoutingService logRoutingService;
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -41,7 +44,7 @@ public class SemesterOperationService {
     public void startSetup(Guild guild, String semesterName, boolean visible, boolean clearRoles, boolean resume,
                             String actorId, String actorName) {
         String guildId = guild.getId();
-        String recapChannelId = adminSettingsService.get("recap_channel_semester_" + guildId, String.class, null);
+        String recapChannelId = logRoutingService.channelIdFor(guildId, LogEventType.SEMESTER_RECAP).orElse(null);
         if (recapChannelId == null) {
             throw InvalidRequestException.withMessage("Semester log channel not configured.");
         }
@@ -462,7 +465,7 @@ public class SemesterOperationService {
             auditDetails.put("incompleteSteps", incompleteSteps);
             logAudit(actorId, actorName, guild, "Ran semester switch", auditDetails);
 
-            String recapChannelId = adminSettingsService.get("recap_channel_semester_" + guild.getId(), String.class, null);
+            String recapChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.SEMESTER_RECAP).orElse(null);
             if (recapChannelId != null) {
                 postRecap(guild, recapChannelId,
                         "**Semester Switch " + ("success".equals(finalStatus) ? "Complete" : "Finished With Errors") + "** — `"

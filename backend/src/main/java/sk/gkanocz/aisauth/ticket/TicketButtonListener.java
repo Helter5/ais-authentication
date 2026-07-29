@@ -12,7 +12,8 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -34,7 +35,7 @@ public class TicketButtonListener extends ListenerAdapter {
     private final IncidentTicketRepository incidentTicketRepository;
     private final TicketService ticketService;
     private final AdminSettingsService adminSettingsService;
-    private final GuildSettingsService guildSettingsService;
+    private final LogRoutingService logRoutingService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -159,7 +160,7 @@ public class TicketButtonListener extends ListenerAdapter {
             event.reply("No transcript yet — close the ticket first.").setEphemeral(true).queue();
             return;
         }
-        if (guildSettingsService.getOrCreate(ticket.getGuildId()).getTranscriptLogChannelId() == null) {
+        if (logRoutingService.channelIdFor(ticket.getGuildId(), LogEventType.TICKET_TRANSCRIPT_SAVED).isEmpty()) {
             event.reply("Set a Transcript Log channel in Settings → Log Channels before saving transcripts.")
                     .setEphemeral(true).queue();
             return;

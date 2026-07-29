@@ -12,7 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
-import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,7 @@ public class WipeController {
     private final WipeService wipeService;
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
-    private final AdminSettingsService adminSettingsService;
+    private final LogRoutingService logRoutingService;
 
     @GetMapping("/settings")
     public WipeSettings getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -41,8 +42,7 @@ public class WipeController {
         if (!guildAccessService.canManageGuild(claims, guildId)) {
             return Map.of("allowed", false, "reason", "no_permission");
         }
-        String channelId = adminSettingsService.get("recap_channel_wipe_" + guildId, String.class, null);
-        if (channelId == null) {
+        if (logRoutingService.channelIdFor(guildId, LogEventType.WIPE_RECAP).isEmpty()) {
             return Map.of("allowed", false, "reason", "no_channel");
         }
         return Map.of("allowed", true);

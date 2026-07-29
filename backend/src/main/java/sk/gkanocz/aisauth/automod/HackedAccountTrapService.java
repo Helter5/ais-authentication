@@ -29,13 +29,11 @@ public class HackedAccountTrapService {
     public HackedAccountTrapSettings get(String guildId) {
         GuildSettings guildSettings = guildSettingsService.getOrCreate(guildId);
         HackedAccountTrapSettings defaults = HackedAccountTrapSettings.defaults(
-                guildSettings.getSpamTrapChannelId(), guildSettings.getSpamLogChannelId(),
-                guildSettings.getSpamDeleteInterval());
+                guildSettings.getSpamTrapChannelId(), guildSettings.getSpamDeleteInterval());
 
         Map<String, Object> merged = new LinkedHashMap<>(
                 objectMapper.convertValue(defaults, new TypeReference<Map<String, Object>>() { }));
         merged.putAll(adminSettingsService.get(key(guildId), new TypeReference<Map<String, Object>>() { }, Map.of()));
-        merged.put("logChannelId", guildSettings.getSpamLogChannelId());
         return objectMapper.convertValue(merged, HackedAccountTrapSettings.class);
     }
 
@@ -45,7 +43,6 @@ public class HackedAccountTrapService {
 
         HackedAccountTrapSettings settings = new HackedAccountTrapSettings(
                 request.enabled(), request.trapChannelId(), request.action(), request.timeoutMinutes(),
-                guildSettingsService.getOrCreate(guild.getId()).getSpamLogChannelId(),
                 Boolean.TRUE.equals(request.deleteTriggerMessage()), Boolean.TRUE.equals(request.deleteRecentMessages()),
                 request.cleanupMinutes(), distinct(request.exemptRoleIds()), Boolean.TRUE.equals(request.ignoreAdministrators()),
                 Boolean.TRUE.equals(request.dmUser()), request.dmMessage().trim(),

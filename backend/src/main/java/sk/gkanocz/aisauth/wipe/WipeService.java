@@ -22,6 +22,8 @@ import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
@@ -51,6 +53,7 @@ public class WipeService {
     private final AuditLogService auditLogService;
     private final PlatformTransactionManager transactionManager;
     private final RecapChannelPoster recapChannelPoster;
+    private final LogRoutingService logRoutingService;
 
     private final Map<String, WipeState> progress = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
@@ -138,7 +141,7 @@ public class WipeService {
                     .toList();
             futures.forEach(CompletableFuture::join);
 
-            sendInactiveLogEmbeds(guild, guildSettings, inactiveEntries);
+            sendInactiveLogEmbeds(guild, inactiveEntries);
 
             int processed = state.stats.processed.get();
             int inactive = state.stats.inactive.get();
@@ -154,7 +157,7 @@ public class WipeService {
                 // best-effort audit trail
             }
 
-            sendRecapChannel(guild, guildSettings, processed, inactive, errors, state);
+            sendRecapChannel(guild, processed, inactive, errors, state);
         } catch (Exception e) {
             state.log("Fatal wipe error: " + e.getMessage(), "error");
             log.error("Wipe error", e);
@@ -236,11 +239,13 @@ public class WipeService {
         }
     }
 
-    private void sendInactiveLogEmbeds(Guild guild, GuildSettings guildSettings, List<InactiveEntry> inactiveEntries) {
-        if (guildSettings.getLogChannelId() == null || inactiveEntries.isEmpty()) {
+    private void sendInactiveLogEmbeds(Guild guild, List<InactiveEntry> inactiveEntries) {
+        String logChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.WIPE_INACTIVE_USER_REMOVED)
+                .orElse(null);
+        if (logChannelId == null || inactiveEntries.isEmpty()) {
             return;
         }
-        TextChannel logChannel = guild.getTextChannelById(guildSettings.getLogChannelId());
+        TextChannel logChannel = guild.getTextChannelById(logChannelId);
         if (logChannel == null) {
             return;
         }
@@ -261,8 +266,8 @@ public class WipeService {
         }
     }
 
-    private void sendRecapChannel(Guild guild, GuildSettings guildSettings, int processed, int inactive, int errors, WipeState state) {
-        String recapChannelId = adminSettingsService.get("recap_channel_wipe_" + guild.getId(), String.class, null);
+    private void sendRecapChannel(Guild guild, int processed, int inactive, int errors, WipeState state) {
+        String recapChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.WIPE_RECAP).orElse(null);
         List<String> logLines = state.logs.stream().map(e -> "[" + e.time() + "] " + e.msg()).toList();
         recapChannelPoster.post(guild, recapChannelId,
                 "**Wipe Complete** — " + processed + " checked, **" + inactive + " inactive removed**, " + errors + " errors",

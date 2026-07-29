@@ -56,10 +56,11 @@ public class WarnService {
     }
 
     @Transactional
-    public void removeWarn(Long warnId, String guildId) {
+    public Warn removeWarn(Long warnId, String guildId) {
         Warn warn = warnRepository.findByIdAndGuildId(warnId, guildId)
                 .orElseThrow(() -> WarnNotFoundException.withId(warnId));
         warnRepository.delete(warn);
+        return warn;
     }
 
     @Transactional

@@ -18,6 +18,8 @@ import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.ticket.TicketService;
 
 import java.awt.Color;
@@ -43,6 +45,7 @@ public class HackedAccountTrapListener extends ListenerAdapter {
     private final AuditLogService auditLogService;
     private final TicketService ticketService;
     private final DiscordModerationService moderationService;
+    private final LogRoutingService logRoutingService;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
@@ -152,8 +155,8 @@ public class HackedAccountTrapListener extends ListenerAdapter {
                 "automod", "Hacked account trap " + action, guild.getId(), guild.getName(),
                 triggerChannelId, event.getChannel().getName(), authorId, authorTag, details));
 
-        sendSpamLog(guild, settings, authorId, authorTag, triggerChannelId, triggerContent, result,
-                totalDeleted, incidentChannel, imageAttachmentUrl);
+        sendSpamLog(guild, authorId, authorTag, triggerChannelId, triggerContent, result,
+                totalDeleted, incidentChannel, imageAttachmentUrl, settings.cleanupMinutes());
     }
 
     private String triggerContent(Message message) {
@@ -287,12 +290,15 @@ public class HackedAccountTrapListener extends ListenerAdapter {
     }
 
     private void sendSpamLog(
-            Guild guild, HackedAccountTrapSettings settings, String authorId, String authorTag, String triggerChannelId,
-            String triggerContent, String result, int totalDeleted, TextChannel incidentChannel, String imageAttachmentUrl) {
-        if (settings.logChannelId() == null) {
+            Guild guild, String authorId, String authorTag, String triggerChannelId,
+            String triggerContent, String result, int totalDeleted, TextChannel incidentChannel,
+            String imageAttachmentUrl, int cleanupMinutes) {
+        String logChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.HACKED_ACCOUNT_TRAP_TRIGGERED)
+                .orElse(null);
+        if (logChannelId == null) {
             return;
         }
-        TextChannel logChannel = guild.getTextChannelById(settings.logChannelId());
+        TextChannel logChannel = guild.getTextChannelById(logChannelId);
         if (logChannel == null) {
             return;
         }
@@ -304,7 +310,7 @@ public class HackedAccountTrapListener extends ListenerAdapter {
                 .addField("Trap Channel", "<#" + triggerChannelId + ">", true)
                 .addField("Message", triggerContent, false)
                 .addField("Action", result, true)
-                .addField("Messages Deleted", totalDeleted + " (last " + settings.cleanupMinutes() + " min)", true);
+                .addField("Messages Deleted", totalDeleted + " (last " + cleanupMinutes + " min)", true);
         if (incidentChannel != null) {
             embed.addField("Incident Channel", "<#" + incidentChannel.getId() + ">", true);
         }

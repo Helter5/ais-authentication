@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import sk.gkanocz.aisauth.warn.Warn;
@@ -42,6 +44,7 @@ class UtilityCommandListener {
     private final VerificationProperties verificationProperties;
     private final WarnService warnService;
     private final VerifiedUserRepository verifiedUserRepository;
+    private final LogRoutingService logRoutingService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -71,14 +74,15 @@ class UtilityCommandListener {
                 .setDescription("**Server:** " + guild.getName() + "\n**Server ID:** " + guild.getId())
                 .addField("Allowed Faculties", String.join(", ", verificationProperties.allowedFaculties()), false)
                 .addField("Required Status", verificationProperties.requiredAccountStatus(), true)
-                .addField("Log Channel", channelMention(settings.getLogChannelId()), true)
-                .addField("Warn Log Channel", channelMention(settings.getWarnLogChannelId()), true)
+                .addField("Warn Log Channel", channelMention(
+                        logRoutingService.channelIdFor(guild.getId(), LogEventType.WARN_ISSUED).orElse(null)), true)
                 .addField("Verified Users", String.valueOf(verifiedUserRepository.countByGuildId(guild.getId())), true)
                 .addField("Verified Role", roleMention(guild, settings.getVerifiedRoleId()), true)
                 .addField("Inactive Role", roleMention(guild, settings.getInactiveRoleId()), true)
                 .addField("Warn Limit Settings", warnLimitInfo, false)
                 .addField("Hacked Account Trap Channel", channelMention(settings.getSpamTrapChannelId()), true)
-                .addField("Spam Log Channel", channelMention(settings.getSpamLogChannelId()), true)
+                .addField("Spam Log Channel", channelMention(
+                        logRoutingService.channelIdFor(guild.getId(), LogEventType.HACKED_ACCOUNT_TRAP_TRIGGERED).orElse(null)), true)
                 .addField("Spam Delete Interval", settings.getSpamDeleteInterval() + " min", true)
                 .setThumbnail(guild.getIconUrl())
                 .setFooter("SU FE")
