@@ -55,6 +55,12 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
+    void refreshWithoutRefreshTokenCookieIsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void logoutActuallyDeletesTheSessionRow() throws Exception {
         AuthenticatedRequestHelper.IssuedToken issued = auth.rawIssue("discord-7", "u", false, java.util.List.of());
         adminSessionRepository.save(new AdminSession(
