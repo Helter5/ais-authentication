@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { refreshSession } from '@/lib/authRefresh';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
@@ -14,6 +15,10 @@ interface AuthContextType {
 
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function fetchSession() {
+  return fetch(`${API_URL}/auth/session`, { credentials: 'include' });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -42,9 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .catch(console.error)
         .finally(() => setAuthLoading(false));
     } else {
-      fetch(`${API_URL}/auth/session`, { credentials: 'include' })
+      fetchSession()
         .then(async response => {
-          if (!response.ok) throw new Error('Session invalid');
+          if (!response.ok) {
+            // Access token may have simply expired since the last visit - try a silent
+            // refresh before giving up and treating the user as logged out.
+            if (!(await refreshSession())) throw new Error('Session invalid');
+            response = await fetchSession();
+            if (!response.ok) throw new Error('Session invalid');
+          }
           const data = await response.json();
           setUser(data.user);
         })

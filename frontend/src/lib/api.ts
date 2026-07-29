@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshSession } from './authRefresh';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -6,7 +7,17 @@ const api = axios.create({ baseURL: API_URL, withCredentials: true });
 
 api.interceptors.response.use(
   res => res,
-  err => {
+  async err => {
+    const originalRequest = err.config;
+    const isAuthEndpoint = typeof originalRequest?.url === 'string' && originalRequest.url.includes('/auth/');
+
+    if (err.response?.status === 401 && !isAuthEndpoint && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      if (await refreshSession()) {
+        return api(originalRequest);
+      }
+    }
+
     if (err.response?.status === 401) {
       window.location.href = '/login';
     }
