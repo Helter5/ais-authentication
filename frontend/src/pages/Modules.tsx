@@ -64,8 +64,11 @@ export function Modules() {
     adminApi.getHackedAccountTrap(guildId)
       .then(data => { if (!cancelled) setTrapSettings(data); })
       .catch(error => { if (!cancelled) console.error(error); });
-    adminApi.getSettings(guildId)
-      .then(s => { if (!cancelled) setSpamLogChannelId(s.spam_log_channel_id); })
+    adminApi.getLogChannels(guildId)
+      .then(r => {
+        if (cancelled) return;
+        setSpamLogChannelId(r.eventTypes.find(e => e.eventType === "HACKED_ACCOUNT_TRAP_TRIGGERED")?.channelId ?? null);
+      })
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getAutoDeleteEnabled(guildId)
       .then(r => { if (!cancelled) setAdEnabled(r.enabled); })

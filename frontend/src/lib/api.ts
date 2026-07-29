@@ -84,7 +84,6 @@ export interface HackedAccountTrapSettings {
   trapChannelId: string | null;
   action: 'timeout' | 'kick' | 'ban';
   timeoutMinutes: number;
-  logChannelId: string | null;
   deleteTriggerMessage: boolean;
   deleteRecentMessages: boolean;
   cleanupMinutes: number;
@@ -274,20 +273,9 @@ export const adminApi = {
   getSettings: async (guildId: string): Promise<{
     verified_role_id: string | null;
     inactive_role_id: string | null;
-    log_channel_id: string | null;
-    warn_log_channel_id: string | null;
     spam_trap_channel_id: string | null;
-    spam_log_channel_id: string | null;
     spam_delete_interval: number;
     verification_enabled: boolean;
-    transcript_log_channel_id: string | null;
-    log_channel_health: Record<'verification' | 'moderation' | 'automod' | 'transcript', {
-      ok: boolean;
-      configured: boolean;
-      channelId?: string;
-      channelName?: string;
-      error: string | null;
-    }>;
   }> => {
     const res = await api.get('/settings', { params: { guildId } });
     return res.data;
@@ -300,6 +288,27 @@ export const adminApi = {
 
   updateSettingsBulk: async (guildId: string, fields: Record<string, unknown>): Promise<{ success: boolean }> => {
     const res = await api.patch('/settings/bulk', { guildId, fields });
+    return res.data;
+  },
+
+  getLogChannels: async (guildId: string): Promise<{
+    eventTypes: {
+      eventType: string;
+      label: string;
+      description: string;
+      channelId: string | null;
+      channelName: string | null;
+      ok: boolean;
+      configured: boolean;
+      error: string | null;
+    }[];
+  }> => {
+    const res = await api.get('/log-channels', { params: { guildId } });
+    return res.data;
+  },
+
+  updateLogChannels: async (guildId: string, assignments: Record<string, string | null>): Promise<{ success: boolean }> => {
+    const res = await api.put('/log-channels', { guildId, assignments });
     return res.data;
   },
 
@@ -400,20 +409,6 @@ export const adminApi = {
 
   getSemesterAccess: async (guildId: string): Promise<{ allowed: boolean; reason?: string }> => {
     const res = await api.get('/semester/access', { params: { guildId } });
-    return res.data;
-  },
-
-  getRecapChannels: async (guildId: string): Promise<{
-    wipeChannelId: string | null;
-    semesterChannelId: string | null;
-    health: Record<'wipe' | 'semester', { ok: boolean; configured: boolean; error: string | null }>;
-  }> => {
-    const res = await api.get('/recap-channels', { params: { guildId } });
-    return res.data;
-  },
-
-  setRecapChannels: async (guildId: string, wipeChannelId: string | null, semesterChannelId: string | null): Promise<{ success: boolean }> => {
-    const res = await api.post('/recap-channels', { guildId, wipeChannelId, semesterChannelId });
     return res.data;
   },
 

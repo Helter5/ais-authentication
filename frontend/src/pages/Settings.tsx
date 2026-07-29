@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { adminApi } from "@/lib/api";
 import {
   Loader2, CheckCircle2, AlertCircle, Search, X, Plus,
-  ChevronDown, Shield, Bell, AlertTriangle, Info,
-  Hash, AtSign, UserCheck, UserMinus, UserX, Clock, MessageSquare, ArrowRight, Users, Save, FileText,
+  ChevronDown, Shield, Bell, AlertTriangle,
+  Hash, AtSign, UserCheck, UserMinus, UserX, Clock, MessageSquare, ArrowRight, Users, Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -140,11 +140,10 @@ function Section({ icon: Icon, title, description, children }: {
 
 // ─── Field row ────────────────────────────────────────────────────────────────
 
-function FieldRow({ label, hint, icon: Icon, info, children }: {
+function FieldRow({ label, hint, icon: Icon, children }: {
   label: string;
   hint?: string;
   icon?: React.ElementType;
-  info?: { source: string; description: string }[];
   children: React.ReactNode;
 }) {
   return (
@@ -153,79 +152,10 @@ function FieldRow({ label, hint, icon: Icon, info, children }: {
         <p className="flex items-center gap-1.5 text-xs font-semibold text-zinc-300">
           {Icon && <Icon className="w-3.5 h-3.5 text-zinc-500" />}
           {label}
-          {info && <InfoTooltip items={info} />}
         </p>
         {hint && <p className="text-[11px] text-zinc-600 mt-0.5">{hint}</p>}
       </div>
       <div>{children}</div>
-    </div>
-  );
-}
-
-// ─── Log channel "what writes here" info tooltip ──────────────────────────────
-
-const LOG_CHANNEL_PRODUCERS: Record<string, { source: string; description: string }[]> = {
-  verification: [
-    { source: "/verify", description: "Successful verification" },
-    { source: "/manualverify", description: "Manual verification by an admin" },
-    { source: "/code", description: "Verification via redemption code" },
-    { source: "Member update watcher", description: "Suspicious verified-role changes" },
-    { source: "Member leave watcher", description: "Removed verification record on leave" },
-    { source: "Sync service", description: "Periodic database cleanup" },
-  ],
-  moderation: [
-    { source: "/warn", description: "New warning issued" },
-    { source: "/removewarn", description: "Warning removed" },
-    { source: "/clearwarns", description: "All warnings cleared" },
-  ],
-  automod: [
-    { source: "Hacked Account Trap module", description: "Trap triggered (timeout/kick/ban)" },
-    { source: "/warn", description: "Automatic action when a warn threshold is reached" },
-  ],
-  wipe: [
-    { source: "Wipe page", description: "Recap report after a wipe run" },
-  ],
-  semester: [
-    { source: "Semester Switch page", description: "Recap report after a semester switch" },
-  ],
-  transcript: [
-    { source: "Hacked Account Trap module", description: "Incident ticket transcript, saved when its Transcript button is clicked" },
-  ],
-};
-
-function InfoTooltip({ items }: { items: { source: string; description: string }[] }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative inline-flex">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-zinc-600 hover:text-indigo-300 transition-colors"
-        aria-label="What logs to this channel"
-      >
-        <Info className="h-3.5 w-3.5" />
-      </button>
-      {open && (
-        <div className="absolute z-50 left-0 top-full mt-1.5 w-64 rounded-lg border border-zinc-700 bg-zinc-800 p-3 shadow-xl">
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">Writes to this channel</p>
-          <ul className="space-y-1.5">
-            {items.map(item => (
-              <li key={item.source} className="text-xs leading-snug">
-                <span className="font-semibold text-zinc-200">{item.source}</span>
-                <span className="text-zinc-500"> — {item.description}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -606,129 +536,145 @@ function ManagerRolesSection({ guildId }: { guildId: string }) {
   );
 }
 
-function RecapLogsSection({ guildId, channels }: { guildId: string; channels: DiscordChannel[] }) {
-  const [wipeChannelId, setWipeChannelId] = useState<string>("");
-  const [semesterChannelId, setSemesterChannelId] = useState<string>("");
+type LogChannelEntry = Awaited<ReturnType<typeof adminApi.getLogChannels>>["eventTypes"][number];
+
+function LogChannelsSection({ guildId, channels }: { guildId: string; channels: DiscordChannel[] }) {
+  const [entries, setEntries] = useState<LogChannelEntry[]>([]);
+  const [assignments, setAssignments] = useState<Record<string, string | null>>({});
+  const [channelSlots, setChannelSlots] = useState<string[]>([]);
+  const [newChannel, setNewChannel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [health, setHealth] = useState<Record<'wipe' | 'semester', { ok: boolean; configured: boolean; error: string | null }> | null>(null);
   const { save, indicator } = useSave();
 
   useEffect(() => {
-    adminApi.getRecapChannels(guildId)
-      .then(r => {
-        setWipeChannelId(r.wipeChannelId ?? "");
-        setSemesterChannelId(r.semesterChannelId ?? "");
-        setHealth(r.health);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    adminApi.getLogChannels(guildId).then(r => {
+      const initial: Record<string, string | null> = {};
+      const slots: string[] = [];
+      r.eventTypes.forEach(e => {
+        initial[e.eventType] = e.channelId;
+        if (e.channelId && !slots.includes(e.channelId)) slots.push(e.channelId);
+      });
+      setEntries(r.eventTypes);
+      setAssignments(initial);
+      setChannelSlots(slots);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [guildId]);
 
-  const handleSave = () =>
-    save(() => adminApi.setRecapChannels(guildId, wipeChannelId || null, semesterChannelId || null));
+  const channelOptions = channels.map(c => ({ id: c.id, name: `#${c.name}` }));
+  const channelName = (id: string) => channelOptions.find(c => c.id === id)?.name ?? `#${id}`;
 
-  const chanOpts = channels.map(c => ({ id: c.id, name: `#${c.name}` }));
+  const reassign = (fromChannelId: string | null, toChannelId: string | null) => {
+    setAssignments(a => {
+      const next = { ...a };
+      Object.keys(next).forEach(key => { if (next[key] === fromChannelId) next[key] = toChannelId; });
+      return next;
+    });
+  };
+
+  const addChannelSlot = () => {
+    if (!newChannel || channelSlots.includes(newChannel)) return;
+    setChannelSlots(s => [...s, newChannel]);
+    setNewChannel(null);
+  };
+
+  const removeChannelSlot = (channelId: string) => {
+    setChannelSlots(s => s.filter(id => id !== channelId));
+    reassign(channelId, null);
+  };
+
+  const changeSlotChannel = (oldChannelId: string, newChannelId: string | null) => {
+    if (!newChannelId || newChannelId === oldChannelId || channelSlots.includes(newChannelId)) return;
+    setChannelSlots(s => s.map(id => id === oldChannelId ? newChannelId : id));
+    reassign(oldChannelId, newChannelId);
+  };
+
+  const toggleEvent = (eventType: string, channelId: string) => {
+    setAssignments(a => ({ ...a, [eventType]: a[eventType] === channelId ? null : channelId }));
+  };
+
+  const handleSave = () => save(() => adminApi.updateLogChannels(guildId, assignments));
+
+  const unassigned = entries.filter(e => !assignments[e.eventType]);
 
   return (
-    <Section icon={FileText} title="Recap Log Channels" description="Where wipe and semester switch reports are sent after completion. Required to access those tools.">
+    <Section icon={Bell} title="Log Channels" description="Pick a channel, then choose which events log to it.">
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
       ) : (
-        <div className="space-y-3">
-          {health && Object.entries(health).filter(([, item]) => item.configured && !item.ok).map(([type, item]) => (
-            <div key={type} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+        <div className="space-y-4">
+          {entries.filter(e => e.configured && !e.ok && assignments[e.eventType] === e.channelId).map(e => (
+            <div key={e.eventType} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-              <span><strong className="capitalize">{type} recap:</strong> {item.error}</span>
+              <span><strong>{e.label}:</strong> {e.error}</span>
             </div>
           ))}
-          <FieldRow label="Wipe Log" icon={Hash} info={LOG_CHANNEL_PRODUCERS.wipe} hint="Required to access the Wipe page">
-            <Picker options={chanOpts} value={wipeChannelId} onChange={id => setWipeChannelId(id ?? "")} placeholder="Select channel…" />
-          </FieldRow>
-          <FieldRow label="Semester Log" icon={Hash} info={LOG_CHANNEL_PRODUCERS.semester} hint="Required to access the Semester Switch page">
-            <Picker options={chanOpts} value={semesterChannelId} onChange={id => setSemesterChannelId(id ?? "")} placeholder="Select channel…" />
-          </FieldRow>
+
+          {channelSlots.length === 0 && (
+            <p className="text-xs text-zinc-600">No log channels configured yet.</p>
+          )}
+
+          {channelSlots.map(channelId => (
+            <div key={channelId} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Hash className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                <div className="flex-1">
+                  <Picker
+                    options={channelOptions.filter(c => c.id === channelId || !channelSlots.includes(c.id))}
+                    value={channelId}
+                    onChange={id => id && changeSlotChannel(channelId, id)}
+                    placeholder="Select channel…" />
+                </div>
+                <button onClick={() => removeChannelSlot(channelId)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="space-y-1 pl-1">
+                {entries.map(e => (
+                  <div key={e.eventType} className="flex items-start gap-2 py-1">
+                    <button type="button" onClick={() => toggleEvent(e.eventType, channelId)}
+                      className={cn("mt-0.5 flex h-4 w-4 items-center justify-center rounded border flex-shrink-0",
+                        assignments[e.eventType] === channelId ? "border-indigo-500 bg-indigo-600" : "border-zinc-600")}>
+                      {assignments[e.eventType] === channelId && <CheckCircle2 className="h-3 w-3 text-white" />}
+                    </button>
+                    <span className="text-xs leading-snug">
+                      <span className="font-semibold text-zinc-200">{e.label}</span>
+                      <span className="text-zinc-500"> — {e.description}</span>
+                      {assignments[e.eventType] && assignments[e.eventType] !== channelId && (
+                        <span className="text-zinc-600"> (currently {channelName(assignments[e.eventType]!)})</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {unassigned.length > 0 && (
+            <p className="text-[11px] text-zinc-600">Not logged anywhere: {unassigned.map(e => e.label).join(", ")}</p>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end pt-1">
+            <div>
+              <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Add channel</p>
+              <Picker
+                options={channelOptions.filter(c => !channelSlots.includes(c.id))}
+                value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" />
+            </div>
+            <button onClick={addChannelSlot} disabled={!newChannel}
+              className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
+
           <div className="flex items-center gap-3 pt-1">
             <button onClick={handleSave}
               className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
-              <Save className="h-4 w-4" /> Save
+              <Save className="h-4 w-4" /> Save Log Channels
             </button>
             {indicator}
           </div>
         </div>
       )}
-    </Section>
-  );
-}
-
-function LogChannelsSection({ guildId, settings, channels }: {
-  guildId: string;
-  settings: GuildSettings;
-  channels: DiscordChannel[];
-}) {
-  const [verificationLog, setVerificationLog] = useState(settings.log_channel_id ?? "");
-  const [moderationLog, setModerationLog] = useState(settings.warn_log_channel_id ?? "");
-  const [automodLog, setAutomodLog] = useState(settings.spam_log_channel_id ?? "");
-  const [transcriptLog, setTranscriptLog] = useState(settings.transcript_log_channel_id ?? "");
-  const { save, indicator } = useSave();
-  const channelOptions = channels.map(channel => ({ id: channel.id, name: `#${channel.name}` }));
-
-  useEffect(() => {
-    setVerificationLog(settings.log_channel_id ?? "");
-    setModerationLog(settings.warn_log_channel_id ?? "");
-    setAutomodLog(settings.spam_log_channel_id ?? "");
-    setTranscriptLog(settings.transcript_log_channel_id ?? "");
-  }, [settings.log_channel_id, settings.warn_log_channel_id, settings.spam_log_channel_id, settings.transcript_log_channel_id]);
-
-  const handleSave = () => save(async () => {
-    await adminApi.updateSettingsBulk(guildId, {
-      log_channel_id: verificationLog || null,
-      warn_log_channel_id: moderationLog || null,
-      spam_log_channel_id: automodLog || null,
-      transcript_log_channel_id: transcriptLog || null,
-    });
-  });
-
-  return (
-    <Section icon={Bell} title="Log Channels" description="Central destinations for operational Discord logs. Command execution history remains available under Logs → Commands.">
-      <div className="space-y-4">
-        {Object.entries(settings.log_channel_health).filter(([, item]) => item.configured && !item.ok).map(([type, item]) => (
-          <div key={type} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-            <span><strong className="capitalize">{type} log:</strong> {item.error}</span>
-          </div>
-        ))}
-        <FieldRow
-          label="Verification Log"
-          icon={UserCheck}
-          info={LOG_CHANNEL_PRODUCERS.verification}>
-          <Picker options={channelOptions} value={verificationLog} onChange={id => setVerificationLog(id ?? "")} placeholder="Select channel…" />
-        </FieldRow>
-        <FieldRow
-          label="Moderation Log"
-          icon={Shield}
-          info={LOG_CHANNEL_PRODUCERS.moderation}>
-          <Picker options={channelOptions} value={moderationLog} onChange={id => setModerationLog(id ?? "")} placeholder="Select channel…" />
-        </FieldRow>
-        <FieldRow
-          label="Automod Log"
-          icon={AlertTriangle}
-          info={LOG_CHANNEL_PRODUCERS.automod}>
-          <Picker options={channelOptions} value={automodLog} onChange={id => setAutomodLog(id ?? "")} placeholder="Select channel…" />
-        </FieldRow>
-        <FieldRow
-          label="Transcript Log"
-          icon={FileText}
-          info={LOG_CHANNEL_PRODUCERS.transcript}>
-          <Picker options={channelOptions} value={transcriptLog} onChange={id => setTranscriptLog(id ?? "")} placeholder="Select channel…" />
-        </FieldRow>
-        <div className="flex items-center gap-3 pt-1">
-          <button onClick={handleSave}
-            className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
-            <Save className="h-4 w-4" /> Save Log Channels
-          </button>
-          {indicator}
-        </div>
-      </div>
     </Section>
   );
 }
@@ -804,8 +750,7 @@ export function Settings() {
             {/* Right column */}
             <div className="flex flex-col gap-4">
               <ManagerRolesSection guildId={guildId} />
-              <LogChannelsSection guildId={guildId} settings={settings} channels={channels} />
-              <RecapLogsSection guildId={guildId} channels={channels} />
+              <LogChannelsSection guildId={guildId} channels={channels} />
             </div>
           </div>
         )}

@@ -10,7 +10,6 @@ const DEFAULT_TRAP_SETTINGS: HackedAccountTrapSettings = {
   trapChannelId: null,
   action: "timeout",
   timeoutMinutes: 1440,
-  logChannelId: null,
   deleteTriggerMessage: true,
   deleteRecentMessages: true,
   cleanupMinutes: 60,
@@ -63,15 +62,16 @@ export function HackedAccountTrapModule() {
       adminApi.getDiscordTextChannels(guildId),
       adminApi.getDiscordCategories(guildId),
       adminApi.getDiscordRoles(guildId),
-      adminApi.getSettings(guildId),
+      adminApi.getLogChannels(guildId),
     ])
-      .then(([data, channelList, categoryList, roleList, guildSettings]) => {
+      .then(([data, channelList, categoryList, roleList, logChannels]) => {
         if (cancelled) return;
         setSettings(data);
         setChannels(channelList);
         setCategories(categoryList);
         setRoles(roleList);
-        setSpamLogChannelId(guildSettings.spam_log_channel_id);
+        setSpamLogChannelId(
+          logChannels.eventTypes.find(e => e.eventType === "HACKED_ACCOUNT_TRAP_TRIGGERED")?.channelId ?? null);
       })
       .catch(err => {
         if (!cancelled) setError(err?.response?.data?.error ?? "Failed to load module settings.");
