@@ -22,7 +22,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.admin.AccessLog;
 import sk.gkanocz.aisauth.admin.AccessLogRepository;
+import sk.gkanocz.aisauth.auth.keycloak.KeycloakAdminClient;
 import sk.gkanocz.aisauth.auth.keycloak.KeycloakUserService;
+import sk.gkanocz.aisauth.auth.keycloak.RefreshTokenInvalidException;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
@@ -31,6 +33,9 @@ import tools.jackson.core.type.TypeReference;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,11 +46,14 @@ import java.util.List;
 public class AuthController {
 
     private static final String AUTH_COOKIE_NAME = "auth_token";
+    private static final String REFRESH_COOKIE_NAME = "refresh_token";
+    private static final int REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 
     private final DiscordOAuthProperties discordOAuthProperties;
     private final AdminProperties adminProperties;
     private final DiscordOAuthClient discordOAuthClient;
     private final KeycloakUserService keycloakUserService;
+    private final KeycloakAdminClient keycloakAdminClient;
     private final JwtDecoder jwtDecoder;
     private final AdminSessionRepository adminSessionRepository;
     private final OAuthExchangeStore exchangeStore;
@@ -104,7 +112,7 @@ public class AuthController {
         adminSessionRepository.save(new AdminSession(issuedToken.jti(), user.id(), issuedToken.expiresAt()));
         recordAccessLog(user, eligibleGuildIds, clientIp(request));
 
-        String exchangeCode = exchangeStore.putToken(issuedToken.token());
+        String exchangeCode = exchangeStore.putToken(issuedToken.token(), issuedToken.refreshToken());
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(frontendUrl + "/select-server?code=" + exchangeCode))
                 .build();
@@ -127,13 +135,14 @@ public class AuthController {
     @PostMapping("/exchange")
     public ResponseEntity<SessionResponse> exchange(
             @RequestBody ExchangeRequest request, HttpServletResponse response) {
-        String token = exchangeStore.consumeToken(request.code());
-        if (token == null) {
+        OAuthExchangeStore.ExchangedTokens tokens = exchangeStore.consumeToken(request.code());
+        if (tokens == null) {
             return ResponseEntity.badRequest().build();
         }
 
-        Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(token));
-        response.addCookie(authCookie(token));
+        Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(tokens.accessToken()));
+        response.addCookie(authCookie(tokens.accessToken()));
+        response.addCookie(refreshCookie(tokens.refreshToken()));
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
@@ -142,12 +151,56 @@ public class AuthController {
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
+    /**
+     * Exchanges the refresh_token cookie for a fresh access/refresh token pair once the short-lived
+     * access token has expired. Deliberately not behind @AuthenticationPrincipal - by the time the
+     * frontend calls this, the access token backing the current request has already failed to
+     * authenticate, so authentication here rests entirely on the refresh token instead.
+     */
+    @PostMapping("/refresh")
+    @Transactional
+    public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = extractCookie(request, REFRESH_COOKIE_NAME);
+        if (refreshToken == null) {
+            throw RefreshTokenInvalidException.create();
+        }
+
+        KeycloakAdminClient.MintedToken minted = keycloakAdminClient.refreshAccessToken(refreshToken);
+        Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(minted.accessToken()));
+        LocalDateTime expiresAt =
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(minted.expiresAtEpochSeconds()), ZoneId.systemDefault());
+        adminSessionRepository.save(new AdminSession(minted.jti(), claims.getSubject(), expiresAt));
+
+        response.addCookie(authCookie(minted.accessToken()));
+        response.addCookie(refreshCookie(minted.refreshToken()));
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/logout")
     @Transactional
-    public ResponseEntity<Void> logout(@AuthenticationPrincipal Claims claims, HttpServletResponse response) {
+    public ResponseEntity<Void> logout(
+            @AuthenticationPrincipal Claims claims, HttpServletRequest request, HttpServletResponse response) {
         adminSessionRepository.deleteByJti(claims.getId());
-        response.addCookie(logoutCookie());
+        String refreshToken = extractCookie(request, REFRESH_COOKIE_NAME);
+        if (refreshToken != null) {
+            keycloakAdminClient.revokeRefreshToken(refreshToken);
+        }
+        response.addCookie(expireCookie(AUTH_COOKIE_NAME));
+        response.addCookie(expireCookie(REFRESH_COOKIE_NAME));
         return ResponseEntity.ok().build();
+    }
+
+    private String extractCookie(HttpServletRequest request, String name) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie cookie : cookies) {
+            if (name.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 
     /**
@@ -195,8 +248,8 @@ public class AuthController {
         }
     }
 
-    private Cookie logoutCookie() {
-        Cookie cookie = new Cookie(AUTH_COOKIE_NAME, "");
+    private Cookie expireCookie(String name) {
+        Cookie cookie = new Cookie(name, "");
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(0);
@@ -208,6 +261,14 @@ public class AuthController {
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(24 * 60 * 60);
+        return cookie;
+    }
+
+    private Cookie refreshCookie(String token) {
+        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, token);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(REFRESH_COOKIE_MAX_AGE);
         return cookie;
     }
 

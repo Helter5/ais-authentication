@@ -33,7 +33,7 @@ public class KeycloakUserService {
 
         LocalDateTime expiresAt =
                 LocalDateTime.ofInstant(Instant.ofEpochSecond(minted.expiresAtEpochSeconds()), ZoneId.systemDefault());
-        return new IssuedToken(minted.accessToken(), minted.jti(), expiresAt);
+        return new IssuedToken(minted.accessToken(), minted.refreshToken(), minted.jti(), expiresAt);
     }
 
     private String randomPassword() {
@@ -42,6 +42,6 @@ public class KeycloakUserService {
         return HexFormat.of().formatHex(bytes);
     }
 
-    public record IssuedToken(String token, String jti, LocalDateTime expiresAt) {
+    public record IssuedToken(String token, String refreshToken, String jti, LocalDateTime expiresAt) {
     }
 }

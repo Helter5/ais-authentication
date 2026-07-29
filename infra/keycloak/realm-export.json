@@ -3,6 +3,9 @@
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 172800,
+  "ssoSessionMaxLifespan": 2592000,
   "clients": [
     {
       "clientId": "ais-auth-backend",

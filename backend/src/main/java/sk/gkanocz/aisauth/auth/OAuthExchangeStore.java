@@ -16,7 +16,10 @@ class OAuthExchangeStore {
     private record PendingState(Instant expiresAt) {
     }
 
-    private record PendingToken(String token, Instant expiresAt) {
+    private record PendingToken(String accessToken, String refreshToken, Instant expiresAt) {
+    }
+
+    public record ExchangedTokens(String accessToken, String refreshToken) {
     }
 
     private final Map<String, PendingState> pendingStates = new ConcurrentHashMap<>();
@@ -34,19 +37,19 @@ class OAuthExchangeStore {
         return pending != null && Instant.now().isBefore(pending.expiresAt());
     }
 
-    String putToken(String token) {
+    String putToken(String accessToken, String refreshToken) {
         cleanupTokens();
         String code = randomHex(32);
-        exchangeCodes.put(code, new PendingToken(token, Instant.now().plusSeconds(5 * 60)));
+        exchangeCodes.put(code, new PendingToken(accessToken, refreshToken, Instant.now().plusSeconds(5 * 60)));
         return code;
     }
 
-    String consumeToken(String code) {
+    ExchangedTokens consumeToken(String code) {
         PendingToken pending = exchangeCodes.remove(code);
         if (pending == null || Instant.now().isAfter(pending.expiresAt())) {
             return null;
         }
-        return pending.token();
+        return new ExchangedTokens(pending.accessToken(), pending.refreshToken());
     }
 
     private void cleanupStates() {

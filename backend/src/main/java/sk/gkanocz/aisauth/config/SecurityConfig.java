@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/api/auth/discord",
                                 "/api/auth/discord/callback",
                                 "/api/auth/exchange",
+                                "/api/auth/refresh",
                                 "/actuator/health/**"
                         ).permitAll()
                         .anyRequest().authenticated()

@@ -26,5 +26,11 @@ public class KeycloakBootstrapRunner implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("Could not configure Keycloak claims scope on startup: {}", e.getMessage());
         }
+        try {
+            keycloakAdminClient.ensureSessionLifetimesConfigured();
+            log.info("Keycloak session lifetimes verified/configured");
+        } catch (Exception e) {
+            log.warn("Could not configure Keycloak session lifetimes on startup: {}", e.getMessage());
+        }
     }
 }
