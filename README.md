@@ -1,33 +1,32 @@
 # AIS Auth Platform
 
-Prepis pôvodného Node.js/Discord bota ([ais-authentication](../ais-authentication)) do Java/Spring Boot + React/TypeScript stacku.
-Cieľ projektu: naučiť sa Spring Boot a pokryť tech stack z pracovnej ponuky (Java, REST API, PostgreSQL, XML, TypeScript, React, GitHub, CI/CD, Maven, Docker, Keycloak, ...).
+**TL;DR:** Discord bot + admin dashboard pre FEI STUBA server, ktorý overuje študentov cez univerzitný LDAP (AIS) a prideľuje im Discord rolu. Backend v Spring Boot 4 / Java 21 (REST API, Spring Security, Spring LDAP, JPA/PostgreSQL, Flyway), Discord bot bežiaci priamo v tom istom procese cez JDA, prihlásenie cez Discord OAuth2 + Keycloak, frontend v React 19 + TypeScript. Celé nasadenie beží ako `docker compose` (Postgres, Keycloak, Mailpit, backend, frontend za nginx).
+
+Vzniklo ako prepis staršieho Node.js bota ([ais-authentication](../ais-authentication)) na Java stack.
+
+## Čo appka robí
+
+- **Overenie študentov** — používateľ zadá svoje AIS ID, appka mu pošle overovací kód na univerzitný e-mail (cez Spring Mail/Mailpit), po zadaní kódu overí identitu voči LDAP a prideľuje Discord rolu (`/verify`, `/code`, príp. manuálne cez `/manualverify`).
+- **Admin dashboard** (React SPA) — per-server (per-guild) správa cez Discord OAuth2 login: prehľad servera, nastavenia bota (nickname, timezone), warny (`/warn`, `/warns`, auto-punishment pri prekročení limitu), audit log a access log každej admin/moderátorskej akcie, správa príkazov a rolí, hromadný re-check/„wipe" overených členov voči LDAP, prepínanie semestra, automatické mazanie správ, „Hacked Account Trap" automod modul, ticket transcripty.
+- **Autorizácia** — super-admini (celá appka) a per-guild manažéri (len svoj server), vynucované na každom endpointe cez `GuildAccessService`.
+- **Prihlasovanie** — Discord OAuth2 overí identitu, Keycloak vydáva a validuje session token (JWT), nie vlastnoručne písaný JWT modul.
 
 ## Štruktúra repa
 
 ```
-backend/    Spring Boot 4 (Java 21, Maven) — REST API, JPA, Security, LDAP, mail, Discord bot
-infra/      docker-compose pre lokálne závislosti (PostgreSQL, Mailpit)
-frontend/   React 19 + TypeScript + Vite admin dashboard (portnuté zo starého bota)
+backend/    Spring Boot 4 (Java 21, Maven) — REST API, JPA, Security, LDAP, mail, Discord bot (JDA)
+infra/      docker-compose (PostgreSQL, Keycloak, Mailpit, backend, frontend/nginx) + Keycloak realm export
+frontend/   React 19 + TypeScript + Vite admin dashboard
 ```
 
-## Roadmapa
-
-- [x] **M0** — Projekt skeleton (Maven, PostgreSQL, Flyway, CI)
-- [x] **M1** — Doména (Student, VerificationCode), REST API, Spring LDAP, Spring Mail
-- [x] **M2** — Spring Security + Discord OAuth2 + vlastný JWT login pre admin dashboard (zatiaľ super-admin-only, per-guild manager role príde s M3)
-- [x] **M3** — Discord bot modul (JDA), `/verify` + `/code` napojené priamo na service vrstvu (rovnaký Spring kontext ako REST API — nie samostatný proces cez HTTP, presne ako v pôvodnom Node bote). Priraďovanie Discord roly po verifikácii príde s per-guild admin nastaveniami (M4).
-- [x] **M4** — Audit log (JSONB), warns (`/warn`, `/warns`, `/mywarns`, `/removewarn`, `/clearwarns` + auto-punishment na threshold), `/find`, `/manualverify`, cleanup pri odchode zo servera, bot presence/avatar, `@Scheduled` cleanup expirovaných kódov/sessions, tickety (dátový model + `GET /api/tickets/{channelId}`, bez Discord button-interakcií — tie potrebujú Hacked Account Trap modul, ktorý nestavia me). XML export vynechaný zámerne (pozri diskusiu v histórii — nechceli sme umelo prilepenú funkciu).
-- [x] **M5** — Frontend portnutý zo starého bota (Login, Discord OAuth, SelectServer, Users napojené na nový backend). Zvyšné stránky (Wipe, SwitchSemester, Modules, ReactionRoles, AutoDelete, HackedAccountTrap, Commands, Admin, Logs, DockerLogs, TicketTranscript) sú skopírované, ale nefunkčné, kým nepribudnú ich backend endpointy (M4+).
-- [~] **M6 (čiastočne)** — Multi-stage Docker (backend aj frontend) + plný `docker-compose` (postgres, mailpit, backend, frontend za nginx reverse proxy). GitHub Actions/Jenkinsfile zatiaľ vynechané.
-- [ ] **M7 (stretch)** — Keycloak namiesto vlastného JWT, WAR deploy na Tomcat/JBoss, AWS, Kotlin/Quarkus modul
+Bot beží v rovnakom Spring kontexte ako REST API (nie samostatný proces cez HTTP) — slash commandy volajú service vrstvu priamo.
 
 ## Lokálny vývoj
 
 **Variant A — appky bežia natívne (rýchlejší reload pri vývoji):**
 
 1. Nakopíruj `infra/.env.example` na `infra/.env` a uprav podľa potreby.
-2. Spusti PostgreSQL + Mailpit: `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres mailpit`
+2. Spusti závislosti: `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres mailpit keycloak`
 3. Spusti backend: `cd backend && ./mvnw spring-boot:run` — beží na `http://localhost:8080`
 4. Spusti frontend: `cd frontend && npm install && npm run dev` — beží na `http://localhost:5173`
 
@@ -37,6 +36,14 @@ frontend/   React 19 + TypeScript + Vite admin dashboard (portnuté zo starého 
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
 ```
 
-Frontend (nginx, proxuje `/api/` na backend) beží na `http://localhost:8081`, backend priamo na `http://localhost:8080` (potrebné pre Discord OAuth redirect).
+Frontend (nginx, proxuje `/api/` na backend) beží na `http://localhost:8081`, backend priamo na `http://localhost:8080` (potrebné pre Discord OAuth redirect), Keycloak admin konzola na `http://localhost:8180`.
 
-Pre reálne prihlásenie treba vlastnú Discord OAuth aplikáciu (`DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` env vars) a Discord bota (`DISCORD_BOT_TOKEN`) — bez nich appka beží, ale login/bot sa nepripoja (očakávané, viď commit historyu M2/M3).
+Pre reálne prihlásenie treba vlastnú Discord OAuth aplikáciu (`DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`) a Discord bota (`DISCORD_BOT_TOKEN`) — bez nich appka beží, ale login/bot sa nepripoja.
+
+## CI
+
+GitHub Actions (`backend-ci.yml`) spúšťa `./mvnw verify` proti reálnemu Postgresu cez Testcontainers pri každom push/PR dotýkajúcom sa `backend/`.
+
+## Stav / plánované rozšírenia
+
+Jadro appky (overenie, dashboard, autorizácia, audit log, Keycloak login, Docker nasadenie, CI) je hotové a funkčné. Otvorené zostávajú len voliteľné rozšírenia: WAR deploy na Tomcat/JBoss, nasadenie na AWS, samostatný modul v Kotline/Quarkuse.
