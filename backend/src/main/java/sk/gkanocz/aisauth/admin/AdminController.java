@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sk.gkanocz.aisauth.auth.AdminProperties;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
@@ -37,6 +38,7 @@ public class AdminController {
     private final VerifiedUserRepository verifiedUserRepository;
     private final VerificationCodeRepository verificationCodeRepository;
     private final WarnRepository warnRepository;
+    private final MaintenanceModeBroadcaster maintenanceModeBroadcaster;
 
     @GetMapping("/settings")
     public Map<String, String> getSettings(@AuthenticationPrincipal Claims claims) {
@@ -69,7 +71,7 @@ public class AdminController {
     @GetMapping("/maintenance")
     public Map<String, Boolean> getMaintenance(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
-        return Map.of("enabled", adminSettingsService.get(MAINTENANCE_KEY, Boolean.class, false));
+        return Map.of("enabled", currentMaintenanceState());
     }
 
     @PostMapping("/maintenance")
@@ -80,7 +82,21 @@ public class AdminController {
             throw InvalidRequestException.withMessage("enabled must be boolean");
         }
         adminSettingsService.set(MAINTENANCE_KEY, request.enabled());
+        maintenanceModeBroadcaster.broadcast(request.enabled());
         return Map.of("success", true, "enabled", request.enabled());
+    }
+
+    /**
+     * Not super-admin-gated on purpose - the maintenance banner is shown to every logged-in
+     * manager, not just super admins, so every dashboard tab needs to be able to subscribe.
+     */
+    @GetMapping("/maintenance/stream")
+    public SseEmitter streamMaintenance() {
+        return maintenanceModeBroadcaster.subscribe(currentMaintenanceState());
+    }
+
+    private boolean currentMaintenanceState() {
+        return adminSettingsService.get(MAINTENANCE_KEY, Boolean.class, false);
     }
 
     @GetMapping("/bot-guilds")

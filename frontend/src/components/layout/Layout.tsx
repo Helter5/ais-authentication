@@ -8,6 +8,7 @@ import { adminApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { setSelectedGuildId } from "@/components/modules/shared";
 
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 const GUILD_KEY = "selected_guild_id";
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#ef4444","#f97316","#22c55e","#06b6d4","#3b82f6"];
 
@@ -135,7 +136,19 @@ export function Layout() {
   const [maintenance, setMaintenance] = useState(false);
 
   useEffect(() => {
-    adminApi.getMaintenance().then(d => setMaintenance(d.enabled)).catch(() => {});
+    // Pushed instantly by the backend (MaintenanceModeBroadcaster) instead of polling - the
+    // current state is sent as the first event right after connecting, and every toggle after
+    // that. Not super-admin-gated, since every manager needs to see the banner.
+    const source = new EventSource(`${API_URL}/admin/maintenance/stream`, { withCredentials: true });
+    source.addEventListener("maintenance", event => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data);
+        setMaintenance(!!data.enabled);
+      } catch {
+        // ignore malformed event
+      }
+    });
+    return () => source.close();
   }, []);
 
   return (
