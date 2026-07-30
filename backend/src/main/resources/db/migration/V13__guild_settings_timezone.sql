@@ -1,0 +1,1 @@
+ALTER TABLE guild_settings ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'UTC';

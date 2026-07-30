@@ -32,6 +32,9 @@ public class GuildSettings {
     @Column(name = "verification_enabled", nullable = false)
     private boolean verificationEnabled = true;
 
+    @Column(name = "timezone", nullable = false, length = 64)
+    private String timezone = "UTC";
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -70,6 +73,11 @@ public class GuildSettings {
 
     public void setVerificationEnabled(boolean verificationEnabled) {
         this.verificationEnabled = verificationEnabled;
+        touch();
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
         touch();
     }
 

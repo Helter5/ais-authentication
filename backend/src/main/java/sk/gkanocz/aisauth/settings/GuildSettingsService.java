@@ -3,7 +3,10 @@ package sk.gkanocz.aisauth.settings;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.Map;
 
 @Service
@@ -43,11 +46,24 @@ public class GuildSettingsService {
             case "spam_delete_interval" -> settings.setSpamDeleteInterval(((Number) value).intValue());
             case "verification_enabled" -> settings.setVerificationEnabled(
                     Boolean.TRUE.equals(value) || "true".equals(value));
+            case "timezone" -> settings.setTimezone(validateTimezone(asString(value)));
             default -> throw UnknownSettingFieldException.forField(field);
         }
     }
 
     private String asString(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private String validateTimezone(String timezone) {
+        if (timezone == null || timezone.isBlank()) {
+            return "UTC";
+        }
+        try {
+            ZoneId.of(timezone);
+        } catch (DateTimeException e) {
+            throw InvalidRequestException.withMessage("Invalid timezone: " + timezone);
+        }
+        return timezone;
     }
 }
