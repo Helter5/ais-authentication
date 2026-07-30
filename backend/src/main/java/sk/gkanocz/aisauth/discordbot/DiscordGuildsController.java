@@ -19,13 +19,17 @@ public class DiscordGuildsController {
     private final DiscordBotService discordBotService;
     private final GuildAccessService guildAccessService;
 
+    /**
+     * Filters live via canManageGuild (JDA member-cache state), not the guildIds JWT claim, so a
+     * server added to/removed from the allowlist or a manager role revoked in Discord shows up (or
+     * disappears from) the server picker on the very next request - same reasoning as
+     * GuildAccessService's javadoc.
+     */
     @GetMapping("/guilds")
     public List<GuildResponse> getGuilds(@AuthenticationPrincipal Claims claims) {
-        boolean isSuperAdmin = guildAccessService.isSuperAdmin(claims);
-        List<String> eligibleGuildIds = guildAccessService.guildIds(claims);
         return discordBotService.jda()
                 .map(jda -> jda.getGuilds().stream()
-                        .filter(guild -> isSuperAdmin || eligibleGuildIds.contains(guild.getId()))
+                        .filter(guild -> guildAccessService.canManageGuild(claims, guild.getId()))
                         .map(GuildResponse::from)
                         .toList())
                 .orElseGet(List::of);

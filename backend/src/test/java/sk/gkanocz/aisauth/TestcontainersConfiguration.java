@@ -1,14 +1,17 @@
 package sk.gkanocz.aisauth;
 
 import io.jsonwebtoken.security.Keys;
+import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -41,5 +44,18 @@ public class TestcontainersConfiguration {
         return NimbusJwtDecoder.withSecretKey(TEST_JWT_SIGNING_KEY)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+    }
+
+    /**
+     * Real DiscordBotService never connects in tests (no bot token configured), so its jda()
+     * always returns Optional.empty(). GuildAccessService.canManageGuild now checks live JDA
+     * member-cache state instead of the guildIds JWT claim (see its javadoc), so this mock
+     * replaces the real bean - AuthenticatedRequestHelper.managerTokenFor stubs it per-guild to
+     * simulate "this test manager currently holds the configured role in this guild".
+     */
+    @Bean
+    @Primary
+    DiscordBotService discordBotService() {
+        return Mockito.mock(DiscordBotService.class);
     }
 }

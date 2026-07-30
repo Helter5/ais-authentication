@@ -156,6 +156,14 @@ public class AuthController {
      * access token has expired. Deliberately not behind @AuthenticationPrincipal - by the time the
      * frontend calls this, the access token backing the current request has already failed to
      * authenticate, so authentication here rests entirely on the refresh token instead.
+     *
+     * Also re-derives guild eligibility from live Discord roles on every call (mirroring
+     * discordCallback) and re-provisions the Keycloak user if it changed. Without this, a session
+     * kept alive purely by silent refreshes would keep whatever guildIds/superAdmin claims were
+     * baked in at the last full Discord login for up to ssoSessionMaxLifespan (30 days) - a revoked
+     * manager role or removed guild wouldn't take effect until the browser did a fresh OAuth login.
+     * Skipped entirely if the bot isn't connected right now (e.g. mid-deploy), since JDA having zero
+     * guilds would otherwise look identical to "revoked from everything" and log out every manager.
      */
     @PostMapping("/refresh")
     @Transactional
@@ -167,6 +175,12 @@ public class AuthController {
 
         KeycloakAdminClient.MintedToken minted = keycloakAdminClient.refreshAccessToken(refreshToken);
         Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(minted.accessToken()));
+
+        if (discordBotService.jda().isPresent()) {
+            minted = reconcileEligibility(minted, claims);
+            claims = new JwtClaimsAdapter(jwtDecoder.decode(minted.accessToken()));
+        }
+
         LocalDateTime expiresAt =
                 LocalDateTime.ofInstant(Instant.ofEpochSecond(minted.expiresAtEpochSeconds()), ZoneId.systemDefault());
         adminSessionRepository.save(new AdminSession(minted.jti(), claims.getSubject(), expiresAt));
@@ -174,6 +188,31 @@ public class AuthController {
         response.addCookie(authCookie(minted.accessToken()));
         response.addCookie(refreshCookie(minted.refreshToken()));
         return ResponseEntity.ok().build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private KeycloakAdminClient.MintedToken reconcileEligibility(
+            KeycloakAdminClient.MintedToken minted, Claims claims) {
+        String discordId = claims.getSubject();
+        boolean isSuperAdmin = adminProperties.superAdminIds().contains(discordId);
+        List<String> eligibleGuildIds = computeEligibleGuildIds(discordId, isSuperAdmin);
+
+        if (!isSuperAdmin && eligibleGuildIds.isEmpty()) {
+            keycloakAdminClient.revokeRefreshToken(minted.refreshToken());
+            throw RefreshTokenInvalidException.create();
+        }
+
+        boolean superAdminClaim = Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class));
+        List<String> guildIdsClaim = claims.get("guildIds", List.class);
+        if (isSuperAdmin == superAdminClaim
+                && eligibleGuildIds.equals(guildIdsClaim == null ? List.of() : guildIdsClaim)) {
+            return minted;
+        }
+
+        keycloakAdminClient.findOrCreateUser(
+                discordId, claims.get("username", String.class), claims.get("avatar", String.class),
+                isSuperAdmin, eligibleGuildIds);
+        return keycloakAdminClient.refreshAccessToken(minted.refreshToken());
     }
 
     @PostMapping("/logout")
