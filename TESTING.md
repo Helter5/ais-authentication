@@ -12,36 +12,36 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] Tlačidlo "Login with Discord" ťa pošle na Discord OAuth.
 - [X] Po schválení na Discorde ťa appka vráti prihláseného, bez `?code=` v URL.
 - [X] `/login?error=unauthorized_manager_required` → "Access denied: configured Manager Role or Super Admin access required."
-- [ ] `/login?error=access_revoked` → "Your dashboard access has been revoked..."
-- [ ] `/login?error=bot_not_ready` → "The bot just restarted..."
-- [ ] Neznámy `?error=xyz` → zobrazí sa aspoň generická chybová hláška s kódom.
-- [ ] Po zobrazení chyby sa `?error=` vyčistí z URL (needá sa pri refreshi znova).
+- [X] `/login?error=access_revoked` → "Your dashboard access has been revoked..."
+- [X] `/login?error=bot_not_ready` → "The bot just restarted..."
+- [X] Neznámy `?error=xyz` → zobrazí sa aspoň generická chybová hláška s kódom.
+- [X] Po zobrazení chyby sa `?error=` vyčistí z URL (needá sa pri refreshi znova).
 
 ### Výber servera (`/select-server` + prepínač hore v sidebare)
-- [ ] Žiadny dostupný server → "No eligible servers found...".
-- [ ] Presne 1 dostupný server → appka ho rovno vyberie a preskočí rovno na Dashboard (bez zobrazenia gridu).
-- [ ] Viac serverov → zobrazí sa grid kariet (ikona/fallback iniciály + názov), kliknutie prepne na daný server.
-- [ ] Predtým vybraný server, ktorý už nie je v zozname (napr. bot z neho odstránený) → grid sa znova ukáže.
-- [ ] Prepínač servera hore v sidebare — dropdown so zoznamom serverov, aktívny má zelenú bodku.
-- [ ] Prepnutie servera v prepínači prekreslí dáta na aktuálnej stránke bez plného reloadu.
-- [ ] Kliknutie mimo otvoreného prepínača ho zatvorí.
-- [ ] Bez vybraného servera každá dátová stránka (Dashboard, Codes, Users, Settings, Commands, Modules, Logs, Wipe, Semester) ukáže vlastný "no server selected" stav.
+- [X] Žiadny dostupný server → "No eligible servers found...".
+- [X] Presne 1 dostupný server → appka ho rovno vyberie a preskočí rovno na Dashboard (bez zobrazenia gridu).
+- [X] Viac serverov → zobrazí sa grid kariet (ikona/fallback iniciály + názov), kliknutie prepne na daný server.
+- [X] Predtým vybraný server, ktorý už nie je v zozname (napr. bot z neho odstránený) → grid sa znova ukáže.
+- [X] Prepínač servera hore v sidebare — dropdown so zoznamom serverov, aktívny má zelenú bodku.
+- [X] Prepnutie servera v prepínači prekreslí dáta na aktuálnej stránke bez plného reloadu.
+- [X] Kliknutie mimo otvoreného prepínača ho zatvorí.
+- [X] Bez vybraného servera každá dátová stránka (Dashboard, Codes, Users, Settings, Commands, Modules, Logs, Wipe, Semester) ukáže vlastný "no server selected" stav.
 
 ### Navigácia v sidebare
-- [ ] Bežné odkazy vidno vždy: Dashboard, Codes, Users Directory, Logs.
-- [ ] "Semester" odkaz sa objaví/zmizne podľa toho, či má guild nastavený semester log kanál.
-- [ ] 🔒 Sekcia Admin/Settings/Modules/Commands/Wipe sa NEZOBRAZUJE vôbec ako obyčajný manažér (nielen disabled — celkom chýba).
-- [ ] Aktívny odkaz je zvýraznený, aj pre pod-routy (`/modules/*`, `/semester/*`, `/commands/*`).
-- [ ] Mobilné menu (hamburger) sa otvára/zatvára, kliknutím na odkaz sa samo zatvorí, na mobile je dole aj Logout tlačidlo.
+- [X] Bežné odkazy vidno vždy: Dashboard, Codes, Users Directory, Logs.
+- [X] "Semester" odkaz sa objaví/zmizne podľa toho, či má guild nastavený semester log kanál.
+- [X] 🔒 Sekcia Admin/Settings/Modules/Commands/Wipe sa NEZOBRAZUJE vôbec ako obyčajný manažér (nielen disabled — celkom chýba).
+- [X] Aktívny odkaz je zvýraznený, aj pre pod-routy (`/modules/*`, `/semester/*`, `/commands/*`).
+- [X] Mobilné menu (hamburger) sa otvára/zatvára, kliknutím na odkaz sa samo zatvorí, na mobile je dole aj Logout tlačidlo.
 
 ### Maintenance mode banner
-- [ ] Keď je zapnutý maintenance mode (cez Admin stránku), na každej stránke hore pribudne jantárový banner.
-- [ ] Banner zmizne po vypnutí maintenance (over aj po prenavigovaní, nie len po reloade).
+- [X] Keď je zapnutý maintenance mode (cez Admin stránku), na každej stránke hore pribudne jantárový banner.
+- [X] Banner zmizne po vypnutí maintenance (over aj po prenavigovaní, nie len po reloade).
 
 ### Session / refresh
-- [ ] Po vypršaní access tokenu appka potichu obnoví session (refresh) a dokončí pôvodnú akciu bez toho, aby ťa vyhodila.
-- [ ] Ak zlyhá aj refresh, presmeruje na `/login`.
-- [ ] Ak dostaneš 403 "Manager access required" (napr. ti niekto zrušil manager rolu počas session), appka ťa odhlási a presmeruje na `/login?error=access_revoked`.
+- [X] Po vypršaní access tokenu appka potichu obnoví session (refresh) a dokončí pôvodnú akciu bez toho, aby ťa vyhodila.
+- [X] Ak zlyhá aj refresh, presmeruje na `/login`.
+- [X] Ak dostaneš 403 "Manager access required" (napr. ti niekto zrušil manager rolu počas session), appka ťa odhlási a presmeruje na `/login?error=access_revoked`.
 
 ### Toasty (notifikácie)
 - [ ] Toast sa objaví vpravo hore, sám zmizne po pár sekundách (progress bar dole).
@@ -52,23 +52,17 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 ## Dashboard (`/`) 👤
 
-- [ ] Bez vybraného servera: "No server selected." + link na výber servera.
-- [ ] Server Info karta: ikona/fallback, názov, počty (Members, Categories, Text Channels, Voice Channels, Roles).
-- [ ] "Copy Server ID" skutočne skopíruje ID servera do schránky.
-- [ ] Database Sync karta zobrazuje Last/Next sync (alebo "Not run yet").
-- [ ] Bot Settings — Nickname input: nedá sa napísať viac ako 32 znakov.
-- [ ] Prázdny nickname + Save → over, čo appka skutočne spraví (reset na default meno bota, alebo chyba).
-- [ ] Timezone dropdown má predvolený zoznam + aktuálne uloženú hodnotu, ak v zozname chýba.
-- [ ] Tlačidlo "Detect" nastaví timezone podľa prehliadača a ukáže hlášku, že treba ešte kliknúť Save.
-- [ ] "Save Settings" ukáže spinner, potom zelenú hlášku "Bot settings saved." alebo červenú chybu.
-- [ ] Po uložení choď preč a späť — nickname/timezone ostali uložené (skús aj reálne v Discorde, že sa nickname bota zmenil).
+- [X] Bez vybraného servera: "No server selected." + link na výber servera.
+- [X] Server Info karta: ikona/fallback, názov, počty (Members, Categories, Text Channels, Voice Channels, Roles).
+- [X] "Copy Server ID" skutočne skopíruje ID servera do schránky.
+- [X] Database Sync karta zobrazuje Last/Next sync (alebo "Not run yet").
 
 ---
 
 ## Verification Codes (`/codes`) 👤
 
-- [ ] Hore počítadlo "N active" / "N expired".
-- [ ] Vyhľadávanie funguje podľa Discord ID, AIS ID, emailu, Guild ID.
+- [X] Hore počítadlo "N active" / "N expired".
+- [X] Vyhľadávanie funguje podľa Discord ID, AIS ID, emailu, Guild ID.
 - [ ] Filter podľa mesiaca — v zozname sú len mesiace, ktoré majú reálne dáta.
 - [ ] Filter Active/Expired.
 - [ ] "Reset" tlačidlo sa objaví len keď je aktívny filter/search a vyčistí všetko naraz.
@@ -82,9 +76,9 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 ## Verified Directory (`/users`) 👤
 
-- [ ] Počítadlo "{filtered} / {total}" pri aktívnom filtri.
-- [ ] Vyhľadávanie podľa Discord ID / AIS ID / email / Guild ID.
-- [ ] Filter podľa mesiaca (podľa `verified_at`).
+- [X] Počítadlo "{filtered} / {total}" pri aktívnom filtri.
+- [X] Vyhľadávanie podľa Discord ID / AIS ID / email / Guild ID.
+- [X] Filter podľa mesiaca (podľa `verified_at`).
 - [ ] Kliknutie na hlavičku "AIS ID" cyklí triedenie: bez triedenia → vzostupne → zostupne → bez triedenia (šípka sa mení).
 - [ ] "Reset" vyčistí search/mesiac/triedenie naraz.
 - [ ] Prázdny výsledok → "No users matched."
