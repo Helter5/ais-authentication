@@ -21,7 +21,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       window.location.href = '/login';
     }
-    if (err.response?.status === 403 && err.response?.data?.error === 'Forbidden: Manager access required') {
+    if (err.response?.status === 403 && err.response?.data?.detail?.includes('Manager access required')) {
       localStorage.removeItem('selected_guild_id');
       window.location.href = '/login?error=access_revoked';
     }
