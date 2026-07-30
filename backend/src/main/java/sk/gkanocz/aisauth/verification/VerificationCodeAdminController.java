@@ -21,18 +21,23 @@ public class VerificationCodeAdminController {
     private final VerificationCodeRepository verificationCodeRepository;
     private final GuildAccessService guildAccessService;
 
+    /**
+     * Returns every code for the guild, active and expired alike - the dashboard's Codes page
+     * filters/highlights by status client-side, which only works if expired codes actually reach
+     * it instead of being excluded here.
+     */
     @GetMapping("/verifications")
-    public List<PendingVerificationResponse> getPendingVerifications(
+    public List<VerificationCodeResponse> getVerificationCodes(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return verificationCodeRepository
-                .findByGuildIdAndExpiresAtAfterOrderByCreatedAtDesc(guildId, LocalDateTime.now())
+                .findByGuildIdOrderByCreatedAtDesc(guildId)
                 .stream()
-                .map(PendingVerificationResponse::from)
+                .map(VerificationCodeResponse::from)
                 .toList();
     }
 
-    public record PendingVerificationResponse(
+    public record VerificationCodeResponse(
             Long id,
             @JsonProperty("discord_id") String discordId,
             @JsonProperty("guild_id") String guildId,
@@ -41,8 +46,8 @@ public class VerificationCodeAdminController {
             @JsonProperty("created_at") LocalDateTime createdAt,
             @JsonProperty("expires_at") LocalDateTime expiresAt) {
 
-        static PendingVerificationResponse from(VerificationCode code) {
-            return new PendingVerificationResponse(
+        static VerificationCodeResponse from(VerificationCode code) {
+            return new VerificationCodeResponse(
                     code.getId(), code.getDiscordId(), code.getGuildId(),
                     code.getEmail(), code.getAisId(), code.getCreatedAt(), code.getExpiresAt());
         }

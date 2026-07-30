@@ -29,7 +29,7 @@ class VerificationCodeAdminControllerIntegrationTest {
     private VerificationCodeRepository verificationCodeRepository;
 
     @Test
-    void getPendingVerificationsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+    void getVerificationCodesForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
         mockMvc.perform(get("/api/verifications")
@@ -40,7 +40,7 @@ class VerificationCodeAdminControllerIntegrationTest {
     }
 
     @Test
-    void managerCanListPendingVerificationsForTheirOwnGuild() throws Exception {
+    void managerCanListActiveVerificationCodesForTheirOwnGuild() throws Exception {
         String guildId = "guild-pending-verify-1";
         verificationCodeRepository.save(new VerificationCode(
                 "discord-1", guildId, "123456", "user@stuba.sk", "ais123", LocalDateTime.now().plusMinutes(10)));
@@ -52,5 +52,20 @@ class VerificationCodeAdminControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].discord_id").value("discord-1"))
                 .andExpect(jsonPath("$[0].ais_id").value("ais123"));
+    }
+
+    @Test
+    void managerCanAlsoSeeExpiredVerificationCodesForTheirOwnGuild() throws Exception {
+        String guildId = "guild-pending-verify-2";
+        verificationCodeRepository.save(new VerificationCode(
+                "discord-2", guildId, "654321", "expired@stuba.sk", "ais456", LocalDateTime.now().minusMinutes(10)));
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(get("/api/verifications")
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].discord_id").value("discord-2"))
+                .andExpect(jsonPath("$[0].ais_id").value("ais456"));
     }
 }

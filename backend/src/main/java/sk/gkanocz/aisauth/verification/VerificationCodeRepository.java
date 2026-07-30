@@ -9,7 +9,7 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
 
     Optional<VerificationCode> findByDiscordIdAndGuildIdAndExpiresAtAfter(String discordId, String guildId, LocalDateTime expiresAt);
 
-    List<VerificationCode> findByGuildIdAndExpiresAtAfterOrderByCreatedAtDesc(String guildId, LocalDateTime expiresAt);
+    List<VerificationCode> findByGuildIdOrderByCreatedAtDesc(String guildId);
 
     void deleteByDiscordIdAndGuildId(String discordId, String guildId);
 
