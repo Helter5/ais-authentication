@@ -1,6 +1,6 @@
 package sk.gkanocz.aisauth.discordbot;
 
-public record DashboardResponse(ServerInfo server, Settings settings, Synchronization synchronization) {
+public record DashboardResponse(ServerInfo server, Synchronization synchronization) {
 
     public record ServerInfo(
             String id,
@@ -11,9 +11,6 @@ public record DashboardResponse(ServerInfo server, Settings settings, Synchroniz
             int textChannelCount,
             int voiceChannelCount,
             int roleCount) {
-    }
-
-    public record Settings(String nickname, String timezone) {
     }
 
     public record Synchronization(int intervalDays, String lastSync, String nextSync) {

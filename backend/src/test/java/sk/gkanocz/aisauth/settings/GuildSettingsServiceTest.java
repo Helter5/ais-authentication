@@ -88,35 +88,6 @@ class GuildSettingsServiceTest {
     }
 
     @Test
-    void updateFieldSetsTimezone() {
-        GuildSettings settings = new GuildSettings("guild-1");
-        when(guildSettingsRepository.findById("guild-1")).thenReturn(Optional.of(settings));
-
-        guildSettingsService.updateField("guild-1", "timezone", "Europe/Bratislava");
-
-        assertThat(settings.getTimezone()).isEqualTo("Europe/Bratislava");
-    }
-
-    @Test
-    void updateFieldDefaultsBlankTimezoneToUtc() {
-        GuildSettings settings = new GuildSettings("guild-1");
-        when(guildSettingsRepository.findById("guild-1")).thenReturn(Optional.of(settings));
-
-        guildSettingsService.updateField("guild-1", "timezone", "");
-
-        assertThat(settings.getTimezone()).isEqualTo("UTC");
-    }
-
-    @Test
-    void updateFieldRejectsInvalidTimezone() {
-        GuildSettings settings = new GuildSettings("guild-1");
-        when(guildSettingsRepository.findById("guild-1")).thenReturn(Optional.of(settings));
-
-        assertThatThrownBy(() -> guildSettingsService.updateField("guild-1", "timezone", "Not/AZone"))
-                .isInstanceOf(sk.gkanocz.aisauth.shared.InvalidRequestException.class);
-    }
-
-    @Test
     void updateFieldAcceptsNullToClearAChannelId() {
         GuildSettings settings = new GuildSettings("guild-1");
         settings.setSpamTrapChannelId("some-channel");

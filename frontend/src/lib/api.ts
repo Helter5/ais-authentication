@@ -79,10 +79,6 @@ export interface DashboardData {
     voiceChannelCount: number;
     roleCount: number;
   };
-  settings: {
-    nickname: string;
-    timezone: string;
-  };
   synchronization: {
     intervalDays: number;
     lastSync: string | null;
@@ -185,14 +181,6 @@ export const adminApi = {
 
   getDashboard: async (guildId: string): Promise<DashboardData> => {
     const res = await api.get('/dashboard', { params: { guildId } });
-    return res.data;
-  },
-
-  updateDashboardSettings: async (
-    guildId: string,
-    settings: DashboardData['settings'],
-  ): Promise<{ success: boolean; settings: DashboardData['settings'] }> => {
-    const res = await api.post('/dashboard/settings', { guildId, ...settings });
     return res.data;
   },
 

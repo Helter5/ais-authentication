@@ -1,26 +1,11 @@
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useState, type ElementType } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertCircle, CheckCircle2, Clock3, Copy, Hash, Layers3, Loader2,
-  Mic2, RefreshCw, Save, Server, ShieldCheck, Users,
+  AlertCircle, Copy, Hash, Layers3, Loader2,
+  Mic2, RefreshCw, Server, ShieldCheck, Users,
 } from "lucide-react";
 import { adminApi, type DashboardData } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { useSelectedGuildId } from "@/components/modules/shared";
-const TIMEZONES = [
-  "UTC",
-  "Europe/Bratislava",
-  "Europe/Prague",
-  "Europe/Vienna",
-  "Europe/Berlin",
-  "Europe/London",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "Asia/Tokyo",
-  "Australia/Sydney",
-];
 
 function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: number }) {
   return (
@@ -44,17 +29,14 @@ function formatSyncDate(value: string | null) {
 export function Dashboard() {
   const guildId = useSelectedGuildId();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [nickname, setNickname] = useState("");
-  const [timezone, setTimezone] = useState("UTC");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
     setLoading(true);
-    setMessage(null);
+    setError(null);
     if (!guildId) {
       setLoading(false);
       return () => { cancelled = true; };
@@ -63,44 +45,15 @@ export function Dashboard() {
       .then(dashboard => {
         if (cancelled) return;
         setData(dashboard);
-        setNickname(dashboard.settings.nickname);
-        setTimezone(dashboard.settings.timezone);
       })
-      .catch(error => {
-        if (!cancelled) setMessage({ type: "error", text: error?.response?.data?.error ?? "Failed to load dashboard." });
+      .catch(err => {
+        if (!cancelled) setError(err?.response?.data?.error ?? "Failed to load dashboard.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
   }, [guildId]);
-
-  const timezoneOptions = useMemo(
-    () => timezone && !TIMEZONES.includes(timezone) ? [timezone, ...TIMEZONES] : TIMEZONES,
-    [timezone],
-  );
-
-  const detectTimezone = () => {
-    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    setTimezone(detected);
-    setMessage({ type: "success", text: `Detected ${detected}. Save to apply it.` });
-  };
-
-  const save = async () => {
-    if (!guildId) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      const result = await adminApi.updateDashboardSettings(guildId, { nickname, timezone });
-      setNickname(result.settings.nickname);
-      setMessage({ type: "success", text: "Bot settings saved." });
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      setMessage({ type: "error", text: apiError.response?.data?.error ?? "Failed to save bot settings." });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loading) {
     return <div className="flex min-h-[70vh] items-center justify-center md:pl-64"><Loader2 className="h-7 w-7 animate-spin text-indigo-400" /></div>;
@@ -129,15 +82,10 @@ export function Dashboard() {
       </div>
 
       <div className="space-y-5 px-4 py-5 sm:px-6">
-        {message && (
-          <div className={cn(
-            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
-            message.type === "success"
-              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-              : "border-red-500/20 bg-red-500/10 text-red-400",
-          )}>
-            {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            {message.text}
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            <AlertCircle className="h-4 w-4" />
+            {error}
           </div>
         )}
 
@@ -178,45 +126,6 @@ export function Dashboard() {
               <p className="mt-1 text-sm font-semibold text-zinc-200">{formatSyncDate(data.synchronization.nextSync)}</p>
             </div>
           </div>
-        </section>
-
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <div className="mb-5">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Bot Settings</h2>
-            <p className="mt-1 text-xs text-zinc-500">Settings for the bot in this Discord server.</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-zinc-300">Nickname</label>
-              <input value={nickname} onChange={event => setNickname(event.target.value)} maxLength={32}
-                placeholder="Discord Auth"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-500" />
-              <p className="text-[11px] text-zinc-600">The bot nickname shown in this server.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-zinc-300">Timezone</label>
-              <div className="flex gap-2">
-                <select value={timezone} onChange={event => setTimezone(event.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-500">
-                  {timezoneOptions.map(zone => <option key={zone} value={zone}>{zone}</option>)}
-                </select>
-                <button onClick={detectTimezone}
-                  className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700">
-                  <Clock3 className="h-4 w-4" /> Detect
-                </button>
-              </div>
-              <p className="text-[11px] text-zinc-600">Used for dashboard dates and future scheduled actions.</p>
-            </div>
-
-          </div>
-
-          <button onClick={save} disabled={saving}
-            className="mt-5 flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Settings
-          </button>
         </section>
       </div>
     </div>
