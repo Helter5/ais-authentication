@@ -183,11 +183,6 @@ export const adminApi = {
     return res.data;
   },
 
-  getLogs: async (service: 'bot' | 'vpn' = 'bot'): Promise<{ logs: string }> => {
-    const res = await api.get('/logs', { params: { service } });
-    return res.data;
-  },
-
   getDashboard: async (guildId: string): Promise<DashboardData> => {
     const res = await api.get('/dashboard', { params: { guildId } });
     return res.data;

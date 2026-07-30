@@ -9,7 +9,6 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const Codes = lazy(() => import("@/pages/Codes").then(module => ({ default: module.Codes })));
 const Users = lazy(() => import("@/pages/Users").then(module => ({ default: module.Users })));
-const DockerLogs = lazy(() => import("@/pages/DockerLogs").then(module => ({ default: module.DockerLogs })));
 const Logs = lazy(() => import("@/pages/Logs").then(module => ({ default: module.Logs })));
 const Admin = lazy(() => import("@/pages/Admin").then(module => ({ default: module.Admin })));
 const Commands = lazy(() => import("@/pages/Commands").then(module => ({ default: module.Commands })));
@@ -53,7 +52,6 @@ function App() {
                 <Route path="/access-logs" element={<Logs />} />
                 <Route path="/tickets/:channelId" element={<TicketTranscript />} />
                 <Route element={<SuperAdminRoute />}>
-                  <Route path="/logs" element={<DockerLogs />} />
                   <Route path="/modules" element={<Modules />} />
                   <Route path="/modules/hacked-account-trap" element={<HackedAccountTrapModule />} />
                   <Route path="/modules/autodelete" element={<AutoDeleteModule />} />
