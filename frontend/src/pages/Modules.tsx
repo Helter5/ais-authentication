@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, SlidersHorizontal } from "lucide-react";
-import { adminApi, type HackedAccountTrapSettings } from "@/lib/api";
+import { adminApi, apiErrorMessage, type HackedAccountTrapSettings } from "@/lib/api";
 import { useSelectedGuildId, Toggle } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 function ModuleCard({ name, description, href, enabled, onToggle, toggling, loading, error }: {
   name: string;
@@ -52,6 +53,7 @@ export function Modules() {
   const [adEnabled, setAdEnabled] = useState<boolean | null>(null);
   const [adToggling, setAdToggling] = useState(false);
   const [adError, setAdError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -92,10 +94,10 @@ export function Modules() {
     try {
       const next = await adminApi.saveHackedAccountTrap(guildId, { ...trapSettings, enabled });
       setTrapSettings(next);
+      toast(enabled ? "Hacked Account Trap enabled." : "Hacked Account Trap disabled.");
     } catch (err: unknown) {
       setTrapSettings(prev => prev ? { ...prev, enabled: !enabled } : prev);
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setTrapError(apiError.response?.data?.error ?? "Failed to change the module state.");
+      setTrapError(apiErrorMessage(err, "Failed to change the module state."));
     } finally {
       setTrapToggling(false);
     }
@@ -107,10 +109,12 @@ export function Modules() {
     setAdEnabled(enabled);
     try {
       await adminApi.setAutoDeleteEnabled(guildId, enabled);
+      toast(enabled ? "Auto Delete enabled." : "Auto Delete disabled.");
     } catch (err: unknown) {
       setAdEnabled(prev => prev !== null ? !prev : prev);
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setAdError(apiError.response?.data?.error ?? "Failed to change the module state.");
+      const message = apiErrorMessage(err, "Failed to change the module state.");
+      setAdError(message);
+      toast(message, "error");
     } finally {
       setAdToggling(false);
     }

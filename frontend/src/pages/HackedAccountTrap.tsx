@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NumberStepper } from "@/components/ui/number-stepper";
-import { adminApi, type HackedAccountTrapSettings } from "@/lib/api";
+import { adminApi, apiErrorMessage, type HackedAccountTrapSettings } from "@/lib/api";
 import { useSelectedGuildId, ModuleShell, Toggle, CmdSettingsRow, MultiPicker, ChannelPicker } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 const DEFAULT_TRAP_SETTINGS: HackedAccountTrapSettings = {
   enabled: false,
@@ -42,6 +43,7 @@ export function HackedAccountTrapModule() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => () => {
     if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
@@ -74,7 +76,7 @@ export function HackedAccountTrapModule() {
           logChannels.eventTypes.find(e => e.eventType === "HACKED_ACCOUNT_TRAP_TRIGGERED")?.channelId ?? null);
       })
       .catch(err => {
-        if (!cancelled) setError(err?.response?.data?.error ?? "Failed to load module settings.");
+        if (!cancelled) setError(apiErrorMessage(err, "Failed to load module settings."));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -93,11 +95,11 @@ export function HackedAccountTrapModule() {
       const next = await adminApi.saveHackedAccountTrap(guildId, settings);
       setSettings(next);
       setSaved(true);
+      toast("Module settings saved.");
       if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setError(apiError.response?.data?.error ?? "Failed to save module settings.");
+      toast(apiErrorMessage(err, "Failed to save module settings."), "error");
     } finally {
       setSaving(false);
     }
@@ -106,23 +108,22 @@ export function HackedAccountTrapModule() {
   const toggleModule = async () => {
     const enabled = !settings.enabled;
     if (enabled && !settings.trapChannelId) {
-      setError("Choose a trap channel before enabling the module.");
+      toast("Choose a trap channel before enabling the module.", "error");
       return;
     }
     if (enabled && !spamLogChannelId) {
-      setError("Set an Automod Log channel in Settings → Log Channels before enabling this module.");
+      toast("Set an Automod Log channel in Settings → Log Channels before enabling this module.", "error");
       return;
     }
     setToggling(true);
-    setError(null);
     setSettings(prev => ({ ...prev, enabled }));
     try {
       const next = await adminApi.saveHackedAccountTrap(guildId, { ...settings, enabled });
       setSettings(next);
+      toast(enabled ? "Module enabled." : "Module disabled.");
     } catch (err: unknown) {
       setSettings(prev => ({ ...prev, enabled: !enabled }));
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setError(apiError.response?.data?.error ?? "Failed to change module state.");
+      toast(apiErrorMessage(err, "Failed to change module state."), "error");
     } finally {
       setToggling(false);
     }
