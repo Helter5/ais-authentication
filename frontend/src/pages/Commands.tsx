@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { adminApi } from "@/lib/api";
 import {
@@ -10,6 +9,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,10 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/manualverify",  description: "Manually verify a user by Discord ID and email.", hasSettings: true },
     { name: "/user",          description: "Show detailed Discord info, verification status, and warn history for a member.", hasSettings: true },
     { name: "/say",           description: "Send a message as the bot in the current or a chosen channel.", hasSettings: true },
+    { name: "/ticketclose",   description: "Close the incident ticket in the current channel." },
+    { name: "/ticketreopen",  description: "Reopen the incident ticket in the current channel." },
+    { name: "/ticketdelete",  description: "Delete the incident ticket channel." },
+    { name: "/ticketrecap",   description: "Get the saved transcript link for the current ticket." },
   ],
   Verification: [
     { name: "/verify",   description: "Verify yourself as an active FEI student using your AIS ID.", hasSettings: true },
@@ -116,6 +121,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => () => {
     if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
@@ -151,57 +157,56 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
+      toast("Command settings saved.");
       if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast("Failed to save command settings.", "error");
     } finally { setSaving(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70" />
-      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-lg font-bold text-zinc-100">{title}</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X className="w-5 h-5" /></button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center gap-2 px-6 py-8 text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
-        ) : (
-          <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
-            {schema.ephemeral && (
-              <CmdSettingsRow label="Ephemeral response" hint="Only visible to the user who ran the command">
-                <Toggle enabled={ephemeral} onChange={setEphemeral} />
-              </CmdSettingsRow>
-            )}
-            {schema.dmUser && (
-              <div className="space-y-3">
-                <CmdSettingsRow
-                  label={commandKey === 'wipe' ? 'DM users before wipe' : 'DM the user'}
-                  hint={commandKey === 'wipe' ? 'Send a DM to each user before removing them' : 'Send a DM to the target user'}>
-                  <Toggle enabled={dmUser} onChange={setDmUser} />
-                </CmdSettingsRow>
-              </div>
-            )}
-            {schema.includeBots && (
-              <CmdSettingsRow label="Include bots" hint="Include bot accounts in the results">
-                <Toggle enabled={includeBots} onChange={setIncludeBots} />
-              </CmdSettingsRow>
-            )}
-          </div>
-        )}
-
-        <div className="px-6 py-4 border-t border-zinc-800 flex items-center gap-3">
-          <button onClick={save} disabled={saving || loading}
-            className="flex items-center gap-2 px-5 py-2 rounded text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : null}
-            {saved ? "Saved!" : "Save"}
-          </button>
-          <button onClick={onClose} className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
-        </div>
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-lg overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-100">{title}</h2>
+        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X className="w-5 h-5" /></button>
       </div>
-    </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 px-6 py-8 text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+      ) : (
+        <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
+          {schema.ephemeral && (
+            <CmdSettingsRow label="Ephemeral response" hint="Only visible to the user who ran the command">
+              <Toggle enabled={ephemeral} onChange={setEphemeral} />
+            </CmdSettingsRow>
+          )}
+          {schema.dmUser && (
+            <div className="space-y-3">
+              <CmdSettingsRow
+                label={commandKey === 'wipe' ? 'DM users before wipe' : 'DM the user'}
+                hint={commandKey === 'wipe' ? 'Send a DM to each user before removing them' : 'Send a DM to the target user'}>
+                <Toggle enabled={dmUser} onChange={setDmUser} />
+              </CmdSettingsRow>
+            </div>
+          )}
+          {schema.includeBots && (
+            <CmdSettingsRow label="Include bots" hint="Include bot accounts in the results">
+              <Toggle enabled={includeBots} onChange={setIncludeBots} />
+            </CmdSettingsRow>
+          )}
+        </div>
+      )}
+
+      <div className="px-6 py-4 border-t border-zinc-800 flex items-center gap-3">
+        <button onClick={save} disabled={saving || loading}
+          className="flex items-center gap-2 px-5 py-2 rounded text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : null}
+          {saved ? "Saved!" : "Save"}
+        </button>
+        <button onClick={onClose} className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -254,6 +259,7 @@ function PermissionsModal({ title, note, guildId, commandKey, commandKeys, roles
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const permissionKeysKey = (commandKeys ?? [commandKey]).join("\0");
   const isBulkPermissionEdit = Boolean(commandKeys);
+  const { toast } = useToast();
 
   useEffect(() => () => {
     if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
@@ -308,68 +314,67 @@ function PermissionsModal({ title, note, guildId, commandKey, commandKeys, roles
       setSaved(true);
       setMixedPermissions(false);
       onSaved?.();
+      toast("Permissions saved.");
       if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast("Failed to save permissions.", "error");
     } finally { setSaving(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70" />
-      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-lg font-bold text-zinc-100">{title}</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X className="w-5 h-5" /></button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center gap-2 px-6 py-8 text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
-        ) : (
-          <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-thin">
-            {note && <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">{note}</p>}
-            {mixedPermissions && (
-              <p className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
-                This category currently has mixed per-command permissions. The form starts empty so saving is an explicit overwrite for every command in this category.
-              </p>
-            )}
-
-            <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-zinc-700 bg-zinc-800/50 cursor-pointer hover:border-zinc-600 transition-colors">
-              <div>
-                <p className="text-sm font-bold text-zinc-200">Admin only</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Only users with Administrator permission can use this command</p>
-              </div>
-              <Toggle enabled={adminOnly} onChange={setAdminOnly} />
-            </label>
-
-            <PermSection label="Require specific roles" hint="Only members with one of these roles can use this command" active={allowedRoles.length > 0} onClear={() => setAllowedRoles([])}>
-              <MultiPicker options={roles} selected={allowedRoles} onChange={setAllowedRoles} placeholder="Select Role" />
-            </PermSection>
-
-            <PermSection label="Block specific roles" hint="Members with any of these roles are blocked" active={ignoredRoles.length > 0} onClear={() => setIgnoredRoles([])}>
-              <MultiPicker options={roles} selected={ignoredRoles} onChange={setIgnoredRoles} placeholder="Select Role" />
-            </PermSection>
-
-            <PermSection label="Allowed channels" hint="Command can only be used in these channels" active={allowedChannels.length > 0} onClear={() => setAllowedChannels([])}>
-              <MultiPicker options={channels} selected={allowedChannels} onChange={setAllowedChannels} placeholder="Select Channel" />
-            </PermSection>
-
-            <PermSection label="Blocked channels" hint="Command cannot be used in these channels" active={ignoredChannels.length > 0} onClear={() => setIgnoredChannels([])}>
-              <MultiPicker options={channels} selected={ignoredChannels} onChange={setIgnoredChannels} placeholder="Select Channel" />
-            </PermSection>
-          </div>
-        )}
-
-        <div className="px-6 py-4 border-t border-zinc-800 flex items-center gap-3">
-          <button onClick={save} disabled={saving || loading}
-            className="flex items-center gap-2 px-5 py-2 rounded text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : null}
-            {saved ? "Saved!" : "Save"}
-          </button>
-          <button onClick={onClose} className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
-        </div>
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-lg overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-100">{title}</h2>
+        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X className="w-5 h-5" /></button>
       </div>
-    </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 px-6 py-8 text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+      ) : (
+        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-thin">
+          {note && <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">{note}</p>}
+          {mixedPermissions && (
+            <p className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+              This category currently has mixed per-command permissions. The form starts empty so saving is an explicit overwrite for every command in this category.
+            </p>
+          )}
+
+          <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-zinc-700 bg-zinc-800/50 cursor-pointer hover:border-zinc-600 transition-colors">
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Admin only</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Only users with Administrator permission can use this command</p>
+            </div>
+            <Toggle enabled={adminOnly} onChange={setAdminOnly} />
+          </label>
+
+          <PermSection label="Require specific roles" hint="Only members with one of these roles can use this command" active={allowedRoles.length > 0} onClear={() => setAllowedRoles([])}>
+            <MultiPicker options={roles} selected={allowedRoles} onChange={setAllowedRoles} placeholder="Select Role" />
+          </PermSection>
+
+          <PermSection label="Block specific roles" hint="Members with any of these roles are blocked" active={ignoredRoles.length > 0} onClear={() => setIgnoredRoles([])}>
+            <MultiPicker options={roles} selected={ignoredRoles} onChange={setIgnoredRoles} placeholder="Select Role" />
+          </PermSection>
+
+          <PermSection label="Allowed channels" hint="Command can only be used in these channels" active={allowedChannels.length > 0} onClear={() => setAllowedChannels([])}>
+            <MultiPicker options={channels} selected={allowedChannels} onChange={setAllowedChannels} placeholder="Select Channel" />
+          </PermSection>
+
+          <PermSection label="Blocked channels" hint="Command cannot be used in these channels" active={ignoredChannels.length > 0} onClear={() => setIgnoredChannels([])}>
+            <MultiPicker options={channels} selected={ignoredChannels} onChange={setIgnoredChannels} placeholder="Select Channel" />
+          </PermSection>
+        </div>
+      )}
+
+      <div className="px-6 py-4 border-t border-zinc-800 flex items-center gap-3">
+        <button onClick={save} disabled={saving || loading}
+          className="flex items-center gap-2 px-5 py-2 rounded text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : null}
+          {saved ? "Saved!" : "Save"}
+        </button>
+        <button onClick={onClose} className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -391,6 +396,7 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
 }) {
   const [modal, setModal] = useState<"auth" | "settings" | null>(null);
   const [toggling, setToggling] = useState(false);
+  const { toast } = useToast();
 
   const handleToggle = async (v: boolean) => {
     if (!guildId || toggling) return;
@@ -398,8 +404,10 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
     onToggle(cmd.name, v);
     try {
       await adminApi.setCommandEnabled(guildId, cmd.name, v);
+      toast(`${cmd.name} ${v ? "enabled" : "disabled"}.`);
     } catch {
       onToggle(cmd.name, !v);
+      toast(`Failed to ${v ? "enable" : "disable"} ${cmd.name}.`, "error");
     } finally { setToggling(false); }
   };
 
@@ -498,7 +506,7 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
         )}
       </div>
 
-      {modal === "auth" && guildId && createPortal(
+      {modal === "auth" && guildId && (
         <PermissionsModal
           title={`Authorization (${cmd.name})`}
           guildId={guildId}
@@ -507,16 +515,15 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
           channels={channels}
           onClose={() => setModal(null)}
           onSaved={onPermsSaved}
-        />, document.body
+        />
       )}
-      {modal === "settings" && guildId && createPortal(
+      {modal === "settings" && guildId && (
         <CommandSettingsModal
           title={`Settings (${cmd.name})`}
           commandKey={cmd.name.replace("/", "")}
           guildId={guildId}
           onClose={() => setModal(null)}
-        />,
-        document.body
+        />
       )}
     </div>
   );
@@ -556,6 +563,7 @@ export function Commands() {
   const [deployed, setDeployed] = useState(false);
   const [togglingAll, setTogglingAll] = useState(false);
   const deployTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => () => {
     if (deployTimerRef.current !== null) clearTimeout(deployTimerRef.current);
@@ -606,8 +614,10 @@ export function Commands() {
     setCmdStates(prev => ({ ...prev, ...patch }));
     try {
       await adminApi.setCommandStatesBulk(guildId, patch);
+      toast(`${activeTab} commands ${value ? "enabled" : "disabled"}.`);
     } catch {
       setCmdStates(oldStates);
+      toast(`Failed to ${value ? "enable" : "disable"} ${activeTab} commands.`, "error");
     } finally {
       setTogglingAll(false);
     }
@@ -619,10 +629,13 @@ export function Commands() {
     try {
       await adminApi.deployCommands(guildId);
       setDeployed(true);
+      toast("Commands deployed to Discord.");
       if (deployTimerRef.current !== null) clearTimeout(deployTimerRef.current);
       deployTimerRef.current = setTimeout(() => setDeployed(false), 3000);
-    } catch (e) { console.error(e); }
-    finally { setDeploying(false); }
+    } catch (e) {
+      console.error(e);
+      toast("Failed to deploy commands to Discord.", "error");
+    } finally { setDeploying(false); }
   };
 
   const TABS = Object.keys(CMD_CATEGORIES) as CmdCategory[];

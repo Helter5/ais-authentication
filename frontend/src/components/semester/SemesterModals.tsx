@@ -1,6 +1,6 @@
-import { createPortal } from "react-dom";
 import { ArrowLeftRight, ChevronRight, Settings2, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
 import type { SemesterConfig, RunProgress } from "@/pages/SwitchSemester";
 
 interface ConfirmSwitchModalProps {
@@ -14,57 +14,52 @@ interface ConfirmSwitchModalProps {
 
 export function ConfirmSwitchModal({ open, runOld, runNew, newSemesterConfig, onClose, onRun }: ConfirmSwitchModalProps) {
   if (!open) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center flex-shrink-0">
-            <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-zinc-100">Confirm Semester Switch</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">This will modify channel visibility and swap roles for all members.</p>
-          </div>
+  return (
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-md p-6 space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center flex-shrink-0">
+          <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
         </div>
-
-        <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-4 flex items-center justify-between gap-3">
-          <div className="text-center flex-1">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Hiding</p>
-            <p className="text-sm font-bold text-zinc-200 font-mono">{runOld}</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-          <div className="text-center flex-1">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Showing</p>
-            <p className="text-sm font-bold text-indigo-300 font-mono">{runNew}</p>
-          </div>
-        </div>
-
-        <p className="text-xs text-zinc-500">
-          Role mappings and cleanup roles configured for <span className="text-zinc-300 font-semibold">{runOld}</span> will be applied to all matching members.
-          This cannot be undone automatically.
-        </p>
-        <div className="flex justify-between gap-4 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-xs">
-          <span className="text-zinc-500">@everyone View Channel on {runNew}</span>
-          <span className={newSemesterConfig?.everyoneViewChannel ? "text-emerald-300" : "text-red-300"}>
-            {newSemesterConfig?.everyoneViewChannel ? "True" : "False"}
-          </span>
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
-            Cancel
-          </button>
-          <button onClick={onRun}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center justify-center gap-2">
-            <Play className="w-4 h-4" /> Run Switch
-          </button>
+        <div>
+          <h2 className="text-base font-bold text-zinc-100">Confirm Semester Switch</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">This will modify channel visibility and swap roles for all members.</p>
         </div>
       </div>
-    </div>,
-    document.body
+
+      <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-4 flex items-center justify-between gap-3">
+        <div className="text-center flex-1">
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Hiding</p>
+          <p className="text-sm font-bold text-zinc-200 font-mono">{runOld}</p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+        <div className="text-center flex-1">
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Showing</p>
+          <p className="text-sm font-bold text-indigo-300 font-mono">{runNew}</p>
+        </div>
+      </div>
+
+      <p className="text-xs text-zinc-500">
+        Role mappings and cleanup roles configured for <span className="text-zinc-300 font-semibold">{runOld}</span> will be applied to all matching members.
+        This cannot be undone automatically.
+      </p>
+      <div className="flex justify-between gap-4 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-xs">
+        <span className="text-zinc-500">@everyone View Channel on {runNew}</span>
+        <span className={newSemesterConfig?.everyoneViewChannel ? "text-emerald-300" : "text-red-300"}>
+          {newSemesterConfig?.everyoneViewChannel ? "True" : "False"}
+        </span>
+      </div>
+
+      <div className="flex gap-3 pt-1">
+        <button onClick={onClose}
+          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+          Cancel
+        </button>
+        <button onClick={onRun}
+          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center justify-center gap-2">
+          <Play className="w-4 h-4" /> Run Switch
+        </button>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -80,55 +75,50 @@ interface ConfirmSetupModalProps {
 
 export function ConfirmSetupModal({ open, setupSemester, setupVisible, setupClearRoles, setupConfig, onClose, onRun }: ConfirmSetupModalProps) {
   if (!open) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
-            <Settings2 className="w-4 h-4 text-amber-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-zinc-100">Confirm Semester Setup</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">This changes one semester without applying transition role mappings.</p>
-          </div>
+  return (
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-md p-6 space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
+          <Settings2 className="w-4 h-4 text-amber-400" />
         </div>
-
-        <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-4 space-y-2 text-xs">
-          <div className="flex justify-between gap-4">
-            <span className="text-zinc-500">Semester</span>
-            <span className="font-semibold text-zinc-200">{setupSemester}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-zinc-500">Channels</span>
-            <span className={setupVisible ? "text-emerald-300" : "text-red-300"}>{setupVisible ? "Show" : "Hide"}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-zinc-500">@everyone View Channel</span>
-            <span className={setupVisible && setupConfig?.everyoneViewChannel ? "text-emerald-300" : "text-red-300"}>
-              {setupVisible && setupConfig?.everyoneViewChannel ? "True" : "False"}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-zinc-500">Cleanup roles</span>
-            <span className={setupClearRoles ? "text-red-300" : "text-zinc-400"}>{setupClearRoles ? "Clear members" : "Keep unchanged"}</span>
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
-            Cancel
-          </button>
-          <button onClick={onRun}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white transition-colors flex items-center justify-center gap-2">
-            <Play className="w-4 h-4" /> Run Setup
-          </button>
+        <div>
+          <h2 className="text-base font-bold text-zinc-100">Confirm Semester Setup</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">This changes one semester without applying transition role mappings.</p>
         </div>
       </div>
-    </div>,
-    document.body
+
+      <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-4 space-y-2 text-xs">
+        <div className="flex justify-between gap-4">
+          <span className="text-zinc-500">Semester</span>
+          <span className="font-semibold text-zinc-200">{setupSemester}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-zinc-500">Channels</span>
+          <span className={setupVisible ? "text-emerald-300" : "text-red-300"}>{setupVisible ? "Show" : "Hide"}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-zinc-500">@everyone View Channel</span>
+          <span className={setupVisible && setupConfig?.everyoneViewChannel ? "text-emerald-300" : "text-red-300"}>
+            {setupVisible && setupConfig?.everyoneViewChannel ? "True" : "False"}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-zinc-500">Cleanup roles</span>
+          <span className={setupClearRoles ? "text-red-300" : "text-zinc-400"}>{setupClearRoles ? "Clear members" : "Keep unchanged"}</span>
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-1">
+        <button onClick={onClose}
+          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+          Cancel
+        </button>
+        <button onClick={onRun}
+          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white transition-colors flex items-center justify-center gap-2">
+          <Play className="w-4 h-4" /> Run Setup
+        </button>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -140,12 +130,9 @@ interface ModeInfoModalProps {
 
 export function ModeInfoModal({ open, runMode, onClose }: ModeInfoModalProps) {
   if (!open) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-start gap-3 p-5 border-b border-zinc-800">
+  return (
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-lg overflow-hidden">
+      <div className="flex items-start gap-3 p-5 border-b border-zinc-800">
           <div className={cn("w-9 h-9 rounded-lg border flex items-center justify-center flex-shrink-0",
             runMode === "switch"
               ? "bg-indigo-500/15 border-indigo-500/25"
@@ -196,9 +183,7 @@ export function ModeInfoModal({ open, runMode, onClose }: ModeInfoModalProps) {
             </>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+    </ModalOverlay>
   );
 }
 
