@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { adminApi } from "@/lib/api";
+import { adminApi, apiErrorMessage } from "@/lib/api";
 import {
   Loader2, CheckCircle2, AlertCircle, Search, X, Plus,
   ChevronDown, Shield, Bell, AlertTriangle,
@@ -8,12 +8,12 @@ import {
 import { cn } from "@/lib/utils";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Toggle, useSelectedGuildId } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
 type DiscordRole    = { id: string; name: string; color: string; position: number };
 type DiscordChannel = { id: string; name: string; position: number };
-type GuildSettings  = Awaited<ReturnType<typeof adminApi.getSettings>>;
 type WarnThreshold  = { warn_limit: number; action: string };
 type AutoMention    = { channel_id: string; role_id: string; enabled: boolean };
 
@@ -165,18 +165,21 @@ function FieldRow({ label, hint, icon: Icon, children }: {
 function useSave() {
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  const save = async (fn: () => Promise<unknown>) => {
+  const save = async (fn: () => Promise<unknown>, successMessage = "Saved.") => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setState("saving");
     try {
       await fn();
       setState("saved");
+      toast(successMessage);
       timerRef.current = setTimeout(() => setState("idle"), 2000);
     } catch {
       setState("error");
+      toast("Failed to save.", "error");
       timerRef.current = setTimeout(() => setState("idle"), 3000);
     }
   };
@@ -193,51 +196,32 @@ function useSave() {
 }
 
 // ─── Roles section ────────────────────────────────────────────────────────────
+// Purely controlled by the parent Settings() draft state - no per-field auto-save here anymore,
+// see the single "Save Settings" button at the bottom of the page.
 
-function RolesSection({ guildId, settings, roles }: { guildId: string; settings: GuildSettings; roles: DiscordRole[] }) {
-  const [verifiedRole, setVerifiedRole] = useState(settings.verified_role_id);
-  const [inactiveRole, setInactiveRole] = useState(settings.inactive_role_id);
-  const [verifEnabled, setVerifEnabled] = useState(settings.verification_enabled);
-  const { save, indicator } = useSave();
-  const { save: saveVerif, indicator: verifIndicator } = useSave();
-
-  useEffect(() => {
-    setVerifiedRole(settings.verified_role_id);
-    setInactiveRole(settings.inactive_role_id);
-    setVerifEnabled(settings.verification_enabled);
-  }, [settings.verified_role_id, settings.inactive_role_id, settings.verification_enabled]);
-
+function RolesSection({ roles, verifiedRole, onVerifiedRoleChange, inactiveRole, onInactiveRoleChange, verifEnabled, onVerifEnabledChange }: {
+  roles: DiscordRole[];
+  verifiedRole: string | null;
+  onVerifiedRoleChange: (id: string | null) => void;
+  inactiveRole: string | null;
+  onInactiveRoleChange: (id: string | null) => void;
+  verifEnabled: boolean;
+  onVerifEnabledChange: (v: boolean) => void;
+}) {
   const colorMap = Object.fromEntries(roles.map(r => [r.id, r.color === "#000000" ? "#6b7280" : r.color]));
-
-  const handleVerified = (id: string | null) => {
-    setVerifiedRole(id);
-    save(() => adminApi.updateSetting(guildId, "verified_role_id", id));
-  };
-
-  const handleInactive = (id: string | null) => {
-    setInactiveRole(id);
-    save(() => adminApi.updateSetting(guildId, "inactive_role_id", id));
-  };
-
-  const handleVerifEnabled = (v: boolean) => {
-    setVerifEnabled(v);
-    saveVerif(() => adminApi.updateSetting(guildId, "verification_enabled", v));
-  };
 
   return (
     <Section icon={Shield} title="Verification & Roles" description="Enable verification and configure roles for verified and inactive members.">
       <FieldRow label="Verification" hint="Disable to block /verify and /code" icon={UserCheck}>
         <div className="flex items-center gap-3 pt-1.5">
-          <Toggle enabled={verifEnabled} onChange={handleVerifEnabled} />
-          {verifIndicator}
+          <Toggle enabled={verifEnabled} onChange={onVerifEnabledChange} />
         </div>
       </FieldRow>
-      <div className="flex justify-end">{indicator}</div>
       <FieldRow label="Verified Role" hint="Assigned on successful verification" icon={UserCheck}>
-        <Picker options={roles} value={verifiedRole} onChange={handleVerified} placeholder="Select a role…" colorMap={colorMap} prefix="@" />
+        <Picker options={roles} value={verifiedRole} onChange={onVerifiedRoleChange} placeholder="Select a role…" colorMap={colorMap} prefix="@" />
       </FieldRow>
       <FieldRow label="Inactive Role" hint="Assigned by /wipe to inactive students" icon={UserMinus}>
-        <Picker options={roles} value={inactiveRole} onChange={handleInactive} placeholder="Select a role…" colorMap={colorMap} prefix="@" />
+        <Picker options={roles} value={inactiveRole} onChange={onInactiveRoleChange} placeholder="Select a role…" colorMap={colorMap} prefix="@" />
       </FieldRow>
     </Section>
   );
@@ -251,7 +235,7 @@ function WarnThresholdsSection({ guildId }: { guildId: string }) {
   const [newLimit, setNewLimit] = useState(1);
   const [newAction, setNewAction] = useState("kick");
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     adminApi.getWarnThresholds(guildId).then(setThresholds).finally(() => setLoading(false));
@@ -260,14 +244,13 @@ function WarnThresholdsSection({ guildId }: { guildId: string }) {
   const add = async () => {
     const limit = newLimit;
     setAdding(true);
-    setError(null);
     try {
       await adminApi.addWarnThreshold(guildId, limit, newAction);
       setThresholds(await adminApi.getWarnThresholds(guildId));
       setNewLimit(1);
+      toast("Warn threshold added.");
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error ?? "Failed to add");
+      toast(apiErrorMessage(e, "Failed to add warn threshold."), "error");
     } finally {
       setAdding(false);
     }
@@ -277,9 +260,9 @@ function WarnThresholdsSection({ guildId }: { guildId: string }) {
     try {
       await adminApi.removeWarnThreshold(guildId, limit);
       setThresholds(t => t.filter(x => x.warn_limit !== limit));
+      toast("Warn threshold removed.");
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error ?? "Failed to remove warning threshold");
+      toast(apiErrorMessage(e, "Failed to remove warning threshold."), "error");
     }
   };
 
@@ -334,7 +317,6 @@ function WarnThresholdsSection({ guildId }: { guildId: string }) {
               {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
               Add
             </button>
-            {error && <span className="text-xs text-red-400">{error}</span>}
           </div>
         </div>
       )}
@@ -350,7 +332,7 @@ function AutoMentionsSection({ guildId, roles, channels }: { guildId: string; ro
   const [newChannel, setNewChannel] = useState<string | null>(null);
   const [newRole, setNewRole] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const colorMap = Object.fromEntries(roles.map(r => [r.id, r.color === "#000000" ? "#6b7280" : r.color]));
 
@@ -361,28 +343,37 @@ function AutoMentionsSection({ guildId, roles, channels }: { guildId: string; ro
   const add = async () => {
     if (!newChannel || !newRole) return;
     setAdding(true);
-    setError(null);
     try {
       await adminApi.addAutoMention(guildId, newChannel, newRole);
       setMentions(await adminApi.getAutoMentions(guildId));
       setNewChannel(null);
       setNewRole(null);
+      toast("Auto-mention added.");
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error ?? "Failed to add");
+      toast(apiErrorMessage(e, "Failed to add auto-mention."), "error");
     } finally {
       setAdding(false);
     }
   };
 
   const toggle = async (channelId: string) => {
-    const res = await adminApi.toggleAutoMention(guildId, channelId);
-    setMentions(m => m.map(x => x.channel_id === channelId ? { ...x, enabled: res.enabled } : x));
+    try {
+      const res = await adminApi.toggleAutoMention(guildId, channelId);
+      setMentions(m => m.map(x => x.channel_id === channelId ? { ...x, enabled: res.enabled } : x));
+      toast(res.enabled ? "Auto-mention enabled." : "Auto-mention disabled.");
+    } catch {
+      toast("Failed to update auto-mention.", "error");
+    }
   };
 
   const remove = async (channelId: string) => {
-    await adminApi.removeAutoMention(guildId, channelId);
-    setMentions(m => m.filter(x => x.channel_id !== channelId));
+    try {
+      await adminApi.removeAutoMention(guildId, channelId);
+      setMentions(m => m.filter(x => x.channel_id !== channelId));
+      toast("Auto-mention removed.");
+    } catch {
+      toast("Failed to remove auto-mention.", "error");
+    }
   };
 
   const channelName = (id: string) => channels.find(c => c.id === id)?.name ?? id;
@@ -438,7 +429,6 @@ function AutoMentionsSection({ guildId, roles, channels }: { guildId: string; ro
               Add
             </button>
           </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}
     </Section>
@@ -493,72 +483,39 @@ function ManagerRolePicker({ roles, value, onChange }: {
   );
 }
 
-function ManagerRolesSection({ guildId }: { guildId: string }) {
-  const [roles, setRoles] = useState<ManagerRole[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { save, indicator } = useSave();
-
-  useEffect(() => {
-    adminApi.getManagerRoles(guildId)
-      .then(r => { setRoles(r.roles); setSelected(r.managerRoleIds); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [guildId]);
-
-  const handleSave = () => save(() => adminApi.updateManagerRoles(guildId, selected));
-
+function ManagerRolesSection({ roles, selected, onChange }: {
+  roles: ManagerRole[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
   return (
     <Section
       icon={Users}
       title="Manager Roles"
       description="Roles allowed to log in and use the standard server-management pages."
     >
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
-      ) : (
-        <div className="space-y-3">
-          <p className="rounded border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs leading-relaxed text-indigo-200">
-            Managers can sign in and access Dashboard, Codes, Users Directory, Semester, and Logs.
-            They cannot access the Super Admin area: Admin, Settings, Modules, Commands, Wipe, or Docker Logs.
-          </p>
-          <ManagerRolePicker roles={roles} value={selected} onChange={setSelected} />
-          <div className="flex items-center gap-3">
-            <button onClick={handleSave}
-              className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50">
-              <Save className="h-4 w-4" /> Save Manager Roles
-            </button>
-            {indicator}
-          </div>
-        </div>
-      )}
+      <div className="space-y-3">
+        <p className="rounded border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs leading-relaxed text-indigo-200">
+          Managers can sign in and access Dashboard, Codes, Users Directory, Semester, and Logs.
+          They cannot access the Super Admin area: Admin, Settings, Modules, Commands, Wipe, or Docker Logs.
+        </p>
+        <ManagerRolePicker roles={roles} value={selected} onChange={onChange} />
+      </div>
     </Section>
   );
 }
 
 type LogChannelEntry = Awaited<ReturnType<typeof adminApi.getLogChannels>>["eventTypes"][number];
 
-function LogChannelsSection({ guildId, channels }: { guildId: string; channels: DiscordChannel[] }) {
-  const [entries, setEntries] = useState<LogChannelEntry[]>([]);
-  const [assignments, setAssignments] = useState<Record<string, string | null>>({});
-  const [channelSlots, setChannelSlots] = useState<string[]>([]);
+function LogChannelsSection({ channels, entries, assignments, setAssignments, channelSlots, setChannelSlots }: {
+  channels: DiscordChannel[];
+  entries: LogChannelEntry[];
+  assignments: Record<string, string | null>;
+  setAssignments: React.Dispatch<React.SetStateAction<Record<string, string | null>>>;
+  channelSlots: string[];
+  setChannelSlots: React.Dispatch<React.SetStateAction<string[]>>;
+}) {
   const [newChannel, setNewChannel] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { save, indicator } = useSave();
-
-  useEffect(() => {
-    adminApi.getLogChannels(guildId).then(r => {
-      const initial: Record<string, string | null> = {};
-      const slots: string[] = [];
-      r.eventTypes.forEach(e => {
-        initial[e.eventType] = e.channelId;
-        if (e.channelId && !slots.includes(e.channelId)) slots.push(e.channelId);
-      });
-      setEntries(r.eventTypes);
-      setAssignments(initial);
-      setChannelSlots(slots);
-    }).catch(console.error).finally(() => setLoading(false));
-  }, [guildId]);
 
   const channelOptions = channels.map(c => ({ id: c.id, name: `#${c.name}` }));
   const channelName = (id: string) => channelOptions.find(c => c.id === id)?.name ?? `#${id}`;
@@ -592,88 +549,101 @@ function LogChannelsSection({ guildId, channels }: { guildId: string; channels: 
     setAssignments(a => ({ ...a, [eventType]: a[eventType] === channelId ? null : channelId }));
   };
 
-  const handleSave = () => save(() => adminApi.updateLogChannels(guildId, assignments));
-
   const unassigned = entries.filter(e => !assignments[e.eventType]);
 
   return (
     <Section icon={Bell} title="Log Channels" description="Pick a channel, then choose which events log to it.">
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
-      ) : (
-        <div className="space-y-4">
-          {entries.filter(e => e.configured && !e.ok && assignments[e.eventType] === e.channelId).map(e => (
-            <div key={e.eventType} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-              <span><strong>{e.label}:</strong> {e.error}</span>
+      <div className="space-y-4">
+        {entries.filter(e => e.configured && !e.ok && assignments[e.eventType] === e.channelId).map(e => (
+          <div key={e.eventType} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span><strong>{e.label}:</strong> {e.error}</span>
+          </div>
+        ))}
+
+        {channelSlots.length === 0 && (
+          <p className="text-xs text-zinc-600">No log channels configured yet.</p>
+        )}
+
+        {channelSlots.map(channelId => (
+          <div key={channelId} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Hash className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+              <div className="flex-1">
+                <Picker
+                  options={channelOptions.filter(c => c.id === channelId || !channelSlots.includes(c.id))}
+                  value={channelId}
+                  onChange={id => id && changeSlotChannel(channelId, id)}
+                  placeholder="Select channel…" />
+              </div>
+              <button onClick={() => removeChannelSlot(channelId)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          ))}
-
-          {channelSlots.length === 0 && (
-            <p className="text-xs text-zinc-600">No log channels configured yet.</p>
-          )}
-
-          {channelSlots.map(channelId => (
-            <div key={channelId} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Hash className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                <div className="flex-1">
-                  <Picker
-                    options={channelOptions.filter(c => c.id === channelId || !channelSlots.includes(c.id))}
-                    value={channelId}
-                    onChange={id => id && changeSlotChannel(channelId, id)}
-                    placeholder="Select channel…" />
+            <div className="space-y-1 pl-1">
+              {entries.map(e => (
+                <div key={e.eventType} className="flex items-start gap-2 py-1">
+                  <button type="button" onClick={() => toggleEvent(e.eventType, channelId)}
+                    className={cn("mt-0.5 flex h-4 w-4 items-center justify-center rounded border flex-shrink-0",
+                      assignments[e.eventType] === channelId ? "border-indigo-500 bg-indigo-600" : "border-zinc-600")}>
+                    {assignments[e.eventType] === channelId && <CheckCircle2 className="h-3 w-3 text-white" />}
+                  </button>
+                  <span className="text-xs leading-snug">
+                    <span className="font-semibold text-zinc-200">{e.label}</span>
+                    <span className="text-zinc-500"> — {e.description}</span>
+                    {assignments[e.eventType] && assignments[e.eventType] !== channelId && (
+                      <span className="text-zinc-600"> (currently {channelName(assignments[e.eventType]!)})</span>
+                    )}
+                  </span>
                 </div>
-                <button onClick={() => removeChannelSlot(channelId)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="space-y-1 pl-1">
-                {entries.map(e => (
-                  <div key={e.eventType} className="flex items-start gap-2 py-1">
-                    <button type="button" onClick={() => toggleEvent(e.eventType, channelId)}
-                      className={cn("mt-0.5 flex h-4 w-4 items-center justify-center rounded border flex-shrink-0",
-                        assignments[e.eventType] === channelId ? "border-indigo-500 bg-indigo-600" : "border-zinc-600")}>
-                      {assignments[e.eventType] === channelId && <CheckCircle2 className="h-3 w-3 text-white" />}
-                    </button>
-                    <span className="text-xs leading-snug">
-                      <span className="font-semibold text-zinc-200">{e.label}</span>
-                      <span className="text-zinc-500"> — {e.description}</span>
-                      {assignments[e.eventType] && assignments[e.eventType] !== channelId && (
-                        <span className="text-zinc-600"> (currently {channelName(assignments[e.eventType]!)})</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
-          ))}
-
-          {unassigned.length > 0 && (
-            <p className="text-[11px] text-zinc-600">Not logged anywhere: {unassigned.map(e => e.label).join(", ")}</p>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end pt-1">
-            <div>
-              <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Add channel</p>
-              <Picker
-                options={channelOptions.filter(c => !channelSlots.includes(c.id))}
-                value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" />
-            </div>
-            <button onClick={addChannelSlot} disabled={!newChannel}
-              className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-              <Plus className="w-3.5 h-3.5" /> Add
-            </button>
           </div>
+        ))}
 
-          <div className="flex items-center gap-3 pt-1">
-            <button onClick={handleSave}
-              className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
-              <Save className="h-4 w-4" /> Save Log Channels
-            </button>
-            {indicator}
+        {unassigned.length > 0 && (
+          <p className="text-[11px] text-zinc-600">Not logged anywhere: {unassigned.map(e => e.label).join(", ")}</p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end pt-1">
+          <div>
+            <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Add channel</p>
+            <Picker
+              options={channelOptions.filter(c => !channelSlots.includes(c.id))}
+              value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" />
           </div>
+          <button onClick={addChannelSlot} disabled={!newChannel}
+            className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
+            <Plus className="w-3.5 h-3.5" /> Add
+          </button>
         </div>
+      </div>
+    </Section>
+  );
+}
+
+// ─── Ticket retention section ──────────────────────────────────────────────────
+
+function TicketRetentionSection({ enabled, onEnabledChange, days, onDaysChange }: {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  days: number;
+  onDaysChange: (v: number) => void;
+}) {
+  return (
+    <Section icon={Clock} title="Ticket Transcripts" description="Automatically clear saved ticket transcript content once it's old enough.">
+      <FieldRow label="Auto-delete transcripts" hint="Clears transcript content for tickets closed longer ago than the retention period" icon={Clock}>
+        <div className="flex items-center gap-3 pt-1.5">
+          <Toggle enabled={enabled} onChange={onEnabledChange} />
+        </div>
+      </FieldRow>
+      {enabled && (
+        <FieldRow label="Retention period" hint="Days to keep a transcript after the ticket is closed" icon={Clock}>
+          <div className="flex items-center gap-2">
+            <NumberStepper value={days} onChange={onDaysChange} min={1} max={365} className="w-32" ariaLabel="Ticket transcript retention in days" />
+            <span className="text-xs text-zinc-500">days</span>
+          </div>
+        </FieldRow>
       )}
     </Section>
   );
@@ -683,17 +653,32 @@ function LogChannelsSection({ guildId, channels }: { guildId: string; channels: 
 
 export function Settings() {
   const guildId = useSelectedGuildId();
-  const [settings, setSettings] = useState<GuildSettings | null>(null);
-  const [roles, setRoles] = useState<DiscordRole[]>([]);
-  const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roles, setRoles] = useState<DiscordRole[]>([]);
+  const [channels, setChannels] = useState<DiscordChannel[]>([]);
+
+  // Draft state for every "simple setting" section - nothing here saves until the single
+  // "Save Settings" button below is clicked (Warn Thresholds / Auto-Mentions are exempt: adding or
+  // removing a list entry is already a single, deliberate action with its own button, not a value
+  // worth "drafting").
+  const [verifiedRole, setVerifiedRole] = useState<string | null>(null);
+  const [inactiveRole, setInactiveRole] = useState<string | null>(null);
+  const [verifEnabled, setVerifEnabled] = useState(false);
+  const [ticketRetentionEnabled, setTicketRetentionEnabled] = useState(false);
+  const [ticketRetentionDays, setTicketRetentionDays] = useState(90);
+  const [managerRoles, setManagerRoles] = useState<ManagerRole[]>([]);
+  const [managerRoleIds, setManagerRoleIds] = useState<string[]>([]);
+  const [logChannelEntries, setLogChannelEntries] = useState<LogChannelEntry[]>([]);
+  const [logChannelAssignments, setLogChannelAssignments] = useState<Record<string, string | null>>({});
+  const [logChannelSlots, setLogChannelSlots] = useState<string[]>([]);
+
+  const { save, indicator } = useSave();
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setSettings(null);
     setRoles([]);
     setChannels([]);
     if (!guildId) {
@@ -705,15 +690,32 @@ export function Settings() {
       adminApi.getSettings(guildId),
       adminApi.getDiscordRoles(guildId),
       adminApi.getDiscordTextChannels(guildId),
+      adminApi.getManagerRoles(guildId),
+      adminApi.getLogChannels(guildId),
     ])
-      .then(([s, r, c]) => {
+      .then(([s, r, c, mr, lc]) => {
         if (cancelled) return;
-        setSettings(s);
         setRoles(r);
         setChannels(c);
+        setVerifiedRole(s.verified_role_id);
+        setInactiveRole(s.inactive_role_id);
+        setVerifEnabled(s.verification_enabled);
+        setTicketRetentionEnabled(s.ticket_retention_enabled);
+        setTicketRetentionDays(s.ticket_retention_days);
+        setManagerRoles(mr.roles);
+        setManagerRoleIds(mr.managerRoleIds);
+        const initialAssignments: Record<string, string | null> = {};
+        const initialSlots: string[] = [];
+        lc.eventTypes.forEach(e => {
+          initialAssignments[e.eventType] = e.channelId;
+          if (e.channelId && !initialSlots.includes(e.channelId)) initialSlots.push(e.channelId);
+        });
+        setLogChannelEntries(lc.eventTypes);
+        setLogChannelAssignments(initialAssignments);
+        setLogChannelSlots(initialSlots);
       })
       .catch(e => {
-        if (!cancelled) setError(e?.response?.data?.error ?? e?.message ?? "Failed to load");
+        if (!cancelled) setError(apiErrorMessage(e, e?.message ?? "Failed to load"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -721,14 +723,29 @@ export function Settings() {
     return () => { cancelled = true; };
   }, [guildId]);
 
+  const handleSaveAll = () => {
+    if (!guildId) return;
+    save(() => Promise.all([
+      adminApi.updateSettingsBulk(guildId, {
+        verified_role_id: verifiedRole,
+        inactive_role_id: inactiveRole,
+        verification_enabled: verifEnabled,
+        ticket_retention_enabled: ticketRetentionEnabled,
+        ticket_retention_days: ticketRetentionDays,
+      }),
+      adminApi.updateManagerRoles(guildId, managerRoleIds),
+      adminApi.updateLogChannels(guildId, logChannelAssignments),
+    ]), "Settings saved.");
+  };
+
   return (
     <div className="flex flex-col gap-6 md:pl-64">
       <div className="px-4 sm:px-6 pt-5">
         <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Settings</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Server configuration — changes save instantly.</p>
+        <p className="text-sm text-zinc-500 mt-0.5">Server configuration — click Save to apply changes.</p>
       </div>
 
-      <div className="px-4 sm:px-6 pb-8">
+      <div className="px-4 sm:px-6 pb-28">
         {loading && (
           <div className="flex items-center gap-2 text-zinc-500 text-sm">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading…
@@ -739,22 +756,48 @@ export function Settings() {
             <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
           </div>
         )}
-        {!loading && settings && (
+        {!loading && !error && guildId && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left column */}
             <div className="flex flex-col gap-4">
-              <RolesSection guildId={guildId} settings={settings} roles={roles} />
+              <RolesSection
+                roles={roles}
+                verifiedRole={verifiedRole} onVerifiedRoleChange={setVerifiedRole}
+                inactiveRole={inactiveRole} onInactiveRoleChange={setInactiveRole}
+                verifEnabled={verifEnabled} onVerifEnabledChange={setVerifEnabled}
+              />
               <WarnThresholdsSection guildId={guildId} />
               <AutoMentionsSection guildId={guildId} roles={roles} channels={channels} />
             </div>
             {/* Right column */}
             <div className="flex flex-col gap-4">
-              <ManagerRolesSection guildId={guildId} />
-              <LogChannelsSection guildId={guildId} channels={channels} />
+              <ManagerRolesSection roles={managerRoles} selected={managerRoleIds} onChange={setManagerRoleIds} />
+              <LogChannelsSection
+                channels={channels}
+                entries={logChannelEntries}
+                assignments={logChannelAssignments} setAssignments={setLogChannelAssignments}
+                channelSlots={logChannelSlots} setChannelSlots={setLogChannelSlots}
+              />
+              <TicketRetentionSection
+                enabled={ticketRetentionEnabled} onEnabledChange={setTicketRetentionEnabled}
+                days={ticketRetentionDays} onDaysChange={setTicketRetentionDays}
+              />
             </div>
           </div>
         )}
       </div>
+
+      {!loading && !error && guildId && (
+        <div className="fixed bottom-0 left-0 right-0 md:pl-64 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur">
+          <div className="flex items-center gap-4 px-4 sm:px-6 py-3">
+            <button onClick={handleSaveAll}
+              className="flex items-center gap-2 rounded bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 transition-colors">
+              <Save className="h-4 w-4" /> Save Settings
+            </button>
+            {indicator}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

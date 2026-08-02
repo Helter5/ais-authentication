@@ -1,7 +1,7 @@
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
 import { adminApi } from "@/lib/api";
 import {
-  AlertCircle, CheckCircle2, Clock, Loader2, MemoryStick,
+  Clock, Loader2, MemoryStick, Save,
   Plus, Server, Shield, Ticket, Trash2, TriangleAlert, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,10 +9,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 type BotStatus = Awaited<ReturnType<typeof adminApi.getAdminStatus>>;
 type BotGuild = Awaited<ReturnType<typeof adminApi.getBotGuilds>>[number];
-type Notice = { type: "success" | "error"; message: string };
 
 function Panel({ icon: Icon, title, description, children }: {
   icon: ElementType;
@@ -59,16 +59,13 @@ export function Admin() {
   const [allowedGuildIds, setAllowedGuildIds] = useState<string[]>([]);
   const [newGuildId, setNewGuildId] = useState("");
   const [maintenance, setMaintenance] = useState(false);
+  const [maintenanceDraft, setMaintenanceDraft] = useState(false);
   const [superAdminIds, setSuperAdminIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [saving, setSaving] = useState(false);
   const [maintenanceConfirmOpen, setMaintenanceConfirmOpen] = useState(false);
-
-  const showNotice = (next: Notice) => {
-    setNotice(next);
-    window.setTimeout(() => setNotice(null), 3500);
-  };
+  const { toast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -83,15 +80,16 @@ export function Admin() {
         setGuilds(guildData);
         setAllowedGuildIds(allowedData.guildIds);
         setMaintenance(maintenanceData.enabled);
+        setMaintenanceDraft(maintenanceData.enabled);
         setSuperAdminIds(settingsData.super_admin_users.split(',').map((s: string) => s.trim()).filter(Boolean));
       })
-      .catch(() => showNotice({ type: "error", message: "Failed to load admin data." }))
+      .catch(() => toast("Failed to load admin data.", "error"))
       .finally(() => setLoading(false));
   }, []);
 
   const saveAllowedGuilds = async (ids: string[]) => {
     if (ids.length === 0) {
-      showNotice({ type: "error", message: "Keep at least one server allowed to avoid locking out the dashboard." });
+      toast("Keep at least one server allowed to avoid locking out the dashboard.", "error");
       return;
     }
     setBusy("guilds");
@@ -99,9 +97,9 @@ export function Admin() {
       const result = await adminApi.setAllowedGuilds(ids);
       setAllowedGuildIds(result.guildIds);
       setGuilds(current => current.map(guild => ({ ...guild, allowed: result.guildIds.includes(guild.id) })));
-      showNotice({ type: "success", message: "Allowed servers updated." });
+      toast("Allowed servers updated.");
     } catch {
-      showNotice({ type: "error", message: "Failed to update allowed servers." });
+      toast("Failed to update allowed servers.", "error");
     } finally {
       setBusy(null);
     }
@@ -110,37 +108,41 @@ export function Admin() {
   const addGuild = () => {
     const id = newGuildId.trim();
     if (!/^\d{17,20}$/.test(id)) {
-      showNotice({ type: "error", message: "Enter a valid Discord server ID." });
+      toast("Enter a valid Discord server ID.", "error");
       return;
     }
     if (allowedGuildIds.includes(id)) {
-      showNotice({ type: "error", message: "That server is already allowed." });
+      toast("That server is already allowed.", "error");
       return;
     }
     setNewGuildId("");
     void saveAllowedGuilds([...allowedGuildIds, id]);
   };
 
-  const updateMaintenance = async (enabled: boolean) => {
-    setBusy("maintenance");
+  const applyMaintenance = async (enabled: boolean) => {
+    setSaving(true);
     try {
-      await adminApi.setMaintenance(enabled);
-      setMaintenance(enabled);
+      if (enabled !== maintenance) {
+        await adminApi.setMaintenance(enabled);
+        setMaintenance(enabled);
+      }
+      setMaintenanceDraft(enabled);
       setMaintenanceConfirmOpen(false);
-      showNotice({ type: "success", message: `Maintenance mode ${enabled ? "enabled" : "disabled"}.` });
+      toast("Settings saved.");
     } catch {
-      showNotice({ type: "error", message: "Failed to update maintenance mode." });
+      toast("Failed to save settings.", "error");
     } finally {
-      setBusy(null);
+      setSaving(false);
     }
   };
 
-  const toggleMaintenance = () => {
-    if (maintenance) {
-      void updateMaintenance(false);
-    } else {
+  const handleSaveSettings = () => {
+    if (maintenanceDraft && !maintenance) {
+      // Enabling maintenance mode blocks every command on every server immediately - confirm first.
       setMaintenanceConfirmOpen(true);
+      return;
     }
+    void applyMaintenance(maintenanceDraft);
   };
 
   if (loading) {
@@ -160,19 +162,7 @@ export function Admin() {
         <p className="mt-1 text-sm text-zinc-500">Global bot operations and access controls.</p>
       </div>
 
-      <div className="space-y-5 px-4 py-5 sm:px-6">
-        {notice && (
-          <div className={cn(
-            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm",
-            notice.type === "success"
-              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-              : "border-red-500/20 bg-red-500/10 text-red-400",
-          )}>
-            {notice.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            {notice.message}
-          </div>
-        )}
-
+      <div className="space-y-5 px-4 py-5 pb-24 sm:px-6">
         {status && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <Metric icon={Clock} label="Uptime" value={formatUptime(status.uptime)} />
@@ -243,14 +233,14 @@ export function Admin() {
             <Panel icon={TriangleAlert} title="Maintenance Mode" description="Immediately block every slash command on every allowed server.">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className={cn("text-sm font-bold", maintenance ? "text-amber-400" : "text-emerald-400")}>
-                    {maintenance ? "Commands disabled" : "Bot operational"}
+                  <p className={cn("text-sm font-bold", maintenanceDraft ? "text-amber-400" : "text-emerald-400")}>
+                    {maintenanceDraft ? "Commands disabled" : "Bot operational"}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">The web dashboard remains available.</p>
                 </div>
-                <button onClick={toggleMaintenance} disabled={busy === "maintenance"}
-                  className={cn("relative h-6 w-11 rounded-full transition-colors disabled:opacity-50", maintenance ? "bg-amber-500" : "bg-zinc-700")}>
-                  <span className={cn("absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform", maintenance && "translate-x-5")} />
+                <button onClick={() => setMaintenanceDraft(v => !v)}
+                  className={cn("relative h-6 w-11 rounded-full transition-colors", maintenanceDraft ? "bg-amber-500" : "bg-zinc-700")}>
+                  <span className={cn("absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform", maintenanceDraft && "translate-x-5")} />
                 </button>
               </div>
             </Panel>
@@ -276,6 +266,16 @@ export function Admin() {
         {status && <p className="text-right text-[11px] text-zinc-600">Runtime: {status.nodeVersion}</p>}
       </div>
 
+      <div className="fixed bottom-0 left-0 right-0 md:pl-64 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur">
+        <div className="flex items-center gap-4 px-4 sm:px-6 py-3">
+          <button onClick={handleSaveSettings} disabled={saving}
+            className="flex items-center gap-2 rounded bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Settings
+          </button>
+        </div>
+      </div>
+
       <Dialog open={maintenanceConfirmOpen} onOpenChange={setMaintenanceConfirmOpen}>
         <DialogContent className="max-w-md border-amber-500/30 bg-zinc-900 text-zinc-100">
           <DialogHeader>
@@ -288,13 +288,13 @@ export function Admin() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setMaintenanceConfirmOpen(false)}
+            <Button variant="outline" onClick={() => { setMaintenanceConfirmOpen(false); setMaintenanceDraft(maintenance); }}
               className="border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700">
               Cancel
             </Button>
-            <Button onClick={() => updateMaintenance(true)} disabled={busy === "maintenance"}
+            <Button onClick={() => applyMaintenance(true)} disabled={saving}
               className="bg-amber-600 text-white hover:bg-amber-500">
-              {busy === "maintenance" && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Enable Maintenance
             </Button>
           </DialogFooter>
