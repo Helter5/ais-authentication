@@ -183,6 +183,7 @@ export interface AutoMention {
   channel_id: string;
   role_id: string;
   enabled: boolean;
+  delete_after_seconds: number | null;
 }
 
 export interface AutoDeleteConfig {
@@ -276,7 +277,7 @@ export const adminApi = {
     return res.data;
   },
 
-  getAdminStatus: async (): Promise<{ uptime: number; guildCount: number; verifiedCount: number; activeCodesCount: number; totalWarns: number; nodeVersion: string; memoryMB: number }> => {
+  getAdminStatus: async (): Promise<{ uptime: number; guildCount: number; verifiedCount: number; activeCodesCount: number; nodeVersion: string; memoryMB: number }> => {
     const res = await api.get('/admin/status');
     return res.data;
   },

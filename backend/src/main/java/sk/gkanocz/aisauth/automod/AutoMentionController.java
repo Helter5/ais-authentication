@@ -59,9 +59,8 @@ public class AutoMentionController {
             throw AutoMentionExistsException.forChannel();
         }
         AutoMention mention = new AutoMention(request.guildId(), request.channelId(), request.roleId());
-        if (Boolean.FALSE.equals(request.enabled())) {
-            mention.update(request.channelId(), request.roleId(), false);
-        }
+        mention.update(request.channelId(), request.roleId(), request.enabled() == null || request.enabled(),
+                normalizeDeleteAfterSeconds(request.deleteAfterSeconds()));
         return toResponse(autoMentionRepository.save(mention));
     }
 
@@ -72,8 +71,13 @@ public class AutoMentionController {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
         AutoMention mention = autoMentionRepository.findByIdAndGuildId(id, request.guildId())
                 .orElseThrow(AutoMentionNotFoundException::create);
-        mention.update(request.channelId(), request.roleId(), request.enabled() == null || request.enabled());
+        mention.update(request.channelId(), request.roleId(), request.enabled() == null || request.enabled(),
+                normalizeDeleteAfterSeconds(request.deleteAfterSeconds()));
         return toResponse(mention);
+    }
+
+    private Integer normalizeDeleteAfterSeconds(Integer seconds) {
+        return seconds == null ? null : Math.max(3, seconds);
     }
 
     @DeleteMapping("/{id}")
@@ -86,14 +90,17 @@ public class AutoMentionController {
     }
 
     private AutoMentionResponse toResponse(AutoMention mention) {
-        return new AutoMentionResponse(mention.getId(), mention.getChannelId(), mention.getRoleId(), mention.isEnabled());
+        return new AutoMentionResponse(
+                mention.getId(), mention.getChannelId(), mention.getRoleId(), mention.isEnabled(),
+                mention.getDeleteAfterSeconds());
     }
 
     public record AutoMentionRequest(
             String guildId,
             @JsonProperty("channel_id") String channelId,
             @JsonProperty("role_id") String roleId,
-            Boolean enabled) {
+            Boolean enabled,
+            @JsonProperty("delete_after_seconds") Integer deleteAfterSeconds) {
     }
 
     public record SetEnabledRequest(String guildId, Boolean enabled) {
@@ -103,6 +110,7 @@ public class AutoMentionController {
             Long id,
             @JsonProperty("channel_id") String channelId,
             @JsonProperty("role_id") String roleId,
-            boolean enabled) {
+            boolean enabled,
+            @JsonProperty("delete_after_seconds") Integer deleteAfterSeconds) {
     }
 }

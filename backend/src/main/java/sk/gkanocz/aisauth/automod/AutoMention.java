@@ -32,6 +32,10 @@ public class AutoMention {
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
 
+    /** Null/unset means the mention message is left alone; otherwise auto-deleted after this many seconds. */
+    @Column(name = "delete_after_seconds")
+    private Integer deleteAfterSeconds;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -47,9 +51,10 @@ public class AutoMention {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void update(String channelId, String roleId, boolean enabled) {
+    public void update(String channelId, String roleId, boolean enabled, Integer deleteAfterSeconds) {
         this.channelId = channelId;
         this.roleId = roleId;
         this.enabled = enabled;
+        this.deleteAfterSeconds = deleteAfterSeconds;
     }
 }

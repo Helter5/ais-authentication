@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApi, apiErrorMessage, type AutoMention } from "@/lib/api";
 import { Loader2, CheckCircle2, AlertCircle, Hash, Bell } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import {
   useSelectedGuildId, Toggle, ChannelPicker, RoleSelect,
   ModulePageHeader, ConfigSidebar, EmptyConfigSelection,
@@ -13,6 +14,7 @@ const DEFAULT_DRAFT: Draft = {
   channel_id: "",
   role_id: "",
   enabled: true,
+  delete_after_seconds: null,
 };
 
 export function AutoMentionsModule() {
@@ -74,7 +76,10 @@ export function AutoMentionsModule() {
 
   const selectCfg = (mention: AutoMention) => {
     setSelectedId(mention.id);
-    setDraft({ channel_id: mention.channel_id, role_id: mention.role_id, enabled: mention.enabled });
+    setDraft({
+      channel_id: mention.channel_id, role_id: mention.role_id, enabled: mention.enabled,
+      delete_after_seconds: mention.delete_after_seconds ?? null,
+    });
   };
 
   const newCfg = () => {
@@ -176,10 +181,31 @@ export function AutoMentionsModule() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-zinc-200">Enabled</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Turn this mention off without deleting it</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Pause this specific channel/role pairing without losing its configuration - the module stays on for every other channel</p>
                     </div>
                     <Toggle enabled={draft.enabled} onChange={v => upd("enabled", v)} />
                   </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-200">Delete mention after a delay</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Auto-remove the bot's mention message so it doesn't clutter the channel</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Toggle enabled={draft.delete_after_seconds !== null} onChange={v => upd("delete_after_seconds", v ? 10 : null)} />
+                      {draft.delete_after_seconds !== null && (
+                        <NumberStepper
+                          value={draft.delete_after_seconds}
+                          onChange={v => upd("delete_after_seconds", v)}
+                          min={3}
+                          className="w-32"
+                          ariaLabel="Delete mention after seconds"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  {draft.delete_after_seconds !== null && (
+                    <p className="text-[11px] text-zinc-600 -mt-2">Minimum 3 seconds</p>
+                  )}
                 </div>
               </div>
 
