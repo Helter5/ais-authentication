@@ -1,37 +1,44 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { adminApi, apiErrorMessage } from "@/lib/api";
-import { ArrowLeft, Plus, X, Loader2, AlertCircle, Hash, AtSign, Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { adminApi, apiErrorMessage, type AutoMention } from "@/lib/api";
+import { Loader2, CheckCircle2, AlertCircle, Hash, Bell } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { useSelectedGuildId, Toggle, ChannelPicker, RoleSelect } from "@/components/modules/shared";
+import {
+  useSelectedGuildId, Toggle, ChannelPicker, RoleSelect,
+  ModulePageHeader, ConfigSidebar, EmptyConfigSelection,
+} from "@/components/modules/shared";
 
-type AutoMention = { channel_id: string; role_id: string; enabled: boolean };
-type DiscordRole = { id: string; name: string; color: string };
-type DiscordChannel = { id: string; name: string };
+type Draft = Omit<AutoMention, "id">;
+
+const DEFAULT_DRAFT: Draft = {
+  channel_id: "",
+  role_id: "",
+  enabled: true,
+};
 
 export function AutoMentionsModule() {
   const guildId = useSelectedGuildId();
-  const [enabled, setEnabled] = useState(false);
+  const [moduleEnabled, setModuleEnabled] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [mentions, setMentions] = useState<AutoMention[]>([]);
-  const [roles, setRoles] = useState<DiscordRole[]>([]);
-  const [channels, setChannels] = useState<DiscordChannel[]>([]);
+  const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
+  const [draft, setDraft] = useState<Draft>({ ...DEFAULT_DRAFT });
+  const [roles, setRoles] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newChannel, setNewChannel] = useState<string | null>(null);
-  const [newRole, setNewRole] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
     setLoading(Boolean(guildId));
-    setEnabled(false);
+    setModuleEnabled(false);
     setMentions([]);
+    setSelectedId(null);
+    setDraft({ ...DEFAULT_DRAFT });
     setRoles([]);
     setChannels([]);
-    setNewChannel(null);
-    setNewRole("");
+    setDeleteId(null);
     if (!guildId) return () => { cancelled = true; };
     Promise.all([
       adminApi.getAutoMentionEnabled(guildId),
@@ -40,7 +47,7 @@ export function AutoMentionsModule() {
       adminApi.getDiscordTextChannels(guildId),
     ]).then(([e, m, r, c]) => {
       if (cancelled) return;
-      setEnabled(e.enabled);
+      setModuleEnabled(e.enabled);
       setMentions(m);
       setRoles(r);
       setChannels(c);
@@ -50,82 +57,74 @@ export function AutoMentionsModule() {
     return () => { cancelled = true; };
   }, [guildId]);
 
-  const toggleEnabled = async (value: boolean) => {
+  const toggleModuleEnabled = async (value: boolean) => {
     if (!guildId) return;
     setToggling(true);
-    setEnabled(value);
+    setModuleEnabled(value);
     try {
       await adminApi.setAutoMentionEnabled(guildId, value);
       toast(value ? "Auto-Mentions enabled." : "Auto-Mentions disabled.");
     } catch (e: unknown) {
-      setEnabled(!value);
+      setModuleEnabled(!value);
       toast(apiErrorMessage(e, "Failed to change module state."), "error");
     } finally {
       setToggling(false);
     }
   };
 
-  const add = async () => {
-    if (!guildId || !newChannel || !newRole) return;
-    setAdding(true);
+  const selectCfg = (mention: AutoMention) => {
+    setSelectedId(mention.id);
+    setDraft({ channel_id: mention.channel_id, role_id: mention.role_id, enabled: mention.enabled });
+  };
+
+  const newCfg = () => {
+    setSelectedId("new");
+    setDraft({ ...DEFAULT_DRAFT });
+  };
+
+  const upd = <K extends keyof Draft>(key: K, val: Draft[K]) => setDraft(d => ({ ...d, [key]: val }));
+
+  const save = async () => {
+    if (!guildId || !draft.channel_id) { toast("Select a channel first.", "error"); return; }
+    if (!draft.role_id) { toast("Select a role to mention.", "error"); return; }
+    setSaving(true);
     try {
-      await adminApi.addAutoMention(guildId, newChannel, newRole);
-      setMentions(await adminApi.getAutoMentions(guildId));
-      setNewChannel(null);
-      setNewRole("");
-      toast("Auto-mention added.");
+      if (selectedId === "new") {
+        const result = await adminApi.createAutoMention(guildId, draft);
+        setMentions(prev => [...prev, result]);
+        setSelectedId(result.id);
+      } else {
+        const result = await adminApi.updateAutoMention(selectedId as number, guildId, draft);
+        setMentions(prev => prev.map(m => m.id === selectedId ? result : m));
+      }
+      toast("Auto-mention saved.");
     } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to add auto-mention."), "error");
+      toast(apiErrorMessage(e, "Failed to save auto-mention."), "error");
     } finally {
-      setAdding(false);
+      setSaving(false);
     }
   };
 
-  const toggleMention = async (channelId: string) => {
+  const deleteCfg = async (id: number) => {
     if (!guildId) return;
     try {
-      const res = await adminApi.toggleAutoMention(guildId, channelId);
-      setMentions(m => m.map(x => x.channel_id === channelId ? { ...x, enabled: res.enabled } : x));
-      toast(res.enabled ? "Auto-mention turned on." : "Auto-mention turned off.");
+      await adminApi.deleteAutoMention(id, guildId);
+      setMentions(prev => prev.filter(m => m.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      setDeleteId(null);
+      toast("Auto-mention deleted.");
     } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to update auto-mention."), "error");
-    }
-  };
-
-  const remove = async (channelId: string) => {
-    if (!guildId) return;
-    try {
-      await adminApi.removeAutoMention(guildId, channelId);
-      setMentions(m => m.filter(x => x.channel_id !== channelId));
-      toast("Auto-mention removed.");
-    } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to remove auto-mention."), "error");
+      toast(apiErrorMessage(e, "Failed to delete auto-mention."), "error");
     }
   };
 
   const channelName = (id: string) => channels.find(c => c.id === id)?.name ?? id;
   const roleName = (id: string) => roles.find(r => r.id === id)?.name ?? id;
-  const roleColor = (id: string) => { const c = roles.find(r => r.id === id)?.color; return c === "#000000" ? "#6b7280" : c ?? "#6b7280"; };
-  const usedChannelIds = mentions.map(m => m.channel_id);
-  const availableChannels = channels.filter(c => !usedChannelIds.includes(c.id));
 
   return (
     <div className="flex flex-col md:pl-64 min-h-screen">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Link to="/modules" className="text-rose-400 hover:text-rose-300 font-semibold transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Modules
-          </Link>
-          <span className="text-zinc-600">/</span>
-          <span className="text-zinc-200 font-semibold">Auto-Mentions</span>
-        </div>
-        {guildId && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">{enabled ? "Enabled" : "Disabled"}</span>
-            <Toggle enabled={enabled} onChange={toggleEnabled} disabled={toggling} />
-          </div>
-        )}
-      </div>
+      <ModulePageHeader moduleName="Auto-Mentions" guildId={guildId} loading={loading}
+        enabled={moduleEnabled} onToggleEnabled={toggleModuleEnabled} toggling={toggling} />
 
       {!guildId ? (
         <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
@@ -136,61 +135,64 @@ export function AutoMentionsModule() {
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
       ) : (
-        <div className="p-6 max-w-2xl">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-              <Bell className="w-4 h-4 text-indigo-400" />
-              <div>
-                <h2 className="text-sm font-bold text-zinc-100">Channel → Role mentions</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Bot mentions the configured role whenever a message is posted in that channel.</p>
-              </div>
-            </div>
-            <div className="px-4 py-4 space-y-3">
-              {mentions.length === 0 ? (
-                <p className="text-xs text-zinc-600">No auto-mentions configured.</p>
-              ) : (
-                <div className="space-y-1">
-                  {mentions.map(m => (
-                    <div key={m.channel_id} className="flex items-center gap-3 px-3 py-2 bg-zinc-800/60 border border-zinc-700 rounded text-sm">
-                      <span className="text-zinc-400 font-mono text-xs flex-shrink-0"># {channelName(m.channel_id)}</span>
-                      <span className="text-zinc-600">→</span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="w-2 h-2 rounded-full" style={{ background: roleColor(m.role_id) }} />
-                        <span className="text-zinc-300 text-xs">@{roleName(m.role_id)}</span>
-                      </span>
-                      <div className="ml-auto flex items-center gap-2">
-                        <button onClick={() => toggleMention(m.channel_id)}
-                          className={cn("text-xs font-semibold px-2 py-0.5 rounded transition-colors",
-                            m.enabled ? "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-zinc-500 bg-zinc-700/50 hover:bg-zinc-700"
-                          )}>
-                          {m.enabled ? "ON" : "OFF"}
-                        </button>
-                        <button onClick={() => remove(m.channel_id)} className="text-zinc-600 hover:text-red-400 transition-colors">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className="flex flex-1 min-h-0">
+          <ConfigSidebar
+            items={mentions}
+            getKey={m => m.id}
+            selectedKey={selectedId}
+            onSelect={selectCfg}
+            onNew={newCfg}
+            newLabel="New Channel"
+            emptyLabel="No auto-mentions configured"
+            renderTitle={m => (<><Hash className="w-3 h-3 flex-shrink-0" />{channelName(m.channel_id)}</>)}
+            renderSubtitle={m => `@${roleName(m.role_id)} · ${m.enabled ? "on" : "off"}`}
+            deleteKey={deleteId}
+            onRequestDelete={setDeleteId}
+            onDelete={m => deleteCfg(m.id)}
+          />
 
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-end pt-1">
-                <div>
-                  <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Channel</p>
-                  <ChannelPicker channels={availableChannels} value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" />
+          {selectedId === null ? (
+            <EmptyConfigSelection icon={<Bell className="w-10 h-10 mx-auto opacity-30" />} label="Select a channel or create a new one" />
+          ) : (
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-5 max-w-2xl">
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+                <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-indigo-400" />
+                  <div>
+                    <h2 className="text-sm font-bold text-zinc-100">Channel → Role mention</h2>
+                    <p className="text-xs text-zinc-500 mt-0.5">Bot mentions the configured role whenever a message is posted in this channel.</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><AtSign className="w-3 h-3" /> Role to mention</p>
-                  <RoleSelect roles={roles} value={newRole} onChange={setNewRole} />
+                <div className="px-4 py-4 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel</p>
+                    <ChannelPicker channels={channels} value={draft.channel_id} onChange={v => upd("channel_id", v ?? "")} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Role to mention</p>
+                    <RoleSelect roles={roles} value={draft.role_id} onChange={v => upd("role_id", v)} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-200">Enabled</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Turn this mention off without deleting it</p>
+                    </div>
+                    <Toggle enabled={draft.enabled} onChange={v => upd("enabled", v)} />
+                  </div>
                 </div>
-                <button onClick={add} disabled={adding || !newChannel || !newRole}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-                  {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Add
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={save} disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-bold text-white disabled:opacity-50 transition-colors">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Save
                 </button>
               </div>
+
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

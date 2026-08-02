@@ -11,5 +11,7 @@ public interface AutoMentionRepository extends JpaRepository<AutoMention, Long> 
 
     Optional<AutoMention> findByGuildIdAndChannelId(String guildId, String channelId);
 
-    void deleteByGuildIdAndChannelId(String guildId, String channelId);
+    Optional<AutoMention> findByIdAndGuildId(Long id, String guildId);
+
+    void deleteByIdAndGuildId(Long id, String guildId);
 }

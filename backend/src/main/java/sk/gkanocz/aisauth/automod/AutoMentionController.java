@@ -53,52 +53,54 @@ public class AutoMentionController {
 
     @PostMapping
     @Transactional
-    public Map<String, Boolean> addAutoMention(@AuthenticationPrincipal Claims claims, @RequestBody AutoMentionRequest request) {
+    public AutoMentionResponse createAutoMention(@AuthenticationPrincipal Claims claims, @RequestBody AutoMentionRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
         if (autoMentionRepository.findByGuildIdAndChannelId(request.guildId(), request.channelId()).isPresent()) {
             throw AutoMentionExistsException.forChannel();
         }
-        autoMentionRepository.save(new AutoMention(request.guildId(), request.channelId(), request.roleId()));
-        return Map.of("success", true);
+        AutoMention mention = new AutoMention(request.guildId(), request.channelId(), request.roleId());
+        if (Boolean.FALSE.equals(request.enabled())) {
+            mention.update(request.channelId(), request.roleId(), false);
+        }
+        return toResponse(autoMentionRepository.save(mention));
     }
 
-    @PatchMapping("/{channelId}")
+    @PatchMapping("/{id}")
     @Transactional
-    public Map<String, Object> toggleAutoMention(
-            @AuthenticationPrincipal Claims claims, @PathVariable String channelId, @RequestBody GuildIdRequest request) {
+    public AutoMentionResponse updateAutoMention(
+            @AuthenticationPrincipal Claims claims, @PathVariable Long id, @RequestBody AutoMentionRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
-        AutoMention mention = autoMentionRepository.findByGuildIdAndChannelId(request.guildId(), channelId)
+        AutoMention mention = autoMentionRepository.findByIdAndGuildId(id, request.guildId())
                 .orElseThrow(AutoMentionNotFoundException::create);
-        boolean enabled = mention.toggle();
-        return Map.of("success", true, "enabled", enabled);
+        mention.update(request.channelId(), request.roleId(), request.enabled() == null || request.enabled());
+        return toResponse(mention);
     }
 
-    @DeleteMapping("/{channelId}")
+    @DeleteMapping("/{id}")
     @Transactional
-    public Map<String, Boolean> removeAutoMention(
-            @AuthenticationPrincipal Claims claims, @PathVariable String channelId, @RequestParam String guildId) {
+    public Map<String, Boolean> deleteAutoMention(
+            @AuthenticationPrincipal Claims claims, @PathVariable Long id, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
-        autoMentionRepository.deleteByGuildIdAndChannelId(guildId, channelId);
+        autoMentionRepository.deleteByIdAndGuildId(id, guildId);
         return Map.of("success", true);
     }
 
     private AutoMentionResponse toResponse(AutoMention mention) {
-        return new AutoMentionResponse(mention.getChannelId(), mention.getRoleId(), mention.isEnabled());
+        return new AutoMentionResponse(mention.getId(), mention.getChannelId(), mention.getRoleId(), mention.isEnabled());
     }
 
     public record AutoMentionRequest(
             String guildId,
             @JsonProperty("channel_id") String channelId,
-            @JsonProperty("role_id") String roleId) {
-    }
-
-    public record GuildIdRequest(String guildId) {
+            @JsonProperty("role_id") String roleId,
+            Boolean enabled) {
     }
 
     public record SetEnabledRequest(String guildId, Boolean enabled) {
     }
 
     public record AutoMentionResponse(
+            Long id,
             @JsonProperty("channel_id") String channelId,
             @JsonProperty("role_id") String roleId,
             boolean enabled) {

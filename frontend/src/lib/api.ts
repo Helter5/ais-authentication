@@ -178,6 +178,13 @@ export interface TicketSummary {
   expiresAt: string | null;
 }
 
+export interface AutoMention {
+  id: number;
+  channel_id: string;
+  role_id: string;
+  enabled: boolean;
+}
+
 export interface AutoDeleteConfig {
   id: number;
   guild_id: string;
@@ -222,6 +229,7 @@ export interface RoleMenuConfig {
   options: RoleMenuOption[];
   allowed_role_ids: string[];
   blocked_role_ids: string[];
+  max_selectable: number | null;
 }
 
 export const adminApi = {
@@ -424,23 +432,23 @@ export const adminApi = {
     return res.data;
   },
 
-  getAutoMentions: async (guildId: string): Promise<{ channel_id: string; role_id: string; enabled: boolean }[]> => {
+  getAutoMentions: async (guildId: string): Promise<AutoMention[]> => {
     const res = await api.get('/auto-mentions', { params: { guildId } });
     return res.data;
   },
 
-  addAutoMention: async (guildId: string, channel_id: string, role_id: string): Promise<{ success: boolean }> => {
-    const res = await api.post('/auto-mentions', { guildId, channel_id, role_id });
+  createAutoMention: async (guildId: string, data: Omit<AutoMention, "id">): Promise<AutoMention> => {
+    const res = await api.post('/auto-mentions', { guildId, ...data });
     return res.data;
   },
 
-  toggleAutoMention: async (guildId: string, channelId: string): Promise<{ success: boolean; enabled: boolean }> => {
-    const res = await api.patch(`/auto-mentions/${channelId}`, { guildId });
+  updateAutoMention: async (id: number, guildId: string, data: Omit<AutoMention, "id">): Promise<AutoMention> => {
+    const res = await api.patch(`/auto-mentions/${id}`, { guildId, ...data });
     return res.data;
   },
 
-  removeAutoMention: async (guildId: string, channelId: string): Promise<{ success: boolean }> => {
-    const res = await api.delete(`/auto-mentions/${channelId}`, { params: { guildId } });
+  deleteAutoMention: async (id: number, guildId: string): Promise<{ success: boolean }> => {
+    const res = await api.delete(`/auto-mentions/${id}`, { params: { guildId } });
     return res.data;
   },
 

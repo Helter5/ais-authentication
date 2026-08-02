@@ -47,8 +47,9 @@ public class AutoMention {
         this.createdAt = LocalDateTime.now();
     }
 
-    public boolean toggle() {
-        this.enabled = !this.enabled;
-        return this.enabled;
+    public void update(String channelId, String roleId, boolean enabled) {
+        this.channelId = channelId;
+        this.roleId = roleId;
+        this.enabled = enabled;
     }
 }
