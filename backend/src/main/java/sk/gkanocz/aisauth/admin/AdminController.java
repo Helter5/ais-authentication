@@ -17,7 +17,6 @@ import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
-import sk.gkanocz.aisauth.warn.WarnRepository;
 import tools.jackson.core.type.TypeReference;
 
 import java.time.LocalDateTime;
@@ -37,7 +36,6 @@ public class AdminController {
     private final AdminProperties adminProperties;
     private final VerifiedUserRepository verifiedUserRepository;
     private final VerificationCodeRepository verificationCodeRepository;
-    private final WarnRepository warnRepository;
     private final MaintenanceModeBroadcaster maintenanceModeBroadcaster;
 
     @GetMapping("/settings")
@@ -58,13 +56,12 @@ public class AdminController {
         int guildCount = discordBotService.jda().map(jda -> jda.getGuilds().size()).orElse(0);
         long verifiedCount = verifiedUserRepository.count();
         long activeCodesCount = verificationCodeRepository.countByExpiresAtAfter(LocalDateTime.now());
-        long totalWarns = warnRepository.count();
         Runtime runtime = Runtime.getRuntime();
         long memoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         double uptimeSeconds = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0;
 
         return new StatusResponse(
-                uptimeSeconds, guildCount, verifiedCount, activeCodesCount, totalWarns,
+                uptimeSeconds, guildCount, verifiedCount, activeCodesCount,
                 System.getProperty("java.version"), memoryMB);
     }
 
@@ -124,7 +121,6 @@ public class AdminController {
             int guildCount,
             long verifiedCount,
             long activeCodesCount,
-            long totalWarns,
             String nodeVersion,
             long memoryMB) {
     }

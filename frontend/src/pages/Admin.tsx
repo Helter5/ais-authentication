@@ -1,8 +1,8 @@
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
 import { adminApi } from "@/lib/api";
 import {
-  Clock, Loader2, MemoryStick, Save,
-  Plus, Server, Shield, Ticket, Trash2, TriangleAlert, Users,
+  Loader2, Save,
+  Plus, Server, Shield, Trash2, TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,25 +32,6 @@ function Panel({ icon: Icon, title, description, children }: {
       <div className="p-5">{children}</div>
     </section>
   );
-}
-
-function Metric({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-      <div className="flex items-center gap-2 text-zinc-500">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
-      </div>
-      <p className="mt-2 text-2xl font-bold text-zinc-100">{value}</p>
-    </div>
-  );
-}
-
-function formatUptime(seconds: number) {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return [days && `${days}d`, (days || hours) && `${hours}h`, `${minutes}m`].filter(Boolean).join(" ");
 }
 
 export function Admin() {
@@ -163,17 +144,6 @@ export function Admin() {
       </div>
 
       <div className="space-y-5 px-4 py-5 pb-24 sm:px-6">
-        {status && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <Metric icon={Clock} label="Uptime" value={formatUptime(status.uptime)} />
-            <Metric icon={Server} label="Servers" value={status.guildCount} />
-            <Metric icon={Users} label="Verified" value={status.verifiedCount} />
-            <Metric icon={Ticket} label="Active Codes" value={status.activeCodesCount} />
-            <Metric icon={TriangleAlert} label="Warnings" value={status.totalWarns} />
-            <Metric icon={MemoryStick} label="Memory" value={`${status.memoryMB} MB`} />
-          </div>
-        )}
-
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <Panel icon={Server} title="Allowed Servers" description="Only these Discord servers can use the bot and dashboard.">
             <div className="mb-4 flex gap-2">

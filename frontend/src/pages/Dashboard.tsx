@@ -1,8 +1,8 @@
 import { useEffect, useState, type ElementType } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertCircle, Copy, GraduationCap, Hash, History, Layers3, Loader2,
-  Mic2, RefreshCw, Server, ShieldCheck, Users,
+  Activity, AlertCircle, Clock, Copy, GraduationCap, Hash, History, Layers3, Loader2,
+  MemoryStick, Mic2, RefreshCw, Server, ShieldCheck, Ticket, Users,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ const CATEGORY_STYLES: Record<string, string> = {
   verification: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
 };
 
-function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: number }) {
+function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string | number }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10">
@@ -39,6 +39,13 @@ function formatSyncDate(value: string | null) {
 
 function pluralize(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function formatUptime(seconds: number) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return [days && `${days}d`, (days || hours) && `${hours}h`, `${minutes}m`].filter(Boolean).join(" ");
 }
 
 function RemovedDetailsModal({ removedUsers, onClose }: {
@@ -88,7 +95,22 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRemovedDetails, setShowRemovedDetails] = useState(false);
+  const [botStatus, setBotStatus] = useState<Awaited<ReturnType<typeof adminApi.getAdminStatus>> | null>(null);
   const { toast } = useToast();
+
+  // Bot Status is global (not per-guild) and super-admin-only, unlike the rest of this page -
+  // fetched once, independent of guildId, and simply skipped for regular managers (getAdminStatus
+  // would 403 for them).
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.getAdminAccess()
+      .then(access => {
+        if (cancelled || !access.allowed) return;
+        return adminApi.getAdminStatus().then(status => { if (!cancelled) setBotStatus(status); });
+      })
+      .catch(() => { /* not a super admin, or bot status unavailable - just hide the section */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +167,22 @@ export function Dashboard() {
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
+        )}
+
+        {botStatus && (
+          <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-indigo-400" />
+              <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Bot Status</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <Stat icon={Clock} label="Uptime" value={formatUptime(botStatus.uptime)} />
+              <Stat icon={Server} label="Servers" value={botStatus.guildCount} />
+              <Stat icon={Users} label="Verified" value={botStatus.verifiedCount} />
+              <Stat icon={Ticket} label="Active Codes" value={botStatus.activeCodesCount} />
+              <Stat icon={MemoryStick} label="Memory" value={`${botStatus.memoryMB} MB`} />
+            </div>
+          </section>
         )}
 
         <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
