@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { useSelectedGuildId, ModulePageHeader, ConfigSidebar, EmptyConfigSelection } from "@/components/modules/shared";
 
 const DEFAULT_NOTIFY_MSG = "Your message in {channel} was automatically deleted.";
@@ -335,12 +336,12 @@ export function AutoDeleteModule() {
                   <div>
                     <p className="text-xs font-semibold text-zinc-400 mb-1.5">Delete after (seconds)</p>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
+                      <NumberStepper
                         value={draft.delay_seconds}
-                        onChange={e => upd("delay_seconds", Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-32 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                        onChange={v => upd("delay_seconds", v)}
+                        min={0}
+                        className="w-32"
+                        ariaLabel="Delete after in seconds"
                       />
                       <span className="text-xs text-zinc-500">
                         {draft.delay_seconds === 0 ? "instant delete on send" : `≈ ${formatDelay(draft.delay_seconds)}`}
@@ -426,12 +427,12 @@ export function AutoDeleteModule() {
                           {draft.notify_delete_bot_msg && (
                             <div>
                               <p className="text-xs font-semibold text-zinc-400 mb-1.5">Delete after (seconds)</p>
-                              <input
-                                type="number"
-                                min={3}
+                              <NumberStepper
                                 value={draft.notify_delete_delay}
-                                onChange={e => upd("notify_delete_delay", Math.max(3, parseInt(e.target.value) || 3))}
-                                className="w-24 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                                onChange={v => upd("notify_delete_delay", v)}
+                                min={3}
+                                className="w-32"
+                                ariaLabel="Notification delete delay in seconds"
                               />
                               <p className="text-[11px] text-zinc-600 mt-1">Minimum 3 seconds</p>
                             </div>
