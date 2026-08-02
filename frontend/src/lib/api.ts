@@ -312,6 +312,11 @@ export const adminApi = {
     return res.data;
   },
 
+  getGuildAllowed: async (guildId: string): Promise<{ allowed: boolean }> => {
+    const res = await api.get('/admin/guild-allowed', { params: { guildId } });
+    return res.data;
+  },
+
   getMaintenance: async (): Promise<{ enabled: boolean }> => {
     const res = await api.get('/admin/maintenance');
     return res.data;

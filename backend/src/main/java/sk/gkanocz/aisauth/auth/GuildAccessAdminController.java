@@ -70,6 +70,17 @@ public class GuildAccessAdminController {
         return Map.of("guildIds", allowedGuildIds());
     }
 
+    /**
+     * Narrower than /allowed-guilds (which exposes the whole list and is super-admin only) - any
+     * manager needs to know whether the guild they're currently looking at is actually allowed,
+     * since that's what silently gates every command and module event for it.
+     */
+    @GetMapping("/guild-allowed")
+    public Map<String, Boolean> isGuildAllowed(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
+        return Map.of("allowed", adminSettingsService.isGuildAllowed(guildId));
+    }
+
     @PostMapping("/allowed-guilds")
     public Map<String, Object> setAllowedGuilds(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateAllowedGuildsRequest request) {

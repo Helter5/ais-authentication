@@ -154,13 +154,55 @@ function VerificationStatusDot({ maintenance }: { maintenance: boolean }) {
   );
 }
 
-/** Maintenance mode blocks every slash command bot-wide - this is a direct read of that same flag. */
+/**
+ * Whether the currently selected guild is on the allowlist - if it isn't, every command and
+ * module event is silently dropped for it (CommandInteractionListener / GuildAllowlistEventManager),
+ * independent of and more severe than global maintenance mode, so Commands/Modules must check this
+ * per-guild too instead of only reflecting the global maintenance flag.
+ */
+function useGuildAllowed(): boolean | null {
+  const guildId = useSelectedGuildId();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setAllowed(null);
+    if (!guildId) return;
+    let cancelled = false;
+    adminApi.getGuildAllowed(guildId)
+      .then(r => { if (!cancelled) setAllowed(r.allowed); })
+      .catch(() => { if (!cancelled) setAllowed(null); });
+    return () => { cancelled = true; };
+  }, [guildId]);
+
+  return allowed;
+}
+
+function botWideStatus(maintenance: boolean, guildAllowed: boolean | null) {
+  if (guildAllowed === false) {
+    return {
+      label: "Blocked - this server isn't on the allowlist",
+      color: "text-red-500",
+      dotColor: "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]",
+    };
+  }
+  if (maintenance) {
+    return {
+      label: "Blocked by maintenance mode",
+      color: "text-amber-400",
+      dotColor: "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]",
+    };
+  }
+  return {
+    label: "Enabled",
+    color: "text-emerald-400",
+    dotColor: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]",
+  };
+}
+
+/** Maintenance mode blocks every slash command bot-wide; not being on the allowlist blocks them per-guild. */
 function CommandsStatusDot({ maintenance }: { maintenance: boolean }) {
-  const label = maintenance ? "Blocked by maintenance mode" : "Enabled";
-  const color = maintenance ? "text-amber-400" : "text-emerald-400";
-  const dotColor = maintenance
-    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
-    : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]";
+  const guildAllowed = useGuildAllowed();
+  const { label, color, dotColor } = botWideStatus(maintenance, guildAllowed);
 
   return (
     <div title={`Commands: ${label}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
@@ -170,13 +212,10 @@ function CommandsStatusDot({ maintenance }: { maintenance: boolean }) {
   );
 }
 
-/** Maintenance mode now pauses every module listener too (Auto Delete, Auto-Mentions, Role Menu, Hacked Account Trap). */
+/** Maintenance mode pauses every module listener bot-wide; not being on the allowlist blocks them per-guild. */
 function ModulesStatusDot({ maintenance }: { maintenance: boolean }) {
-  const label = maintenance ? "Blocked by maintenance mode" : "Enabled";
-  const color = maintenance ? "text-amber-400" : "text-emerald-400";
-  const dotColor = maintenance
-    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
-    : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]";
+  const guildAllowed = useGuildAllowed();
+  const { label, color, dotColor } = botWideStatus(maintenance, guildAllowed);
 
   return (
     <div title={`Modules: ${label}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
