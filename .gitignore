@@ -8,6 +8,7 @@
 
 # Claude Code lokálne nastavenia
 .claude/settings.local.json
+CLAUDE.md
 
 # IDE (repo-wide, projektové .gitignore v backend/frontend riešia zvyšok)
 .idea/
