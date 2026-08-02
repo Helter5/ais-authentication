@@ -1,12 +1,12 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useEffect, useRef, useState } from "react";
-import { Menu, X, LayoutDashboard, LogOut, ChevronDown, TriangleAlert } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, ChevronDown, TriangleAlert, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { setSelectedGuildId } from "@/components/modules/shared";
+import { setSelectedGuildId, useSelectedGuildId } from "@/components/modules/shared";
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 const GUILD_KEY = "selected_guild_id";
@@ -107,6 +107,103 @@ function ServerSwitcher() {
   );
 }
 
+/**
+ * Live via SSE (VerificationStatusBroadcaster on the backend) instead of polling - same pattern
+ * as the maintenance-mode banner, except this is per-guild so the subscription is re-opened
+ * whenever the selected guild changes, tagged with that guildId server-side.
+ */
+function VerificationStatusDot() {
+  const guildId = useSelectedGuildId();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setEnabled(null);
+    if (!guildId) return;
+    const source = new EventSource(`${API_URL}/settings/verification-stream?guildId=${guildId}`, { withCredentials: true });
+    source.addEventListener("verification", event => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data);
+        setEnabled(!!data.enabled);
+      } catch {
+        // ignore malformed event
+      }
+    });
+    return () => source.close();
+  }, [guildId]);
+
+  if (enabled === null) return null;
+
+  return (
+    <div
+      title={`Verification: ${enabled ? "Enabled" : "Disabled"}`}
+      className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40"
+    >
+      <ShieldCheck className={cn("w-3.5 h-3.5", enabled ? "text-emerald-400" : "text-zinc-600")} />
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0",
+        enabled ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-500")} />
+    </div>
+  );
+}
+
+type DiscordIndicator = "none" | "minor" | "major" | "critical";
+const DISCORD_STATUS_POLL_MS = 60_000;
+
+function DiscordGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 127.14 96.36" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+    </svg>
+  );
+}
+
+/**
+ * Solid dot with a larger pulsing ring expanding behind it, signaling this badge polls a live
+ * source - the ring is sized independently of the dot (rather than just scaling the dot itself)
+ * so the pulse stays noticeable at a glance instead of disappearing into a few pixels.
+ */
+function LiveDot({ className }: { className: string }) {
+  return (
+    <span className="relative flex items-center justify-center w-3.5 h-3.5 flex-shrink-0">
+      <span className={cn("absolute inline-flex w-3.5 h-3.5 rounded-full opacity-60 animate-ping [animation-duration:1.5s]", className)} />
+      <span className={cn("relative inline-flex w-2 h-2 rounded-full", className)} />
+    </span>
+  );
+}
+
+/**
+ * discordstatus.com is a statuspage.io instance with an open CORS policy on its public summary
+ * API, so this polls it directly from the browser - no backend proxy needed for a read-only,
+ * unauthenticated, third-party status check.
+ */
+function DiscordStatusDot() {
+  const [status, setStatus] = useState<{ indicator: DiscordIndicator; description: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatus = () => {
+      fetch("https://discordstatus.com/api/v2/status.json")
+        .then(res => res.json())
+        .then(data => { if (!cancelled) setStatus(data.status); })
+        .catch(() => { if (!cancelled) setStatus(null); });
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, DISCORD_STATUS_POLL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  if (!status) return null;
+
+  const color = status.indicator === "none" ? "text-indigo-400" : status.indicator === "minor" ? "text-amber-400" : "text-red-500";
+  const dotColor = status.indicator === "none" ? "bg-emerald-400" : status.indicator === "minor" ? "bg-amber-400" : "bg-red-500";
+
+  return (
+    <div title={`Discord API status (live): ${status.description}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
+      <DiscordGlyph className={cn("w-3.5 h-3.5", color)} />
+      <LiveDot className={dotColor} />
+    </div>
+  );
+}
+
 function TopBar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -114,19 +211,25 @@ function TopBar() {
   const handleLogout = () => { logout(); navigate("/login"); };
 
   return (
-    <div className="hidden sm:flex h-12 items-center justify-end gap-3 border-b border-zinc-800 bg-zinc-950/60 px-6 flex-shrink-0">
-      <ServerSwitcher />
-      <div className="w-px h-5 bg-zinc-700 mx-1" />
-      {user && (
-        <>
-          <UserAvatar userId={user.id} username={user.username} avatarHash={user.avatar} />
-          <span className="text-sm text-zinc-300 font-medium">@{user.username}</span>
-        </>
-      )}
-      <button onClick={handleLogout} title="Logout"
-        className="text-zinc-500 hover:text-red-400 transition-colors ml-1">
-        <LogOut className="w-4 h-4" />
-      </button>
+    <div className="hidden sm:flex h-12 items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/60 pl-6 pr-6 sm:pl-[280px] flex-shrink-0">
+      <div className="flex items-center gap-2">
+        <DiscordStatusDot />
+        <VerificationStatusDot />
+      </div>
+      <div className="flex items-center gap-3">
+        <ServerSwitcher />
+        <div className="w-px h-5 bg-zinc-700 mx-1" />
+        {user && (
+          <>
+            <UserAvatar userId={user.id} username={user.username} avatarHash={user.avatar} />
+            <span className="text-sm text-zinc-300 font-medium">@{user.username}</span>
+          </>
+        )}
+        <button onClick={handleLogout} title="Logout"
+          className="text-zinc-500 hover:text-red-400 transition-colors ml-1">
+          <LogOut className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
