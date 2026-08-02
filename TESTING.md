@@ -44,9 +44,9 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] Ak dostaneš 403 "Manager access required" (napr. ti niekto zrušil manager rolu počas session), appka ťa odhlási a presmeruje na `/login?error=access_revoked`.
 
 ### Toasty (notifikácie)
-- [ ] Toast sa objaví vpravo hore, sám zmizne po pár sekundách (progress bar dole).
-- [ ] Dá sa zavrieť ručne krížikom.
-- [ ] Viac toastov naraz sa correctne stackuje (skús to napr. na Auto Delete module).
+- [X] Toast sa objaví vpravo hore, sám zmizne po pár sekundách (progress bar dole).
+- [X] Dá sa zavrieť ručne krížikom.
+- [X] Viac toastov naraz sa correctne stackuje (skús to napr. na Auto Delete module).
 
 ---
 
@@ -63,14 +63,14 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 - [X] Hore počítadlo "N active" / "N expired".
 - [X] Vyhľadávanie funguje podľa Discord ID, AIS ID, emailu, Guild ID.
-- [ ] Filter podľa mesiaca — v zozname sú len mesiace, ktoré majú reálne dáta.
-- [ ] Filter Active/Expired.
-- [ ] "Reset" tlačidlo sa objaví len keď je aktívny filter/search a vyčistí všetko naraz.
-- [ ] Expirované riadky majú červený nádych, dátum expirácie je červený (aktívne zelený).
-- [ ] Prázdny výsledok → "No codes found."
-- [ ] Stránkovanie (30/strana) — prev/next/first/last, čísla strán, disabled na krajoch.
-- [ ] "Show all N" prepne na zobrazenie všetkého na jednej strane a späť.
-- [ ] Zmena filtra/search vráti na stranu 1.
+- [X] Filter podľa mesiaca — v zozname sú len mesiace, ktoré majú reálne dáta.
+- [X] Filter Active/Expired.
+- [X] "Reset" tlačidlo sa objaví len keď je aktívny filter/search a vyčistí všetko naraz.
+- [X] Expirované riadky majú červený nádych, dátum expirácie je červený (aktívne zelený).
+- [X] Prázdny výsledok → "No codes found."
+- [X] Stránkovanie (30/strana) — prev/next/first/last, čísla strán, disabled na krajoch.
+- [X] "Show all N" prepne na zobrazenie všetkého na jednej strane a späť.
+- [X] Zmena filtra/search vráti na stranu 1.
 
 ---
 
@@ -79,124 +79,131 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] Počítadlo "{filtered} / {total}" pri aktívnom filtri.
 - [X] Vyhľadávanie podľa Discord ID / AIS ID / email / Guild ID.
 - [X] Filter podľa mesiaca (podľa `verified_at`).
-- [ ] Kliknutie na hlavičku "AIS ID" cyklí triedenie: bez triedenia → vzostupne → zostupne → bez triedenia (šípka sa mení).
-- [ ] "Reset" vyčistí search/mesiac/triedenie naraz.
-- [ ] Prázdny výsledok → "No users matched."
-- [ ] Stránkovanie a "Show all" rovnako ako pri Codes.
+- [X] Kliknutie na hlavičku "AIS ID" cyklí triedenie: bez triedenia → vzostupne → zostupne → bez triedenia (šípka sa mení).
+- [X] "Reset" vyčistí search/mesiac/triedenie naraz.
+- [X] Prázdny výsledok → "No users matched."
+- [X] Stránkovanie a "Show all" rovnako ako pri Codes.
 
 ---
 
 ## Logs (`/access-logs`) 👤
 
-- [ ] Bez servera: "No server selected. Pick a server from the switcher above..."
-- [ ] 6 tabov: Dashboard, Logins, Warnings, Automod, Verification, Commands.
-- [ ] Prepnutie tabu vyresetuje search/filter/stránkovanie.
-- [ ] **Dashboard tab** — tabuľka zmien nastavení (Time/User/Action/Details), search funguje.
-- [ ] **Logins tab** — Time/User/IP/Action, "login" akcia sa zobrazí ako "Logged into dashboard".
-- [ ] **Warnings tab** — Time/Warning ID/User/Moderator/Reason; opakovaný priestupca dostane "{N}×" odznak.
-- [ ] **Automod tab** — status pill (success/failed/other), info "i" tlačidlo vysvetľuje čo presne sa loguje; funguje status filter.
-- [ ] **Verification tab** — rovnaká tabuľka ako Automod, len iné dáta.
-- [ ] **Commands tab** — Time/User/Channel/Command/Status/Duration, dôvod blokovania/chyba viditeľné, status filter má viac možností.
-- [ ] Search je na každom tabe (okrem loading/error stavu).
-- [ ] "Show all" / "Paginate" prepínač, pri väčšom počte strán sa čísla strán skracujú na "…".
-- [ ] Prázdny stav na každom tabe → "No {tab} found" s ikonkou.
+- [X] Bez servera: "No server selected. Pick a server from the switcher above..."
+- [X] 6 tabov: Dashboard, Logins, Warnings, Automod, Verification, Commands.
+- [X] Prepnutie tabu vyresetuje search/filter/stránkovanie.
+- [X] **Dashboard tab** — tabuľka zmien nastavení (Time/User/Action/Details), search funguje.
+- [X] **Logins tab** — Time/User/IP/Action, "login" akcia sa zobrazí ako "Logged into dashboard".
+- [X] **Warnings tab** — Time/Warning ID/User/Moderator/Reason; opakovaný priestupca dostane "{N}×" odznak.
+- [X] **Automod tab** — status pill (success/failed/other), info "i" tlačidlo vysvetľuje čo presne sa loguje; funguje status filter.
+- [X] **Verification tab** — rovnaká tabuľka ako Automod, len iné dáta.
+- [X] **Commands tab** — Time/User/Channel/Command/Status/Duration, dôvod blokovania/chyba viditeľné, status filter má viac možností.
+- [X] Search je na každom tabe (okrem loading/error stavu).
+- [X] "Show all" / "Paginate" prepínač, pri väčšom počte strán sa čísla strán skracujú na "…".
+- [X] Prázdny stav na každom tabe → "No {tab} found" s ikonkou.
 
 ---
 
 ## Ticket Transcript (`/tickets/:channelId?guildId=...`) 👤
-
-- [ ] Bez `channelId` alebo `guildId` v URL → "Missing channel or server id in the link."
-- [ ] Chyba pri načítaní → "Failed to load transcript." (alebo iná chyba zo servera).
-- [ ] Hlavička ukazuje Status (open/zatvorené), kto zatvoril a kedy.
-- [ ] Zoznam správ — autor, čas, text, prílohy (klikateľný odkaz, otvorí sa v novom tabe).
-- [ ] Prázdny transcript → "No messages recorded."
+Need to recheck: seems like it does not log all messages
+- [X] Bez `channelId` alebo `guildId` v URL → "Missing channel or server id in the link."
+- [X] Chyba pri načítaní → "Failed to load transcript." (alebo iná chyba zo servera).
+- [X] Hlavička ukazuje Status (open/zatvorené), kto zatvoril a kedy.
+- [X] Zoznam správ — autor, čas, text, prílohy (klikateľný odkaz, otvorí sa v novom tabe).
+- [X] Prázdny transcript → "No messages recorded."
 
 ---
 
 ## Semester Management (`/semester`, `/semester/switch`, `/semester/setup`) 👤
 
-- [ ] Bez servera: "No server selected."
-- [ ] Prístup sa kontroluje — kým sa nenačíta: "Checking access…"
-- [ ] Chýba semester log kanál → jantárová hláška + link na Settings.
-- [ ] Bez oprávnenia (iný dôvod) → červená hláška "Access denied...".
-- [ ] "Running" odznak sa zobrazí, keď práve beží switch/setup.
-- [ ] Ľavý panel: "New Semester" vytvorí nový draft; existujúce configy v zozname (názov + počet kategórií/mapovaní).
-- [ ] Zmazanie configu — hover ukáže kôš, klik → inline potvrdenie Yes/No.
-- [ ] Prepínač Switch/Setup módu (disabled kým beží run).
-- [ ] **Switch mód** — editor: Allowed Transitions (zoznam From→To, pridávanie/mazanie), Name, Categories, "@everyone View Channel" prepínač, Role Mappings (pridanie/edit/mazanie, zmazaná Discord rola sa zobrazí ako preškrtnutá "deleted role").
-- [ ] **Setup mód** — center panel s editorom sa skryje, len run panel.
-- [ ] Info tlačidlo "How it works" otvorí modal s krokmi.
-- [ ] Run panel — Switch: From/To dropdown, "Run Switch" disabled kým nie sú vybrané rôzne hodnoty; potvrdzovací modal pred spustením.
-- [ ] Run panel — Setup: výber semestra, Show/Hide prepínač, checkbox na vyčistenie cleanup rolí, potvrdzovací modal.
-- [ ] Progress bar a live konzola so streamovanými logmi (farby podľa úrovne) počas behu.
-- [ ] "Resume unfinished steps" sa objaví len keď posledný run zlyhal/je nedokončený.
-- [ ] Konzola sa dá vyčistiť (X), po novom behu sa znova naplní.
-- [ ] Zavretie a znovuotvorenie stránky počas behu — run pokračuje a konzola sa dotiahne zo servera.
+- [X] Bez servera: "No server selected."
+- [X] Prístup sa kontroluje — kým sa nenačíta: "Checking access…"
+- [X] Chýba semester log kanál → jantárová hláška + link na Settings.
+- [X] Bez oprávnenia (iný dôvod) → červená hláška "Access denied...".
+- [X] "Running" odznak sa zobrazí, keď práve beží switch/setup.
+- [X] Ľavý panel: "New Semester" vytvorí nový draft; existujúce configy v zozname (názov + počet kategórií/mapovaní).
+- [X] Zmazanie configu — hover ukáže kôš, klik → inline potvrdenie Yes/No.
+- [X] Prepínač Switch/Setup módu (disabled kým beží run).
+- [X] **Switch mód** — editor: Allowed Transitions (zoznam From→To, pridávanie/mazanie), Name, Categories, "@everyone View Channel" prepínač, Role Mappings (pridanie/edit/mazanie, zmazaná Discord rola sa zobrazí ako preškrtnutá "deleted role").
+- [X] **Setup mód** — center panel s editorom sa skryje, len run panel.
+- [X] Info tlačidlo "How it works" otvorí modal s krokmi.
+- [X] Run panel — Switch: From/To dropdown, "Run Switch" disabled kým nie sú vybrané rôzne hodnoty; potvrdzovací modal pred spustením.
+- [X] Run panel — Setup: výber semestra, Show/Hide prepínač, checkbox na vyčistenie cleanup rolí, potvrdzovací modal.
+- [X] Progress bar a live konzola so streamovanými logmi (farby podľa úrovne) počas behu.
+- [X] "Resume unfinished steps" sa objaví len keď posledný run zlyhal/je nedokončený.
+- [X] Konzola sa dá vyčistiť (X), po novom behu sa znova naplní.
+- [X] Zavretie a znovuotvorenie stránky počas behu — run pokračuje a konzola sa dotiahne zo servera.
 
 ---
 
 ## 🔒 Modules (`/modules`)
 
-- [ ] Bez servera: "No server selected. Pick one." + link.
-- [ ] Dve karty: Hacked Account Trap, Auto Delete — každá s toggle na zapnutie/vypnutie a linkom na Settings.
-- [ ] Zapnutie Hacked Account Trap bez nastaveného trap kanála → chyba, toggle sa vráti späť.
-- [ ] Zapnutie Hacked Account Trap bez nastaveného Automod Log kanála → chyba (treba nastaviť v Settings → Log Channels).
-- [ ] Auto Delete toggle — zapnutie/vypnutie funguje, chyba sa ukáže inline pri zlyhaní.
+- [X] Bez servera: "No server selected. Pick one." + link.
+- [X] Dve karty: Hacked Account Trap, Auto Delete — každá s toggle na zapnutie/vypnutie a linkom na Settings.
+- [X] Zapnutie Hacked Account Trap bez nastaveného trap kanála → chyba, toggle sa vráti späť.
+- [X] Zapnutie Hacked Account Trap bez nastaveného Automod Log kanála → chyba (treba nastaviť v Settings → Log Channels).
+- [X] Auto Delete toggle — zapnutie/vypnutie funguje, chyba sa ukáže inline pri zlyhaní.
 
 ### 🔒 Modules → Hacked Account Trap (`/modules/hacked-account-trap`)
-- [ ] Breadcrumb späť na Modules.
-- [ ] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako vyššie).
-- [ ] Trap channel picker (povinný).
+- [X] Breadcrumb späť na Modules.
+- [X] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako vyššie).
+- [X] Trap channel picker (povinný).
+- [X] Need to add, when you save settings, and you do not pick channel where it should save, then it wont throw: "Failed to save settings", but will actually show notification, that you have to pick one channel at least.
 - [ ] Moderation action: Timeout/Kick/Ban; pri Timeout sa objaví stepper na minúty (1–40320).
-- [ ] Delete triggering message toggle.
-- [ ] Delete recent messages toggle → cleanup perióda (1–1440 min).
-- [ ] Ignore administrators toggle.
-- [ ] Exempt roles multi-select.
-- [ ] DM affected user toggle → textarea so správou (placeholder `{user}, {server}`).
-- [ ] Create incident channel toggle → vnorené nastavenia (názov kanála s `{user},{id}`, kategória, kategória po zatvorení, prístup pre postihnutého, správa v kanáli, tag rolí).
-- [ ] Moderation reason input.
-- [ ] "Save Module" — spinner → "Saved!" na 2s.
-- [ ] Skús hraničné hodnoty (1 a 40320 min pri timeoute, 1 a 1440 pri cleanupe) — mali by sa orezať na limity.
+- [X] Delete triggering message toggle.
+- [X] Delete recent messages toggle → cleanup perióda (1–1440 min).
+- [X] Ignore administrators toggle.
+- [X] Exempt roles multi-select.
+- [X] DM affected user toggle → textarea so správou (placeholder `{user}, {server}`).
+- [X] Create incident channel toggle → vnorené nastavenia (názov kanála s `{user},{id}`, kategória, kategória po zatvorení, prístup pre postihnutého, správa v kanáli, tag rolí).
+- [X] Moderation reason input.
+- [X] "Save Module" — spinner → "Saved!" na 2s.
+- [X] Skús hraničné hodnoty (1 a 40320 min pri timeoute, 1 a 1440 pri cleanupe) — mali by sa orezať n111a limity.
+- [X] When it creates ticket, add behind name also tag. so e.g  .helter (@helter) so it actually tags also. But keep both versions.
+- [X] You can not remove first number for some reason, you have to type at least two numbers, and then switch to the first one and replace it by removing it and adding something. As I think, this is not correct behaviour.
+- [X] Also what I noticed is that bot is spamming too much when user retypes into the trap channel into the ticket if it was created. Always same logic. Once there is a channel that has been created specific for this trap and for this user, then it should maybe just tag that user in that specific channel.
+- [X] Also would be good if it did pin control buttons
+- [X] Also would be good if it contained commands not just UI buttons to handle ticket, so maybe /ticketclose, /ticketrecap, /ticketdelete, /ticketopen ? 
 
 ### 🔒 Modules → Auto Delete (`/modules/autodelete`)
-- [ ] Breadcrumb späť na Modules.
-- [ ] "New Channel" vytvorí nový config; existujúce v ľavom zozname (kanál + delay napr. "60s"/"5m"/"1h"/"instant").
-- [ ] Zmazanie configu — hover → kôš → inline Yes/No potvrdenie.
-- [ ] Editor: Channel select (už použité kanály disabled), "Delete after (seconds)" s približným prekladom ("≈ 5m"/"instant").
-- [ ] Ignore Rules: Ignore bots/pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
-- [ ] Notify User toggle → In Channel/DM voľba; DM ukáže poznámku o zatvorených DMkách.
-- [ ] In Channel + Delete bot message → "Delete after" s minimom 3s (nižšie hodnoty sa orežú).
-- [ ] Message textarea s placeholderom `{channel} {server} {user}`.
-- [ ] Save bez vybraného kanála → toast "Select a channel first." (needá sa uložiť).
-- [ ] Úspešné uloženie → toast "Config saved successfully."; zlyhanie → toast s chybou.
+- [X] Breadcrumb späť na Modules.
+- [X] There is always 0 and you can not delete that 0. You have to first type at least two numbers, and then switch to the first one and replace it by removing and adding something else. As I think, this is not correct behaviour. Same case as in modules.
+- [X] "New Channel" vytvorí nový config; existujúce v ľavom zozname (kanál + delay napr. "60s"/"5m"/"1h"/"instant").
+- [X] Zmazanie configu — hover → kôš → inline Yes/No potvrdenie.
+- [X] Editor: Channel select (už použité kanály disabled), "Delete after (seconds)" s približným prekladom ("≈ 5m"/"instant").
+- [X] Ignore Rules: Ignore bots/pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
+- [X] Notify User toggle → In Channel/DM voľba; DM ukáže poznámku o zatvorených DMkách.
+- [X] In Channel + Delete bot message → "Delete after" s minimom 3s (nižšie hodnoty sa orežú).
+- [X] Message textarea s placeholderom `{channel} {server} {user}`.
+- [X] Save bez vybraného kanála → toast "Select a channel first." (needá sa uložiť).
+- [X] Úspešné uloženie → toast "Config saved successfully."; zlyhanie → toast s chybou.
 
 ---
 
 ## 🔒 Commands (`/commands`)
 
-- [ ] Bez servera: "No server selected. Pick one."
-- [ ] 3 taby: Moderation, Verification, Utility — správne príkazy v každom.
-- [ ] Každý príkaz má toggle enable/disable (optimistické prepnutie, vráti sa späť pri chybe).
-- [ ] Zámok pri príkaze, ktorý má nastavené obmedzenia (admin-only/role/kanály) + farebné chipy pod popisom.
-- [ ] "Authorization" modal — admin-only toggle, sekcie Require roles / Block roles / Allowed channels / Blocked channels (rozbaľovacie, s vyhľadávaním).
-- [ ] Kliknutie na už otvorenú/aktívnu sekciu v Authorization modali ju zbalí AJ vymaže výber — over toto správanie explicitne.
-- [ ] Save v modali — spinner → "Saved!" na 2s; Cancel/klik mimo modal zavrie bez uloženia.
-- [ ] "Settings" modal (len pri príkazoch, čo ho majú) — napr. Ephemeral response, Include bots, DM before wipe.
-- [ ] Kategóriové "Authorization" tlačidlo (hromadne pre celý tab) — ak majú príkazy rôzne nastavenia, formulár začne prázdny (explicitné prepísanie).
-- [ ] "Enable All"/"Disable All" pre aktívny tab.
-- [ ] "Sync Visibility" — spinner → "Synced!" na 3s.
-- [ ] Prepnutie servera resetne všetky stavy a znova načíta.
+- [X] Bez servera: "No server selected. Pick one."
+- [X] 3 taby: Moderation, Verification, Utility — správne príkazy v každom.
+- [X] Každý príkaz má toggle enable/disable (optimistické prepnutie, vráti sa späť pri chybe).
+- [X] Zámok pri príkaze, ktorý má nastavené obmedzenia (admin-only/role/kanály) + farebné chipy pod popisom.
+- [X] "Authorization" modal — admin-only toggle, sekcie Require roles / Block roles / Allowed channels / Blocked channels (rozbaľovacie, s vyhľadávaním).
+- [X] Kliknutie na už otvorenú/aktívnu sekciu v Authorization modali ju zbalí AJ vymaže výber — over toto správanie explicitne.
+- [X] Save v modali — spinner → "Saved!" na 2s; Cancel/klik mimo modal zavrie bez uloženia.
+- [X] "Settings" modal (len pri príkazoch, čo ho majú) — napr. Ephemeral response, Include bots, DM before wipe.
+- [X] Kategóriové "Authorization" tlačidlo (hromadne pre celý tab) — ak majú príkazy rôzne nastavenia, formulár začne prázdny (explicitné prepísanie).
+- [X] "Enable All"/"Disable All" pre aktívny tab.
+- [X] "Sync Visibility" — spinner → "Synced!" na 3s.
+- [X] Prepnutie servera resetne všetky stavy a znova načíta.
 
 ---
 
 ## 🔒 Settings (`/settings`)
 
-- [ ] Bez servera: "No server selected. Go back and pick one."
-- [ ] Verification & Roles: toggle Verification, Verified Role picker, Inactive Role picker — každé auto-save s vlastným Saving/Saved/Error indikátorom.
-- [ ] Warn Thresholds — zoznam "{N} warns → {Action}" s farbami podľa akcie, X na zmazanie (bez potvrdenia); pridanie (stepper + dropdown + Add); duplicitný limit → chyba.
-- [ ] Auto-Mentions — zoznam kanál→rola, toggle ON/OFF, X na zmazanie; pridanie (kanál + rola + Add, disabled kým oboje nevybrané).
-- [ ] Manager Roles — multi-select s vyhľadávaním, chipy; **explicitné "Save Manager Roles" tlačidlo** (NEukladá sa automaticky) — over, že zmena bez uloženia zmizne pri opustení stránky.
-- [ ] Log Channels — varovania pri rozbitej existujúcej konfigurácii; prepnutie kanála v slote migruje priradenia; checkbox na typ udalosti v jednom kanáli automaticky odškrtne rovnaký typ v inom slote (jedna udalosť = jeden kanál); pridanie nového slotu (len nepoužité kanály); explicitné "Save Log Channels".
+- [X] Bez servera: "No server selected. Go back and pick one."
+- [X] Verification & Roles: toggle Verification, Verified Role picker, Inactive Role picker — každé auto-save s vlastným Saving/Saved/Error indikátorom.
+- [X] Warn Thresholds — zoznam "{N} warns → {Action}" s farbami podľa akcie, X na zmazanie (bez potvrdenia); pridanie (stepper + dropdown + Add); duplicitný limit → chyba.
+- [X] Auto-Mentions — zoznam kanál→rola, toggle ON/OFF, X na zmazanie; pridanie (kanál + rola + Add, disabled kým oboje nevybrané).
+- [X] Manager Roles — multi-select s vyhľadávaním, chipy; **explicitné "Save Manager Roles" tlačidlo** (NEukladá sa automaticky) — over, že zmena bez uloženia zmizne pri opustení stránky.
+- [X] Log Channels — varovania pri rozbitej existujúcej konfigurácii; prepnutie kanála v slote migruje priradenia; checkbox na typ udalosti v jednom kanáli automaticky odškrtne rovnaký typ v inom slote (jedna udalosť = jeden kanál); pridanie nového slotu (len nepoužité kanály); explicitné "Save Log Channels".
 
 ---
 
@@ -219,22 +226,22 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 ## 🔒 Admin (`/admin`)
 
-- [ ] Metriky: Uptime, Servers, Verified, Active Codes, Warnings, Memory.
-- [ ] Allowed Servers — pridanie ID: neplatný formát (nie 17-20 číslic) → chyba; duplicitné ID → chyba; platné nové ID sa pridá a uloží.
-- [ ] Zoznam pripojených guildov s "Allow"/"Allowed" tlačidlom.
-- [ ] Pokus odstrániť POSLEDNÝ povolený server → chyba "Keep at least one server allowed..." (needá sa odstrániť).
-- [ ] Guildy povolené, ale bot v nich nie je pripojený → samostatný riadok "Bot is not connected" s možnosťou zmazať.
-- [ ] Maintenance Mode — vypnutie je okamžité; **zapnutie vyžaduje potvrdzovací dialóg** (Cancel/Enable Maintenance).
-- [ ] Zrušenie dialógu (Cancel) → maintenance ostane vypnutý.
-- [ ] Super Admin panel je čisto na čítanie (žiadne pridávanie/mazanie z UI) — over, že sa naozaj nedá nič zmeniť.
+- [X] Metriky: Uptime, Servers, Verified, Active Codes, Warnings, Memory.
+- [X] Allowed Servers — pridanie ID: neplatný formát (nie 17-20 číslic) → chyba; duplicitné ID → chyba; platné nové ID sa pridá a uloží.
+- [X] Zoznam pripojených guildov s "Allow"/"Allowed" tlačidlom.
+- [X] Pokus odstrániť POSLEDNÝ povolený server → chyba "Keep at least one server allowed..." (needá sa odstrániť).
+- [X] Guildy povolené, ale bot v nich nie je pripojený → samostatný riadok "Bot is not connected" s možnosťou zmazať.
+- [X] Maintenance Mode — vypnutie je okamžité; **zapnutie vyžaduje potvrdzovací dialóg** (Cancel/Enable Maintenance).
+- [X] Zrušenie dialógu (Cancel) → maintenance ostane vypnutý.
+- [X] Super Admin panel je čisto na čítanie (žiadne pridávanie/mazanie z UI) — over, že sa naozaj nedá nič zmeniť.
 
 ---
 
 ## NotFound (neznáma URL)
 
-- [ ] Návšteva neexistujúcej cesty (napr. `/toto-neexistuje`) → "404 — Page not found" s tlačidlami "Go to Dashboard" a "Go back".
-- [ ] "Go back" ide na skutočne predchádzajúcu stránku (histórie), nie vždy na `/`.
-- [ ] Ako bežný manažér skús ručne zadať do URL 🔒 stránku (`/admin`, `/settings`, `/modules`, `/commands`, `/wipe`) — očakávané: ticho ťa to prehodí na `/` (Dashboard), NEukáže sa 404 ani obsah stránky.
+- [X] Návšteva neexistujúcej cesty (napr. `/toto-neexistuje`) → "404 — Page not found" s tlačidlami "Go to Dashboard" a "Go back".
+- [X] "Go back" ide na skutočne predchádzajúcu stránku (histórie), nie vždy na `/`.
+- [X] Ako bežný manažér skús ručne zadať do URL 🔒 stránku (`/admin`, `/settings`, `/modules`, `/commands`, `/wipe`) — očakávané: ticho ťa to prehodí na `/` (Dashboard), NEukáže sa 404 ani obsah stránky.
 
 ---
 
