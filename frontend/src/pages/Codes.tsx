@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { adminApi, type VerificationCode } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Search, Ticket, X, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
+import { Search, Ticket, X } from "lucide-react";
 import { format } from "date-fns";
 import { useSelectedGuildId } from "@/components/modules/shared";
+import { usePagination, PaginationControls } from "@/components/ui/pagination";
 
 export function Codes() {
   const currentGuildId = useSelectedGuildId();
@@ -13,8 +14,6 @@ export function Codes() {
   const guildFilter = currentGuildId || null;
   const [dateFilter, setDateFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"active" | "expired" | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
   const itemsPerPage = 30;
 
   useEffect(() => {
@@ -30,8 +29,6 @@ export function Codes() {
       });
     return () => { cancelled = true; };
   }, [currentGuildId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search, guildFilter, dateFilter, statusFilter]);
 
   const resetFilters = () => { setSearch(""); setDateFilter(null); setStatusFilter(null); };
 
@@ -51,14 +48,9 @@ export function Codes() {
       && (statusFilter ? (statusFilter === "expired" ? expired : !expired) : true);
   });
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const paged = showAll ? filtered : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const { currentPage, setCurrentPage, showAll, setShowAll, totalPages, paged, pageNumbers } = usePagination(filtered, itemsPerPage);
 
-  const maxVisible = 5;
-  let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-  const endPage = Math.min(totalPages, startPage + maxVisible - 1);
-  if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
-  const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+  useEffect(() => { setCurrentPage(1); }, [search, guildFilter, dateFilter, statusFilter, setCurrentPage]);
 
   const hasFilters = !!(search || dateFilter || statusFilter);
   const activeCount = data.filter(v => new Date(v.expires_at) >= now).length;
@@ -142,41 +134,10 @@ export function Codes() {
             </table>
           </div>
 
-          <div className="flex flex-col items-center gap-3 py-4 border-t border-zinc-800">
-            {!showAll && totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
-                  className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 disabled:opacity-30 transition-colors">
-                  <ChevronsLeft className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                  className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 disabled:opacity-30 transition-colors">
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                {pages.map(p => (
-                  <button key={p} onClick={() => setCurrentPage(p)}
-                    className={cn("w-7 h-7 rounded text-xs font-semibold transition-colors",
-                      p === currentPage ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-200")}>
-                    {p}
-                  </button>
-                ))}
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                  className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 disabled:opacity-30 transition-colors">
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
-                  className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 disabled:opacity-30 transition-colors">
-                  <ChevronsRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-            {filtered.length > itemsPerPage && (
-              <button onClick={() => { setShowAll(!showAll); setCurrentPage(1); }}
-                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
-                {showAll ? "Show pages" : `Show all ${filtered.length}`}
-              </button>
-            )}
-          </div>
+          <PaginationControls
+            currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages}
+            showAll={showAll} setShowAll={setShowAll} pageNumbers={pageNumbers}
+            totalCount={filtered.length} itemsPerPage={itemsPerPage} />
         </>
       )}
     </div>
