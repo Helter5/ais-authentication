@@ -61,6 +61,10 @@ public class RoleMenuConfig {
     @Column(name = "blocked_role_ids", nullable = false)
     private String blockedRoleIds;
 
+    /** Optional cap on how many of this menu's roles a member may hold at once. MULTI mode only; null = no limit. */
+    @Column(name = "max_selectable")
+    private Integer maxSelectable;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -71,7 +75,7 @@ public class RoleMenuConfig {
     public RoleMenuConfig(
             String guildId, String channelId, String title, String description,
             String uiType, String selectionMode, boolean requireVerified, String options,
-            String allowedRoleIds, String blockedRoleIds) {
+            String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.guildId = guildId;
         this.channelId = channelId;
         this.title = title;
@@ -82,13 +86,14 @@ public class RoleMenuConfig {
         this.options = options;
         this.allowedRoleIds = allowedRoleIds;
         this.blockedRoleIds = blockedRoleIds;
+        this.maxSelectable = maxSelectable;
         this.createdAt = LocalDateTime.now();
     }
 
     public void update(
             String channelId, String title, String description,
             String uiType, String selectionMode, boolean requireVerified, String options,
-            String allowedRoleIds, String blockedRoleIds) {
+            String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.channelId = channelId;
         this.title = title;
         this.description = description;
@@ -98,6 +103,7 @@ public class RoleMenuConfig {
         this.options = options;
         this.allowedRoleIds = allowedRoleIds;
         this.blockedRoleIds = blockedRoleIds;
+        this.maxSelectable = maxSelectable;
     }
 
     public void setMessageId(String messageId) {

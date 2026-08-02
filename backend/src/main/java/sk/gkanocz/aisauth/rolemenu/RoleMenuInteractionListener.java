@@ -12,8 +12,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.discordbot.BotPermissionChecker;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import sk.gkanocz.aisauth.settings.GuildSettings;
-import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.verification.MemberVerificationChecker;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +34,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
     private final RoleMenuConfigRepository roleMenuConfigRepository;
     private final RoleMenuService roleMenuService;
     private final AdminSettingsService adminSettingsService;
-    private final GuildSettingsService guildSettingsService;
+    private final MemberVerificationChecker memberVerificationChecker;
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -54,7 +53,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         String clickedRoleId = parts[1];
 
         withConfig(event.getGuild(), configId, config -> {
-            String denied = accessDeniedReason(event.getMember(), config);
+            String denied = accessDeniedReason(event.getGuild(), event.getMember(), config);
             if (denied != null) {
                 event.reply(denied).setEphemeral(true).queue();
                 return;
@@ -90,7 +89,15 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 }
             }
 
-            if (member.getRoles().contains(clickedRole)) {
+            boolean alreadyHas = member.getRoles().contains(clickedRole);
+            if (!alreadyHas && !single && config.getMaxSelectable() != null
+                    && countHeld(member, guild, options) >= config.getMaxSelectable()) {
+                event.reply("You can only have up to " + config.getMaxSelectable()
+                        + " role(s) from this menu - remove one first.").setEphemeral(true).queue();
+                return;
+            }
+
+            if (alreadyHas) {
                 guild.removeRoleFromMember(member, clickedRole).queue();
                 removed.add(clickedRole.getName());
             } else {
@@ -114,7 +121,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         }
 
         withConfig(event.getGuild(), configId, config -> {
-            String denied = accessDeniedReason(event.getMember(), config);
+            String denied = accessDeniedReason(event.getGuild(), event.getMember(), config);
             if (denied != null) {
                 event.reply(denied).setEphemeral(true).queue();
                 return;
@@ -124,6 +131,13 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             Member member = event.getMember();
             Set<String> selected = new HashSet<>(event.getValues());
             List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
+
+            if ("MULTI".equals(config.getSelectionMode()) && config.getMaxSelectable() != null
+                    && selected.size() > config.getMaxSelectable()) {
+                event.reply("You can select at most " + config.getMaxSelectable() + " role(s) from this menu.")
+                        .setEphemeral(true).queue();
+                return;
+            }
 
             List<String> added = new ArrayList<>();
             List<String> removed = new ArrayList<>();
@@ -172,7 +186,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
     }
 
     /** Returns null if the member may use this menu, or the rejection message to reply with. */
-    private String accessDeniedReason(Member member, RoleMenuConfig config) {
+    private String accessDeniedReason(Guild guild, Member member, RoleMenuConfig config) {
         if (member == null) {
             return "Something went wrong.";
         }
@@ -187,16 +201,18 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             return "You don't have permission to use this role menu.";
         }
 
-        if (config.isRequireVerified()) {
-            GuildSettings settings = guildSettingsService.getOrCreate(config.getGuildId());
-            String verifiedRoleId = settings.getVerifiedRoleId();
-            boolean verified = verifiedRoleId != null && member.getRoles().stream().anyMatch(r -> r.getId().equals(verifiedRoleId));
-            if (!verified) {
-                return "You need to verify first (/verify) before using this role menu.";
-            }
+        if (config.isRequireVerified() && !memberVerificationChecker.isVerified(guild, member)) {
+            return "You need to verify first (/verify) before using this role menu.";
         }
 
         return null;
+    }
+
+    private long countHeld(Member member, Guild guild, List<RoleMenuOption> options) {
+        return options.stream()
+                .map(o -> guild.getRoleById(o.roleId()))
+                .filter(r -> r != null && member.getRoles().contains(r))
+                .count();
     }
 
     private boolean canManageRole(Guild guild, Role role) {

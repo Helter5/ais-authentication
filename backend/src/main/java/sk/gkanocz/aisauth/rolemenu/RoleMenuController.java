@@ -68,7 +68,8 @@ public class RoleMenuController {
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
                 roleMenuService.writeRoleIds(request.allowedRoleIds()),
-                roleMenuService.writeRoleIds(request.blockedRoleIds()));
+                roleMenuService.writeRoleIds(request.blockedRoleIds()),
+                normalizeMaxSelectable(request));
         roleMenuConfigRepository.save(config);
 
         Guild guild = discordBotService.requireGuild(request.guildId());
@@ -93,7 +94,8 @@ public class RoleMenuController {
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
                 roleMenuService.writeRoleIds(request.allowedRoleIds()),
-                roleMenuService.writeRoleIds(request.blockedRoleIds()));
+                roleMenuService.writeRoleIds(request.blockedRoleIds()),
+                normalizeMaxSelectable(request));
 
         Guild guild = discordBotService.requireGuild(request.guildId());
         roleMenuService.postOrUpdateMenu(guild, config, previousChannelId, previousMessageId);
@@ -138,6 +140,14 @@ public class RoleMenuController {
         if (!"SINGLE".equals(request.selectionMode()) && !"MULTI".equals(request.selectionMode())) {
             throw InvalidRequestException.withMessage("selectionMode must be SINGLE or MULTI.");
         }
+        if (request.maxSelectable() != null && request.maxSelectable() < 1) {
+            throw InvalidRequestException.withMessage("Max selectable roles must be at least 1.");
+        }
+    }
+
+    /** Only meaningful in MULTI mode - SINGLE is already an implicit max of 1, so ignore any stray value there. */
+    private Integer normalizeMaxSelectable(RoleMenuConfigRequest request) {
+        return "MULTI".equals(request.selectionMode()) ? request.maxSelectable() : null;
     }
 
     private RoleMenuConfigResponse toResponse(RoleMenuConfig config) {
@@ -146,7 +156,8 @@ public class RoleMenuController {
                 config.getTitle(), config.getDescription(), config.getUiType(), config.getSelectionMode(),
                 config.isRequireVerified(), roleMenuService.readOptions(config.getOptions()),
                 roleMenuService.readRoleIds(config.getAllowedRoleIds()),
-                roleMenuService.readRoleIds(config.getBlockedRoleIds()));
+                roleMenuService.readRoleIds(config.getBlockedRoleIds()),
+                config.getMaxSelectable());
     }
 
     public record SetEnabledRequest(String guildId, Boolean enabled) {
@@ -162,7 +173,8 @@ public class RoleMenuController {
             @JsonProperty("require_verified") Boolean requireVerified,
             List<RoleMenuOption> options,
             @JsonProperty("allowed_role_ids") List<String> allowedRoleIds,
-            @JsonProperty("blocked_role_ids") List<String> blockedRoleIds) {
+            @JsonProperty("blocked_role_ids") List<String> blockedRoleIds,
+            @JsonProperty("max_selectable") Integer maxSelectable) {
     }
 
     public record RoleMenuConfigResponse(
@@ -177,6 +189,7 @@ public class RoleMenuController {
             @JsonProperty("require_verified") boolean requireVerified,
             List<RoleMenuOption> options,
             @JsonProperty("allowed_role_ids") List<String> allowedRoleIds,
-            @JsonProperty("blocked_role_ids") List<String> blockedRoleIds) {
+            @JsonProperty("blocked_role_ids") List<String> blockedRoleIds,
+            @JsonProperty("max_selectable") Integer maxSelectable) {
     }
 }

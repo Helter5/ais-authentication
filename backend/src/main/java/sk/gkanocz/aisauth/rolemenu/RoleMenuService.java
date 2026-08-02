@@ -118,10 +118,13 @@ public class RoleMenuService {
     private List<ActionRow> buildComponents(RoleMenuConfig config) {
         List<RoleMenuOption> options = readOptions(config.getOptions());
         if ("SELECT_MENU".equals(config.getUiType())) {
+            int maxValues = "MULTI".equals(config.getSelectionMode())
+                    ? Math.min(options.size(), config.getMaxSelectable() != null ? config.getMaxSelectable() : options.size())
+                    : 1;
             StringSelectMenu.Builder builder = StringSelectMenu.create("rolemenu:" + config.getId())
                     .setPlaceholder("Choose your role" + (options.size() > 1 ? "(s)" : ""))
                     .setMinValues(0)
-                    .setMaxValues("MULTI".equals(config.getSelectionMode()) ? options.size() : 1);
+                    .setMaxValues(maxValues);
             for (RoleMenuOption option : options) {
                 if (option.emoji() != null && !option.emoji().isBlank()) {
                     builder.addOption(option.label(), option.roleId(),
