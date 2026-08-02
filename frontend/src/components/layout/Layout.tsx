@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useEffect, useRef, useState } from "react";
-import { Menu, X, LayoutDashboard, LogOut, ChevronDown, TriangleAlert, ShieldCheck } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, ChevronDown, TriangleAlert, ShieldCheck, SlidersHorizontal, LayoutGrid } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api";
@@ -112,7 +112,7 @@ function ServerSwitcher() {
  * as the maintenance-mode banner, except this is per-guild so the subscription is re-opened
  * whenever the selected guild changes, tagged with that guildId server-side.
  */
-function VerificationStatusDot() {
+function VerificationStatusDot({ maintenance }: { maintenance: boolean }) {
   const guildId = useSelectedGuildId();
   const [enabled, setEnabled] = useState<boolean | null>(null);
 
@@ -133,14 +133,55 @@ function VerificationStatusDot() {
 
   if (enabled === null) return null;
 
+  // verification_enabled is a per-guild setting, independent of the global maintenance-mode flag
+  // that blocks every command (including /verify) at a different layer - without this override the
+  // badge would stay green even though /verify is actually unusable while maintenance is on.
+  const blocked = maintenance && enabled;
+  const label = blocked ? "Blocked by maintenance mode" : enabled ? "Enabled" : "Disabled";
+  const color = blocked ? "text-amber-400" : enabled ? "text-emerald-400" : "text-zinc-600";
+  const dotColor = blocked
+    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+    : enabled ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-500";
+
   return (
     <div
-      title={`Verification: ${enabled ? "Enabled" : "Disabled"}`}
+      title={`Verification: ${label}`}
       className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40"
     >
-      <ShieldCheck className={cn("w-3.5 h-3.5", enabled ? "text-emerald-400" : "text-zinc-600")} />
-      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0",
-        enabled ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-500")} />
+      <ShieldCheck className={cn("w-3.5 h-3.5", color)} />
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)} />
+    </div>
+  );
+}
+
+/** Maintenance mode blocks every slash command bot-wide - this is a direct read of that same flag. */
+function CommandsStatusDot({ maintenance }: { maintenance: boolean }) {
+  const label = maintenance ? "Blocked by maintenance mode" : "Enabled";
+  const color = maintenance ? "text-amber-400" : "text-emerald-400";
+  const dotColor = maintenance
+    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+    : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]";
+
+  return (
+    <div title={`Commands: ${label}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
+      <SlidersHorizontal className={cn("w-3.5 h-3.5", color)} />
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)} />
+    </div>
+  );
+}
+
+/** Maintenance mode now pauses every module listener too (Auto Delete, Auto-Mentions, Role Menu, Hacked Account Trap). */
+function ModulesStatusDot({ maintenance }: { maintenance: boolean }) {
+  const label = maintenance ? "Blocked by maintenance mode" : "Enabled";
+  const color = maintenance ? "text-amber-400" : "text-emerald-400";
+  const dotColor = maintenance
+    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+    : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]";
+
+  return (
+    <div title={`Modules: ${label}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
+      <LayoutGrid className={cn("w-3.5 h-3.5", color)} />
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)} />
     </div>
   );
 }
@@ -204,7 +245,7 @@ function DiscordStatusDot() {
   );
 }
 
-function TopBar() {
+function TopBar({ maintenance }: { maintenance: boolean }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -214,7 +255,9 @@ function TopBar() {
     <div className="hidden sm:flex h-12 items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/60 pl-6 pr-6 sm:pl-[280px] flex-shrink-0">
       <div className="flex items-center gap-2">
         <DiscordStatusDot />
-        <VerificationStatusDot />
+        <VerificationStatusDot maintenance={maintenance} />
+        <CommandsStatusDot maintenance={maintenance} />
+        <ModulesStatusDot maintenance={maintenance} />
       </div>
       <div className="flex items-center gap-3">
         <ServerSwitcher />
@@ -259,7 +302,7 @@ export function Layout() {
       {maintenance && (
         <div className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-amber-500/90 text-zinc-900 text-sm font-semibold z-50 flex-shrink-0">
           <TriangleAlert className="w-4 h-4 flex-shrink-0" />
-          Bot is under maintenance — all commands are currently disabled
+          Bot is under maintenance
           <TriangleAlert className="w-4 h-4 flex-shrink-0" />
         </div>
       )}
@@ -296,7 +339,7 @@ export function Layout() {
 
       <Sidebar maintenanceBannerShown={maintenance} />
       <div className="flex flex-col flex-1">
-        <TopBar />
+        <TopBar maintenance={maintenance} />
         <main className="flex-1">
           <Outlet />
         </main>
