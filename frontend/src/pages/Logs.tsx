@@ -3,7 +3,7 @@ import {
   AlertCircle, Bot, Command, Gauge, Info, Loader2, LogIn, Settings2,
   ShieldAlert, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck,
 } from "lucide-react";
-import { adminApi, type AuditLog } from "@/lib/api";
+import { adminApi, apiErrorMessage, type AuditLog } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId } from "@/components/modules/shared";
 import {
@@ -71,9 +71,72 @@ function TableShell({ headers, children, empty, emptyLabel }: {
   );
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// "trapChannelId" -> "Trap channel ID", "adminOnly" -> "Admin only"
+function humanizeKey(key: string): string {
+  const spaced = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]/g, " ")
+    .toLowerCase()
+    .replace(/\bids\b/g, "IDs")
+    .replace(/\bid\b/g, "ID")
+    .replace(/\bdm\b/g, "DM");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function isBooleanMap(value: Record<string, unknown>): boolean {
+  const values = Object.values(value);
+  return values.length > 0 && values.every(v => typeof v === "boolean");
+}
+
+// A flat map of name -> enabled/disabled (e.g. bulk command toggles) reads better
+// as two grouped lists than as raw {"/warn":false,"/warns":true,...} JSON.
+function formatObject(value: Record<string, unknown>): string {
+  if (isBooleanMap(value)) {
+    const enabled = Object.keys(value).filter(k => value[k] === true);
+    const disabled = Object.keys(value).filter(k => value[k] === false);
+    return [
+      enabled.length > 0 ? `enabled: ${enabled.join(", ")}` : null,
+      disabled.length > 0 ? `disabled: ${disabled.join(", ")}` : null,
+    ].filter(Boolean).join(" · ");
+  }
+  return Object.entries(value).map(([k, v]) => `${humanizeKey(k)}: ${formatScalar(v)}`).join(", ");
+}
+
+function formatScalar(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "none";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.length === 0 ? "none" : value.map(formatScalar).join(", ");
+  if (isPlainObject(value)) return formatObject(value);
+  return String(value);
+}
+
+// Renders a before/after pair as only the fields that actually changed,
+// so a settings save doesn't dump the entire unchanged record into the log.
+function formatChange(before: unknown, after: unknown): string {
+  if (isPlainObject(before) && isPlainObject(after)) {
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    const changes = [...keys]
+      .filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+      .map(key => `${humanizeKey(key)}: ${formatScalar(before[key])} → ${formatScalar(after[key])}`);
+    return changes.length > 0 ? changes.join(", ") : "no changes";
+  }
+  return `${formatScalar(before)} → ${formatScalar(after)}`;
+}
+
+function formatDetails(details: Record<string, unknown>): string {
+  const { before, after, ...rest } = details;
+  const parts = Object.entries(rest).map(([k, v]) => `${humanizeKey(k)}: ${formatScalar(v)}`);
+  if ("before" in details || "after" in details) parts.push(formatChange(before, after));
+  return parts.join(" · ");
+}
+
 function DetailValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") return <span className="text-zinc-600">-</span>;
-  return <>{String(value)}</>;
+  return <>{formatScalar(value)}</>;
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -206,7 +269,7 @@ function DashboardTable({ entries }: { entries: AuditLog[] }) {
             )}
             {log.details && (
               <p className="whitespace-pre-wrap break-words">
-                {Object.entries(log.details).map(([k, v]) => `${k}: ${String(v)}`).join(" · ")}
+                {formatDetails(log.details)}
               </p>
             )}
           </td>
@@ -412,7 +475,7 @@ export function Logs() {
     }
     request
       .catch(err => {
-        if (!cancelled) setError((err as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error ?? (err as { message?: string })?.message ?? "Failed to load logs");
+        if (!cancelled) setError(apiErrorMessage(err, (err as { message?: string })?.message ?? "Failed to load logs"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
