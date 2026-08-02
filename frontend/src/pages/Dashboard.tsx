@@ -1,12 +1,22 @@
 import { useEffect, useState, type ElementType } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertCircle, Copy, Hash, Layers3, Loader2,
+  AlertCircle, Copy, GraduationCap, Hash, History, Layers3, Loader2,
   Mic2, RefreshCw, Server, ShieldCheck, Users,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
 import { adminApi, apiErrorMessage, type DashboardData } from "@/lib/api";
 import { useSelectedGuildId } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
+
+const CATEGORY_STYLES: Record<string, string> = {
+  dashboard: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
+  commands: "bg-zinc-700/40 text-zinc-300 border-zinc-600/40",
+  automod: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+  verification: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+};
 
 function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: number }) {
   return (
@@ -27,11 +37,57 @@ function formatSyncDate(value: string | null) {
   return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+function pluralize(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function RemovedDetailsModal({ removedUsers, onClose }: {
+  removedUsers: DashboardData["synchronization"]["removedUsers"];
+  onClose: () => void;
+}) {
+  return (
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-lg overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+        <h2 className="text-base font-bold text-zinc-100">Removed on last sync</h2>
+        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors text-sm">Close</button>
+      </div>
+      <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
+        {removedUsers.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-zinc-500">Nothing was removed on the last run.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="text-left px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Discord</th>
+                <th className="text-left px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">AIS ID</th>
+                <th className="text-left px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {removedUsers.map(u => (
+                <tr key={u.discordId} className="border-b border-zinc-800/50">
+                  <td className="px-5 py-2">
+                    <div className="text-zinc-300">{u.username ?? "Unknown (left server)"}</div>
+                    <div className="font-mono text-[11px] text-zinc-600">{u.discordId}</div>
+                  </td>
+                  <td className="px-5 py-2 font-mono text-zinc-400">{u.aisId}</td>
+                  <td className="px-5 py-2 text-zinc-500">{u.email}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </ModalOverlay>
+  );
+}
+
 export function Dashboard() {
   const guildId = useSelectedGuildId();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showRemovedDetails, setShowRemovedDetails] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -116,22 +172,118 @@ export function Dashboard() {
             <div>
               <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Database Sync</h2>
               <p className="mt-1 text-xs text-zinc-500">
-                Automatically verifies Discord membership and role records every six months.
+                Checks verified users against the server's Verified role whenever the bot starts up, and
+                removes database records for anyone who no longer holds it.
               </p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Last successful sync</p>
-              <p className="mt-1 text-sm font-semibold text-zinc-200">{formatSyncDate(data.synchronization.lastSync)}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Last sync</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">{formatSyncDate(data.synchronization.lastSyncAt)}</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Next sync</p>
-              <p className="mt-1 text-sm font-semibold text-zinc-200">{formatSyncDate(data.synchronization.nextSync)}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Last run result</p>
+                {!!data.synchronization.removedCount && (
+                  <button onClick={() => setShowRemovedDetails(true)}
+                    className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 transition-colors">
+                    Details
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                {data.synchronization.checkedCount === null ? "-" : (
+                  <>
+                    {pluralize(data.synchronization.checkedCount, "checked")}
+                    {data.synchronization.removedCount ? (
+                      <span className="text-amber-400"> · {pluralize(data.synchronization.removedCount, "removed")}</span>
+                    ) : (
+                      <span className="text-emerald-400"> · in sync</span>
+                    )}
+                  </>
+                )}
+              </p>
             </div>
           </div>
         </section>
+
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <GraduationCap className="h-4 w-4 text-indigo-400" />
+            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Verification Config</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Allowed Faculties</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                {data.verificationConfig.allowedFaculties.length > 0
+                  ? data.verificationConfig.allowedFaculties.join(", ") : "Not set"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Required Status</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">{data.verificationConfig.requiredAccountStatus}</p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Verified Role</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                {data.verificationConfig.verifiedRoleName ?? (data.verificationConfig.verifiedRoleId ? "Role not found" : "Not set")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Inactive Role</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                {data.verificationConfig.inactiveRoleName ?? (data.verificationConfig.inactiveRoleId ? "Role not found" : "Not set")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4 sm:col-span-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">Verified Members</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                {data.verificationConfig.verifiedCount} / {data.server.memberCount}
+                {data.server.memberCount > 0 && (
+                  <span className="ml-1.5 text-zinc-500">
+                    ({Math.round((data.verificationConfig.verifiedCount / data.server.memberCount) * 100)}%)
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-indigo-400" />
+              <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Recent Activity</h2>
+            </div>
+            <Link to="/access-logs" className="text-xs font-semibold text-rose-400 hover:text-rose-300">View all logs</Link>
+          </div>
+          {data.recentActivity.length === 0 ? (
+            <p className="text-sm text-zinc-500">No recent activity.</p>
+          ) : (
+            <ul className="divide-y divide-zinc-800/70">
+              {data.recentActivity.map((entry, i) => (
+                <li key={i} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className={cn("flex-shrink-0 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                    CATEGORY_STYLES[entry.category] ?? "bg-zinc-700/40 text-zinc-300 border-zinc-600/40")}>
+                    {entry.category}
+                  </span>
+                  <span className="flex-1 truncate text-zinc-300">{entry.action}</span>
+                  {entry.username && <span className="flex-shrink-0 text-zinc-500">{entry.username}</span>}
+                  <span className="flex-shrink-0 text-xs text-zinc-600">
+                    {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
+
+      {showRemovedDetails && (
+        <RemovedDetailsModal removedUsers={data.synchronization.removedUsers} onClose={() => setShowRemovedDetails(false)} />
+      )}
     </div>
   );
 }

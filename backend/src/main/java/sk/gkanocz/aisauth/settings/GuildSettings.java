@@ -38,6 +38,15 @@ public class GuildSettings {
     @Column(name = "ticket_retention_days", nullable = false)
     private int ticketRetentionDays = 90;
 
+    @Column(name = "last_sync_at")
+    private LocalDateTime lastSyncAt;
+
+    @Column(name = "last_sync_checked_count")
+    private Integer lastSyncCheckedCount;
+
+    @Column(name = "last_sync_removed_count")
+    private Integer lastSyncRemovedCount;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -87,6 +96,16 @@ public class GuildSettings {
     public void setTicketRetentionDays(int ticketRetentionDays) {
         this.ticketRetentionDays = ticketRetentionDays;
         touch();
+    }
+
+    /**
+     * Records a database-sync run without touching updatedAt - that timestamp reflects admin
+     * changes to settings, not this system-driven housekeeping pass.
+     */
+    public void recordDatabaseSync(int checkedCount, int removedCount) {
+        this.lastSyncAt = LocalDateTime.now();
+        this.lastSyncCheckedCount = checkedCount;
+        this.lastSyncRemovedCount = removedCount;
     }
 
     private void touch() {

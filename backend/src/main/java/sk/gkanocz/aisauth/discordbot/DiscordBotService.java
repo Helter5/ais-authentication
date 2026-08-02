@@ -22,6 +22,7 @@ import sk.gkanocz.aisauth.automod.AutoDeleteListener;
 import sk.gkanocz.aisauth.automod.AutoMentionListener;
 import sk.gkanocz.aisauth.automod.HackedAccountTrapListener;
 import sk.gkanocz.aisauth.ticket.TicketButtonListener;
+import sk.gkanocz.aisauth.verification.DatabaseSyncService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +44,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final HackedAccountTrapListener hackedAccountTrapListener;
     private final TicketButtonListener ticketButtonListener;
     private final GuildAllowlistEventManager guildAllowlistEventManager;
+    private final DatabaseSyncService databaseSyncService;
 
     private volatile JDA jda;
 
@@ -82,6 +84,7 @@ public class DiscordBotService implements ApplicationRunner {
         jda.getPresence().setActivity(Activity.playing("/verify & /code"));
         updateAvatar();
         registerCommands();
+        databaseSyncService.syncAllGuildsAsync(jda.getGuilds());
     }
 
     private void updateAvatar() {

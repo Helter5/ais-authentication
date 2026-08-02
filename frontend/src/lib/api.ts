@@ -91,10 +91,31 @@ export interface DashboardData {
     roleCount: number;
   };
   synchronization: {
-    intervalDays: number;
-    lastSync: string | null;
-    nextSync: string | null;
+    lastSyncAt: string | null;
+    checkedCount: number | null;
+    removedCount: number | null;
+    removedUsers: {
+      discordId: string;
+      username: string | null;
+      aisId: string;
+      email: string;
+    }[];
   };
+  verificationConfig: {
+    allowedFaculties: string[];
+    requiredAccountStatus: string;
+    verifiedRoleId: string | null;
+    verifiedRoleName: string | null;
+    inactiveRoleId: string | null;
+    inactiveRoleName: string | null;
+    verifiedCount: number;
+  };
+  recentActivity: {
+    category: string;
+    action: string;
+    username: string | null;
+    createdAt: string;
+  }[];
 }
 
 export interface HackedAccountTrapSettings {

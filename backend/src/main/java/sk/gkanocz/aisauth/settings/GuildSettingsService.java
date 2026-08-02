@@ -35,6 +35,11 @@ public class GuildSettingsService {
         fields.forEach((field, value) -> applyField(settings, field, value));
     }
 
+    @Transactional
+    public void recordDatabaseSync(String guildId, int checkedCount, int removedCount) {
+        getOrCreate(guildId).recordDatabaseSync(checkedCount, removedCount);
+    }
+
     private void applyField(GuildSettings settings, String field, Object value) {
         switch (field) {
             case "verified_role_id" -> settings.setVerifiedRoleId(asString(value));
