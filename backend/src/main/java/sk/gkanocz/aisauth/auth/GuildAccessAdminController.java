@@ -42,7 +42,7 @@ public class GuildAccessAdminController {
                 .map(role -> new RoleResponse(role.getId(), role.getName(), hexColor(role), role.getPosition()))
                 .toList();
 
-        DashboardSettings settings = dashboardSettings(guildId);
+        DashboardSettings settings = adminSettingsService.dashboardSettings(guildId);
         return new ManagerRolesResponse(roles, settings.managerRoleIds());
     }
 
@@ -82,10 +82,6 @@ public class GuildAccessAdminController {
         List<String> unique = List.copyOf(new LinkedHashSet<>(request.guildIds()));
         adminSettingsService.set("allowed_guild_ids", unique);
         return Map.of("success", true, "guildIds", unique);
-    }
-
-    private DashboardSettings dashboardSettings(String guildId) {
-        return adminSettingsService.get(dashboardSettingsKey(guildId), DashboardSettings.class, DashboardSettings.empty());
     }
 
     private String dashboardSettingsKey(String guildId) {

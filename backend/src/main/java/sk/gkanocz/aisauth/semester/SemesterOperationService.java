@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import org.springframework.stereotype.Service;
+import sk.gkanocz.aisauth.discordbot.BotPermissionChecker;
 import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
 import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
@@ -97,14 +98,14 @@ public class SemesterOperationService {
             Guild guild, SemesterDefinition sem, String semesterName, boolean visible, boolean everyoneViewChannel,
             boolean clearRoles, SemesterProgressTracker tracker, String recapChannelId, String actorId, String actorName) {
         try {
-            Member self = guild.getSelfMember();
-            List<String> missingPerms = new ArrayList<>();
-            if (!sem.categoryIdsOrEmpty().isEmpty() && !self.hasPermission(Permission.MANAGE_CHANNEL)) {
-                missingPerms.add("Manage Channels");
+            List<Permission> requiredPerms = new ArrayList<>();
+            if (!sem.categoryIdsOrEmpty().isEmpty()) {
+                requiredPerms.add(Permission.MANAGE_CHANNEL);
             }
-            if (clearRoles && !self.hasPermission(Permission.MANAGE_ROLES)) {
-                missingPerms.add("Manage Roles");
+            if (clearRoles) {
+                requiredPerms.add(Permission.MANAGE_ROLES);
             }
+            List<String> missingPerms = BotPermissionChecker.missingPermissions(guild, requiredPerms.toArray(new Permission[0]));
             if (!missingPerms.isEmpty()) {
                 tracker.save(100, "[ERROR] Bot is missing required permissions: " + String.join(", ", missingPerms)
                         + ". Setup aborted.", "failed");
@@ -265,14 +266,8 @@ public class SemesterOperationService {
             Guild guild, SemesterDefinition oldSem, SemesterDefinition newSem, String oldName, String newName,
             boolean newEveryoneViewChannel, SemesterProgressTracker tracker, String actorId, String actorName) {
         try {
-            Member self = guild.getSelfMember();
-            List<String> missingPerms = new ArrayList<>();
-            if (!self.hasPermission(Permission.MANAGE_CHANNEL)) {
-                missingPerms.add("Manage Channels");
-            }
-            if (!self.hasPermission(Permission.MANAGE_ROLES)) {
-                missingPerms.add("Manage Roles");
-            }
+            List<String> missingPerms = BotPermissionChecker.missingPermissions(
+                    guild, Permission.MANAGE_CHANNEL, Permission.MANAGE_ROLES);
             if (!missingPerms.isEmpty()) {
                 tracker.save(100, "[ERROR] Bot is missing required permissions: " + String.join(", ", missingPerms)
                         + ". Semester switch aborted.", "failed");

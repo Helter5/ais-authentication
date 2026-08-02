@@ -13,11 +13,12 @@ import net.dv8tion.jda.api.requests.ErrorResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import sk.gkanocz.aisauth.audit.AuditLogEntry;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.StudentDirectoryService;
 import sk.gkanocz.aisauth.directory.StudentRecord;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.discordbot.BotPermissionChecker;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
+import sk.gkanocz.aisauth.discordbot.EventLogEmbedSender;
 import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
@@ -50,10 +51,11 @@ public class WipeService {
     private final AdminSettingsService adminSettingsService;
     private final StudentDirectoryService studentDirectoryService;
     private final VerificationProperties verificationProperties;
-    private final AuditLogService auditLogService;
+    private final DashboardAuditLogger dashboardAuditLogger;
     private final PlatformTransactionManager transactionManager;
     private final RecapChannelPoster recapChannelPoster;
     private final LogRoutingService logRoutingService;
+    private final EventLogEmbedSender eventLogEmbedSender;
 
     private final Map<String, WipeState> progress = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
@@ -122,12 +124,15 @@ public class WipeService {
             }
 
             Member self = guild.getSelfMember();
-            if (!self.hasPermission(Permission.MANAGE_ROLES)) {
-                state.log("Bot is missing Manage Roles permission. Wipe aborted.", "error");
+            List<String> missingPerms = BotPermissionChecker.missingPermissions(guild, Permission.MANAGE_ROLES);
+            if (!missingPerms.isEmpty()) {
+                state.log("Bot is missing required permissions: " + String.join(", ", missingPerms) + ". Wipe aborted.", "error");
                 return;
             }
-            if (!self.canInteract(verifiedRole) || !self.canInteract(inactiveRole)) {
-                state.log("Bot role is too low to manage the Verified or Inactive role. Move the bot role above them. Wipe aborted.", "error");
+            List<String> tooHighRoles = BotPermissionChecker.rolesAboveBot(guild, verifiedRole, inactiveRole);
+            if (!tooHighRoles.isEmpty()) {
+                state.log("Bot role is too low to manage: " + String.join(", ", tooHighRoles)
+                        + ". Move the bot role above them. Wipe aborted.", "error");
                 return;
             }
 
@@ -148,14 +153,8 @@ public class WipeService {
             int errors = state.stats.errors.get();
             state.log("Wipe complete — " + processed + " checked, " + inactive + " inactive removed, " + errors + " errors", "success");
 
-            try {
-                auditLogService.log(new AuditLogEntry(
-                        "dashboard", "Ran inactive-user wipe", guild.getId(), guild.getName(),
-                        null, null, actorId, actorName,
-                        Map.of("processed", processed, "inactive", inactive, "errors", errors)));
-            } catch (Exception e) {
-                // best-effort audit trail
-            }
+            dashboardAuditLogger.log(actorId, actorName, guild, "Ran inactive-user wipe",
+                    Map.of("processed", processed, "inactive", inactive, "errors", errors));
 
             sendRecapChannel(guild, processed, inactive, errors, state);
         } catch (Exception e) {
@@ -240,29 +239,23 @@ public class WipeService {
     }
 
     private void sendInactiveLogEmbeds(Guild guild, List<InactiveEntry> inactiveEntries) {
-        String logChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.WIPE_INACTIVE_USER_REMOVED)
-                .orElse(null);
-        if (logChannelId == null || inactiveEntries.isEmpty()) {
+        if (inactiveEntries.isEmpty()) {
             return;
         }
-        TextChannel logChannel = guild.getTextChannelById(logChannelId);
+        TextChannel logChannel = eventLogEmbedSender.resolveChannel(guild, LogEventType.WIPE_INACTIVE_USER_REMOVED);
         if (logChannel == null) {
             return;
         }
         for (InactiveEntry entry : inactiveEntries) {
-            try {
-                EmbedBuilder embed = new EmbedBuilder()
-                        .setColor(new java.awt.Color(0xFF6B6B))
-                        .setTitle("Wipe - Inactive User Removed")
-                        .addField("Discord", entry.member() == null ? "Unknown" : entry.member().getUser().getName(), true)
-                        .addField("Discord ID", entry.user().getDiscordId(), true)
-                        .addField("AIS ID", entry.user().getAisId(), true)
-                        .addField("Email", entry.user().getEmail(), true)
-                        .setFooter("Wipe via web dashboard");
-                logChannel.sendMessageEmbeds(embed.build()).queue();
-            } catch (Exception e) {
-                log.error("Wipe: failed to send inactive-user log embed: {}", e.getMessage());
-            }
+            EmbedBuilder embed = new EmbedBuilder()
+                    .setColor(new java.awt.Color(0xFF6B6B))
+                    .setTitle("Wipe - Inactive User Removed")
+                    .addField("Discord", entry.member() == null ? "Unknown" : entry.member().getUser().getName(), true)
+                    .addField("Discord ID", entry.user().getDiscordId(), true)
+                    .addField("AIS ID", entry.user().getAisId(), true)
+                    .addField("Email", entry.user().getEmail(), true)
+                    .setFooter("Wipe via web dashboard");
+            eventLogEmbedSender.sendToChannel(logChannel, embed, null);
         }
     }
 

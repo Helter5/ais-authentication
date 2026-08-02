@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 @Service
@@ -14,6 +15,25 @@ public class AdminSettingsService {
 
     private final AdminSettingRepository adminSettingRepository;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Whether the guild has been added via the Admin dashboard's "Allowed Servers" panel. Every
+     * bot-facing feature (slash commands, automod listeners, ticket buttons) must check this
+     * before doing anything, so a server removed from the allowlist stops working everywhere,
+     * not just for commands.
+     */
+    public boolean isGuildAllowed(String guildId) {
+        return get("allowed_guild_ids", new TypeReference<List<String>>() { }, List.of()).contains(guildId);
+    }
+
+    public boolean isMaintenanceMode() {
+        return get("maintenance_mode", Boolean.class, false);
+    }
+
+    /** The guild's manager-role configuration (Admin dashboard access), read via one shared key convention. */
+    public DashboardSettings dashboardSettings(String guildId) {
+        return get("dashboard_settings_" + guildId, DashboardSettings.class, DashboardSettings.empty());
+    }
 
     public <T> T get(String key, Class<T> type, T fallback) {
         return adminSettingRepository.findById(key)

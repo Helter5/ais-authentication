@@ -261,8 +261,7 @@ public class AuthController {
                 if (!allowedGuildIds.contains(guild.getId())) {
                     continue;
                 }
-                DashboardSettings dashboardSettings = adminSettingsService.get(
-                        "dashboard_settings_" + guild.getId(), DashboardSettings.class, DashboardSettings.empty());
+                DashboardSettings dashboardSettings = adminSettingsService.dashboardSettings(guild.getId());
                 if (dashboardSettings.managerRoleIds().isEmpty()) {
                     continue;
                 }

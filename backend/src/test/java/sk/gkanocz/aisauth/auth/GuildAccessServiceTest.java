@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
-import tools.jackson.core.type.TypeReference;
 
 import java.util.List;
 import java.util.Map;
@@ -23,8 +22,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +34,6 @@ import static org.mockito.Mockito.when;
  * refresh - see GuildAccessService's javadoc for why.
  */
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("unchecked")
 class GuildAccessServiceTest {
 
     @Mock
@@ -65,15 +61,13 @@ class GuildAccessServiceTest {
     }
 
     private void stubAllowedGuild(String guildId) {
-        lenient().when(adminSettingsService.get(eq("allowed_guild_ids"), (TypeReference<List<String>>) any(), eq(List.of())))
-                .thenReturn(List.of(guildId));
+        lenient().when(adminSettingsService.isGuildAllowed(guildId)).thenReturn(true);
         lenient().when(discordBotService.jda()).thenReturn(Optional.of(jda));
         lenient().when(jda.getGuildById(guildId)).thenReturn(guild);
     }
 
     private void stubManagerRole(String guildId, String roleId) {
-        lenient().when(adminSettingsService.get(
-                        eq("dashboard_settings_" + guildId), eq(DashboardSettings.class), eq(DashboardSettings.empty())))
+        lenient().when(adminSettingsService.dashboardSettings(guildId))
                 .thenReturn(new DashboardSettings(List.of(roleId)));
     }
 
@@ -134,8 +128,7 @@ class GuildAccessServiceTest {
 
     @Test
     void canManageGuildFalseWhenGuildNotInAllowedList() {
-        lenient().when(adminSettingsService.get(eq("allowed_guild_ids"), (TypeReference<List<String>>) any(), eq(List.of())))
-                .thenReturn(List.of("some-other-guild"));
+        lenient().when(adminSettingsService.isGuildAllowed("guild-1")).thenReturn(false);
 
         assertThat(guildAccessService.canManageGuild(claimsOf(false, "discord-1"), "guild-1")).isFalse();
     }
@@ -143,17 +136,14 @@ class GuildAccessServiceTest {
     @Test
     void canManageGuildFalseWhenNoManagerRolesConfiguredForGuild() {
         stubAllowedGuild("guild-1");
-        lenient().when(adminSettingsService.get(
-                        eq("dashboard_settings_guild-1"), eq(DashboardSettings.class), eq(DashboardSettings.empty())))
-                .thenReturn(DashboardSettings.empty());
+        lenient().when(adminSettingsService.dashboardSettings("guild-1")).thenReturn(DashboardSettings.empty());
 
         assertThat(guildAccessService.canManageGuild(claimsOf(false, "discord-1"), "guild-1")).isFalse();
     }
 
     @Test
     void canManageGuildFalseWhenBotNotConnected() {
-        lenient().when(adminSettingsService.get(eq("allowed_guild_ids"), (TypeReference<List<String>>) any(), eq(List.of())))
-                .thenReturn(List.of("guild-1"));
+        lenient().when(adminSettingsService.isGuildAllowed("guild-1")).thenReturn(true);
         lenient().when(discordBotService.jda()).thenReturn(Optional.empty());
 
         assertThat(guildAccessService.canManageGuild(claimsOf(false, "discord-1"), "guild-1")).isFalse();
@@ -173,8 +163,7 @@ class GuildAccessServiceTest {
 
     @Test
     void assertCanManageGuildThrowsForUnrelatedGuild() {
-        lenient().when(adminSettingsService.get(eq("allowed_guild_ids"), (TypeReference<List<String>>) any(), eq(List.of())))
-                .thenReturn(List.of());
+        lenient().when(adminSettingsService.isGuildAllowed("guild-2")).thenReturn(false);
 
         assertThatThrownBy(() -> guildAccessService.assertCanManageGuild(claimsOf(false, "discord-1"), "guild-2"))
                 .isInstanceOf(GuildAccessDeniedException.class)

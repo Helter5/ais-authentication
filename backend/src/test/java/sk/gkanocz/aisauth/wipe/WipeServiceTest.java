@@ -6,9 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.StudentDirectoryService;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
+import sk.gkanocz.aisauth.discordbot.EventLogEmbedSender;
 import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
@@ -42,11 +43,13 @@ class WipeServiceTest {
     @Mock
     private VerificationProperties verificationProperties;
     @Mock
-    private AuditLogService auditLogService;
+    private DashboardAuditLogger dashboardAuditLogger;
     @Mock
     private RecapChannelPoster recapChannelPoster;
     @Mock
     private LogRoutingService logRoutingService;
+    @Mock
+    private EventLogEmbedSender eventLogEmbedSender;
     @Mock
     private Guild guild;
 
@@ -56,8 +59,8 @@ class WipeServiceTest {
     void setUp() {
         wipeService = new WipeService(
                 verifiedUserRepository, guildSettingsService, adminSettingsService,
-                studentDirectoryService, verificationProperties, auditLogService, null, recapChannelPoster,
-                logRoutingService);
+                studentDirectoryService, verificationProperties, dashboardAuditLogger, null, recapChannelPoster,
+                logRoutingService, eventLogEmbedSender);
         lenient().when(guild.getId()).thenReturn("guild-1");
     }
 

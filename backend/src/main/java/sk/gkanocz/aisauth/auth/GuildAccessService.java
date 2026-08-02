@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
-import tools.jackson.core.type.TypeReference;
 
 import java.util.List;
 
@@ -52,9 +51,7 @@ public class GuildAccessService {
      * rather than only at the next token refresh.
      */
     private boolean hasLiveManagerRole(String discordId, String guildId) {
-        List<String> allowedGuildIds = adminSettingsService.get(
-                "allowed_guild_ids", new TypeReference<List<String>>() { }, List.of());
-        if (!allowedGuildIds.contains(guildId)) {
+        if (!adminSettingsService.isGuildAllowed(guildId)) {
             return false;
         }
 
@@ -63,8 +60,7 @@ public class GuildAccessService {
             if (guild == null) {
                 return false;
             }
-            DashboardSettings dashboardSettings = adminSettingsService.get(
-                    "dashboard_settings_" + guildId, DashboardSettings.class, DashboardSettings.empty());
+            DashboardSettings dashboardSettings = adminSettingsService.dashboardSettings(guildId);
             if (dashboardSettings.managerRoleIds().isEmpty()) {
                 return false;
             }

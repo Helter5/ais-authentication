@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
+import sk.gkanocz.aisauth.discordbot.DiscordNames;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,14 +34,6 @@ public class WarnAdminController {
                 .toList();
     }
 
-    private static String memberName(Guild guild, String discordId) {
-        if (guild == null) {
-            return null;
-        }
-        Member member = guild.getMemberById(discordId);
-        return member == null ? null : member.getUser().getName();
-    }
-
     public record WarningResponse(
             Long id,
             @JsonProperty("guild_id") String guildId,
@@ -56,8 +48,8 @@ public class WarnAdminController {
         static WarningResponse from(Warn warn, Guild guild) {
             return new WarningResponse(
                     warn.getId(), warn.getGuildId(), guild == null ? null : guild.getName(),
-                    warn.getDiscordId(), memberName(guild, warn.getDiscordId()),
-                    warn.getModeratorId(), memberName(guild, warn.getModeratorId()),
+                    warn.getDiscordId(), DiscordNames.memberName(guild, warn.getDiscordId()),
+                    warn.getModeratorId(), DiscordNames.memberName(guild, warn.getModeratorId()),
                     warn.getReason(), warn.getCreatedAt());
         }
     }
