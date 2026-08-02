@@ -37,6 +37,9 @@ public class AutoDeleteListener extends ListenerAdapter {
         if (!event.isFromGuild()) {
             return;
         }
+        if (adminSettingsService.isMaintenanceMode()) {
+            return;
+        }
         String guildId = event.getGuild().getId();
         if (!adminSettingsService.get("autodelete_enabled_" + guildId, Boolean.class, false)) {
             return;

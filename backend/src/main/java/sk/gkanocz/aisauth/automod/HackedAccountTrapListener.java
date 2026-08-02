@@ -252,6 +252,18 @@ public class HackedAccountTrapListener extends ListenerAdapter {
                 "automod", "Hacked account trap repeat trigger", event.getGuild().getId(), event.getGuild().getName(),
                 event.getChannel().getId(), event.getChannel().getName(), authorId, authorTag,
                 Map.of("incidentChannelId", incidentChannel.getId())));
+
+        // The full pipeline (DM/moderation/main embed) only runs once per incident, but the Log
+        // Channel should still reflect every repeat post - otherwise its history silently drops
+        // every occurrence after the first while the incident channel keeps growing.
+        EmbedBuilder embed = new EmbedBuilder()
+                .setColor(new Color(0xFF9800))
+                .setTitle("Hacked Account Trap - Repeat Trigger")
+                .addField("User", "<@" + authorId + "> (" + authorTag + ")", true)
+                .addField("Trap Channel", "<#" + event.getChannel().getId() + ">", true)
+                .addField("Incident Channel", "<#" + incidentChannel.getId() + ">", true)
+                .addField("Message", triggerContent(event.getMessage()), false);
+        eventLogEmbedSender.send(event.getGuild(), LogEventType.HACKED_ACCOUNT_TRAP_TRIGGERED, embed);
     }
 
     private void applyIncidentOverwrites(

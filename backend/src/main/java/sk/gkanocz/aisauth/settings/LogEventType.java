@@ -10,7 +10,12 @@ public enum LogEventType {
     TICKET_TRANSCRIPT_SAVED("Ticket transcript", "Incident ticket transcript saved"),
     WIPE_INACTIVE_USER_REMOVED("Wipe", "Inactive user removed"),
     WIPE_RECAP("Wipe", "Recap report after a wipe run"),
-    SEMESTER_RECAP("Semester Switch", "Recap report after a semester switch");
+    SEMESTER_RECAP("Semester Switch", "Recap report after a semester switch"),
+    VERIFY_REQUESTED("/verify", "Verification email sent"),
+    CODE_CONFIRMED("/code", "Verification completed"),
+    MANUAL_VERIFY_PERFORMED("/manualverify", "User manually verified"),
+    VERIFIED_ROLE_ADDED_WITHOUT_VERIFY("/verify", "Verified role added to a member without going through /verify or /manualverify"),
+    VERIFIED_USER_REMOVED("/verify", "User removed from the Users Directory (left/kicked/banned, or Verified role removed)");
 
     private final String label;
     private final String description;

@@ -177,6 +177,9 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         if (guild == null) {
             return;
         }
+        if (adminSettingsService.isMaintenanceMode()) {
+            return;
+        }
         if (!adminSettingsService.get("rolemenu_enabled_" + guild.getId(), Boolean.class, false)) {
             return;
         }
