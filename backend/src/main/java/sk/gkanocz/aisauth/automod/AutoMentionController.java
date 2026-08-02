@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,21 @@ public class AutoMentionController {
 
     private final AutoMentionRepository autoMentionRepository;
     private final GuildAccessService guildAccessService;
+    private final AdminSettingsService adminSettingsService;
+
+    @GetMapping("/enabled")
+    public Map<String, Boolean> getEnabled(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
+        return Map.of("enabled", adminSettingsService.get("automentions_enabled_" + guildId, Boolean.class, false));
+    }
+
+    @PostMapping("/enabled")
+    public Map<String, Boolean> setEnabled(@AuthenticationPrincipal Claims claims, @RequestBody SetEnabledRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        boolean enabled = Boolean.TRUE.equals(request.enabled());
+        adminSettingsService.set("automentions_enabled_" + request.guildId(), enabled);
+        return Map.of("success", true, "enabled", enabled);
+    }
 
     @GetMapping
     public List<AutoMentionResponse> getAutoMentions(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -77,6 +93,9 @@ public class AutoMentionController {
     }
 
     public record GuildIdRequest(String guildId) {
+    }
+
+    public record SetEnabledRequest(String guildId, Boolean enabled) {
     }
 
     public record AutoMentionResponse(

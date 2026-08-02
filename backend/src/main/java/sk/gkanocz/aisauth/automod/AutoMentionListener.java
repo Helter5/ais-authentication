@@ -6,10 +6,11 @@ import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 
 /**
  * Mentions the configured role whenever a message is posted in a channel with an enabled
- * auto-mention (dashboard: Settings -> Auto-Mentions).
+ * auto-mention (dashboard: Modules -> Auto-Mentions).
  */
 @Slf4j
 @Component
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 public class AutoMentionListener extends ListenerAdapter {
 
     private final AutoMentionRepository autoMentionRepository;
+    private final AdminSettingsService adminSettingsService;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
@@ -24,6 +26,9 @@ public class AutoMentionListener extends ListenerAdapter {
             return;
         }
         String guildId = event.getGuild().getId();
+        if (!adminSettingsService.get("automentions_enabled_" + guildId, Boolean.class, false)) {
+            return;
+        }
         String channelId = event.getChannel().getId();
         autoMentionRepository.findByGuildIdAndChannelId(guildId, channelId)
                 .filter(AutoMention::isEnabled)

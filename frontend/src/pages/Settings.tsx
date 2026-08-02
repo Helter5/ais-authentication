@@ -3,7 +3,7 @@ import { adminApi, apiErrorMessage } from "@/lib/api";
 import {
   Loader2, CheckCircle2, AlertCircle, Search, X, Plus,
   ChevronDown, Shield, Bell, AlertTriangle,
-  Hash, AtSign, UserCheck, UserMinus, UserX, Clock, MessageSquare, ArrowRight, Users, Save,
+  Hash, UserCheck, UserMinus, Clock, Users, Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -14,15 +14,6 @@ import { useToast } from "@/components/ui/toast";
 
 type DiscordRole    = { id: string; name: string; color: string; position: number };
 type DiscordChannel = { id: string; name: string; position: number };
-type WarnThreshold  = { warn_limit: number; action: string };
-type AutoMention    = { channel_id: string; role_id: string; enabled: boolean };
-
-const ACTION_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
-  kick:    { label: "Kick",        icon: UserMinus,     color: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/30" },
-  ban:     { label: "Ban",         icon: UserX,         color: "text-red-300",    bg: "bg-red-500/10",    border: "border-red-500/30"    },
-  timeout: { label: "Timeout 24h", icon: Clock,         color: "text-amber-300",  bg: "bg-amber-500/10",  border: "border-amber-500/30"  },
-  none:    { label: "Warn only",   icon: MessageSquare, color: "text-zinc-400",   bg: "bg-zinc-800",      border: "border-zinc-700"      },
-};
 
 // ─── Searchable picker ────────────────────────────────────────────────────────
 
@@ -227,213 +218,6 @@ function RolesSection({ roles, verifiedRole, onVerifiedRoleChange, inactiveRole,
   );
 }
 
-// ─── Warn Thresholds section ──────────────────────────────────────────────────
-
-function WarnThresholdsSection({ guildId }: { guildId: string }) {
-  const [thresholds, setThresholds] = useState<WarnThreshold[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newLimit, setNewLimit] = useState(1);
-  const [newAction, setNewAction] = useState("kick");
-  const [adding, setAdding] = useState(false);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    adminApi.getWarnThresholds(guildId).then(setThresholds).finally(() => setLoading(false));
-  }, [guildId]);
-
-  const add = async () => {
-    const limit = newLimit;
-    setAdding(true);
-    try {
-      await adminApi.addWarnThreshold(guildId, limit, newAction);
-      setThresholds(await adminApi.getWarnThresholds(guildId));
-      setNewLimit(1);
-      toast("Warn threshold added.");
-    } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to add warn threshold."), "error");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const remove = async (limit: number) => {
-    try {
-      await adminApi.removeWarnThreshold(guildId, limit);
-      setThresholds(t => t.filter(x => x.warn_limit !== limit));
-      toast("Warn threshold removed.");
-    } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to remove warning threshold."), "error");
-    }
-  };
-
-  return (
-    <Section icon={AlertTriangle} title="Warn Thresholds" description="Auto-punishment when a user reaches a warn count.">
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
-      ) : (
-        <div className="space-y-3">
-          {thresholds.length === 0 ? (
-            <p className="text-xs text-zinc-600">No thresholds configured.</p>
-          ) : (
-            <div className="space-y-1">
-              {thresholds.map(t => {
-                const meta = ACTION_META[t.action] ?? { label: t.action, icon: AlertTriangle, color: "text-zinc-400", bg: "bg-zinc-800", border: "border-zinc-700" };
-                const ActionIcon = meta.icon;
-                return (
-                  <div key={t.warn_limit} className="flex items-center justify-between gap-3 px-3 py-2 bg-zinc-800/60 border border-zinc-700 rounded">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold px-2 py-0.5 rounded">
-                        <AlertTriangle className="w-3 h-3" /> {t.warn_limit} warns
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-zinc-600" />
-                      <span className={cn("inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded border", meta.color, meta.bg, meta.border)}>
-                        <ActionIcon className="w-3 h-3" /> {meta.label}
-                      </span>
-                    </div>
-                    <button onClick={() => remove(t.warn_limit)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex gap-2 items-center flex-wrap pt-1">
-            <NumberStepper
-              value={newLimit}
-              onChange={setNewLimit}
-              min={1}
-              max={20}
-              className="h-9 w-32"
-              ariaLabel="Warning threshold"
-            />
-            <select value={newAction} onChange={e => setNewAction(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors">
-              {Object.entries(ACTION_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
-            </select>
-            <button onClick={add} disabled={adding}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Add
-            </button>
-          </div>
-        </div>
-      )}
-    </Section>
-  );
-}
-
-// ─── Auto-Mentions section ────────────────────────────────────────────────────
-
-function AutoMentionsSection({ guildId, roles, channels }: { guildId: string; roles: DiscordRole[]; channels: DiscordChannel[] }) {
-  const [mentions, setMentions] = useState<AutoMention[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newChannel, setNewChannel] = useState<string | null>(null);
-  const [newRole, setNewRole] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const { toast } = useToast();
-
-  const colorMap = Object.fromEntries(roles.map(r => [r.id, r.color === "#000000" ? "#6b7280" : r.color]));
-
-  useEffect(() => {
-    adminApi.getAutoMentions(guildId).then(setMentions).finally(() => setLoading(false));
-  }, [guildId]);
-
-  const add = async () => {
-    if (!newChannel || !newRole) return;
-    setAdding(true);
-    try {
-      await adminApi.addAutoMention(guildId, newChannel, newRole);
-      setMentions(await adminApi.getAutoMentions(guildId));
-      setNewChannel(null);
-      setNewRole(null);
-      toast("Auto-mention added.");
-    } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to add auto-mention."), "error");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const toggle = async (channelId: string) => {
-    try {
-      const res = await adminApi.toggleAutoMention(guildId, channelId);
-      setMentions(m => m.map(x => x.channel_id === channelId ? { ...x, enabled: res.enabled } : x));
-      toast(res.enabled ? "Auto-mention enabled." : "Auto-mention disabled.");
-    } catch {
-      toast("Failed to update auto-mention.", "error");
-    }
-  };
-
-  const remove = async (channelId: string) => {
-    try {
-      await adminApi.removeAutoMention(guildId, channelId);
-      setMentions(m => m.filter(x => x.channel_id !== channelId));
-      toast("Auto-mention removed.");
-    } catch {
-      toast("Failed to remove auto-mention.", "error");
-    }
-  };
-
-  const channelName = (id: string) => channels.find(c => c.id === id)?.name ?? id;
-  const roleName    = (id: string) => roles.find(r => r.id === id)?.name ?? id;
-  const roleColor   = (id: string) => { const c = roles.find(r => r.id === id)?.color; return c === "#000000" ? "#6b7280" : c ?? "#6b7280"; };
-
-  return (
-    <Section icon={Bell} title="Auto-Mentions" description="Bot auto-mentions a role when a message is posted in a channel.">
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
-      ) : (
-        <div className="space-y-3">
-          {mentions.length === 0 ? (
-            <p className="text-xs text-zinc-600">No auto-mentions configured.</p>
-          ) : (
-            <div className="space-y-1">
-              {mentions.map(m => (
-                <div key={m.channel_id} className="flex items-center gap-3 px-3 py-2 bg-zinc-800/60 border border-zinc-700 rounded text-sm">
-                  <span className="text-zinc-400 font-mono text-xs flex-shrink-0"># {channelName(m.channel_id)}</span>
-                  <span className="text-zinc-600">→</span>
-                  <span className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="w-2 h-2 rounded-full" style={{ background: roleColor(m.role_id) }} />
-                    <span className="text-zinc-300 text-xs">@{roleName(m.role_id)}</span>
-                  </span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <button onClick={() => toggle(m.channel_id)}
-                      className={cn("text-xs font-semibold px-2 py-0.5 rounded transition-colors",
-                        m.enabled ? "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-zinc-500 bg-zinc-700/50 hover:bg-zinc-700"
-                      )}>
-                      {m.enabled ? "ON" : "OFF"}
-                    </button>
-                    <button onClick={() => remove(m.channel_id)} className="text-zinc-600 hover:text-red-400 transition-colors">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end pt-1">
-            <div>
-              <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Channel</p>
-              <Picker options={channels} value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" prefix="#" />
-            </div>
-            <div>
-              <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><AtSign className="w-3 h-3" /> Role to mention</p>
-              <Picker options={roles} value={newRole} onChange={setNewRole} placeholder="Pick role…" colorMap={colorMap} prefix="@" />
-            </div>
-            <button onClick={add} disabled={adding || !newChannel || !newRole}
-              className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Add
-            </button>
-          </div>
-        </div>
-      )}
-    </Section>
-  );
-}
 
 // ─── Manager Roles section ────────────────────────────────────────────────────
 
@@ -766,8 +550,6 @@ export function Settings() {
                 inactiveRole={inactiveRole} onInactiveRoleChange={setInactiveRole}
                 verifEnabled={verifEnabled} onVerifEnabledChange={setVerifEnabled}
               />
-              <WarnThresholdsSection guildId={guildId} />
-              <AutoMentionsSection guildId={guildId} roles={roles} channels={channels} />
             </div>
             {/* Right column */}
             <div className="flex flex-col gap-4">

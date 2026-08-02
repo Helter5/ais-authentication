@@ -414,6 +414,16 @@ export const adminApi = {
     return res.data;
   },
 
+  getAutoMentionEnabled: async (guildId: string): Promise<{ enabled: boolean }> => {
+    const res = await api.get('/auto-mentions/enabled', { params: { guildId } });
+    return res.data;
+  },
+
+  setAutoMentionEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
+    const res = await api.post('/auto-mentions/enabled', { guildId, enabled });
+    return res.data;
+  },
+
   getAutoMentions: async (guildId: string): Promise<{ channel_id: string; role_id: string; enabled: boolean }[]> => {
     const res = await api.get('/auto-mentions', { params: { guildId } });
     return res.data;

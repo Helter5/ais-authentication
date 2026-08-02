@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { adminApi } from "@/lib/api";
+import { adminApi, apiErrorMessage } from "@/lib/api";
 import {
   Loader2, CheckCircle2, AlertCircle,
-  Play, SlidersHorizontal, X,
+  Play, SlidersHorizontal, X, Plus,
   ShieldAlert, ShieldCheck, Wrench, Lock, Hash, Crown, Users, UserX,
-  ToggleLeft, ToggleRight,
+  ToggleLeft, ToggleRight, AlertTriangle, ArrowRight, UserMinus, Clock, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
+import { NumberStepper } from "@/components/ui/number-stepper";
+
+type WarnThreshold = { warn_limit: number; action: string };
+
+const ACTION_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
+  kick:    { label: "Kick",        icon: UserMinus,     color: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/30" },
+  ban:     { label: "Ban",         icon: UserX,         color: "text-red-300",    bg: "bg-red-500/10",    border: "border-red-500/30"    },
+  timeout: { label: "Timeout 24h", icon: Clock,         color: "text-amber-300",  bg: "bg-amber-500/10",  border: "border-amber-500/30"  },
+  none:    { label: "Warn only",   icon: MessageSquare, color: "text-zinc-400",   bg: "bg-zinc-800",      border: "border-zinc-700"      },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,7 +76,7 @@ const CATEGORY_ICONS: Record<CmdCategory, React.ElementType> = {
 
 const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   Moderation: [
-    { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list.", hasSettings: true },
+    { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list. Settings also configure auto-punishment thresholds.", hasSettings: true },
     { name: "/manualverify",  description: "Manually verify a user by Discord ID and email.", hasSettings: true },
     { name: "/user",          description: "Show detailed Discord info, verification status, and warn history for a member.", hasSettings: true },
     { name: "/ticket",        description: "Manage the incident ticket in the current channel: close, reopen, delete, recap." },
@@ -81,6 +91,109 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
   ],
 };
+
+// ─── Warn thresholds editor (shown inside /warn's settings modal) ────────────
+
+function WarnThresholdsEditor({ guildId }: { guildId: string }) {
+  const [thresholds, setThresholds] = useState<WarnThreshold[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newLimit, setNewLimit] = useState(1);
+  const [newAction, setNewAction] = useState("kick");
+  const [adding, setAdding] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    adminApi.getWarnThresholds(guildId).then(setThresholds).finally(() => setLoading(false));
+  }, [guildId]);
+
+  const add = async () => {
+    const limit = newLimit;
+    setAdding(true);
+    try {
+      await adminApi.addWarnThreshold(guildId, limit, newAction);
+      setThresholds(await adminApi.getWarnThresholds(guildId));
+      setNewLimit(1);
+      toast("Warn threshold added.");
+    } catch (e: unknown) {
+      toast(apiErrorMessage(e, "Failed to add warn threshold."), "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const remove = async (limit: number) => {
+    try {
+      await adminApi.removeWarnThreshold(guildId, limit);
+      setThresholds(t => t.filter(x => x.warn_limit !== limit));
+      toast("Warn threshold removed.");
+    } catch (e: unknown) {
+      toast(apiErrorMessage(e, "Failed to remove warning threshold."), "error");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-700 overflow-hidden">
+      <div className="p-3 bg-zinc-800/50">
+        <p className="text-sm font-bold text-zinc-200">Warn Thresholds</p>
+        <p className="text-xs text-zinc-500 mt-0.5">Auto-punishment when a user reaches a warn count.</p>
+      </div>
+      <div className="p-3 border-t border-zinc-700/50 space-y-3">
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+        ) : (
+          <>
+            {thresholds.length === 0 ? (
+              <p className="text-xs text-zinc-600">No thresholds configured.</p>
+            ) : (
+              <div className="space-y-1">
+                {thresholds.map(t => {
+                  const meta = ACTION_META[t.action] ?? { label: t.action, icon: AlertTriangle, color: "text-zinc-400", bg: "bg-zinc-800", border: "border-zinc-700" };
+                  const ActionIcon = meta.icon;
+                  return (
+                    <div key={t.warn_limit} className="flex items-center justify-between gap-3 px-3 py-2 bg-zinc-800/60 border border-zinc-700 rounded">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold px-2 py-0.5 rounded">
+                          <AlertTriangle className="w-3 h-3" /> {t.warn_limit} warns
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-zinc-600" />
+                        <span className={cn("inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded border", meta.color, meta.bg, meta.border)}>
+                          <ActionIcon className="w-3 h-3" /> {meta.label}
+                        </span>
+                      </div>
+                      <button onClick={() => remove(t.warn_limit)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex gap-2 items-center flex-wrap pt-1">
+              <NumberStepper
+                value={newLimit}
+                onChange={setNewLimit}
+                min={1}
+                max={20}
+                className="h-9 w-32"
+                ariaLabel="Warning threshold"
+              />
+              <select value={newAction} onChange={e => setNewAction(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors">
+                {Object.entries(ACTION_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
+              </select>
+              <button onClick={add} disabled={adding}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
+                {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                Add
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Command settings modal ───────────────────────────────────────────────────
 
@@ -155,6 +268,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
         <div className="flex items-center gap-2 px-6 py-8 text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
       ) : (
         <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
+          {commandKey === "warn" && <WarnThresholdsEditor guildId={guildId} />}
           {schema.ephemeral && (
             <CmdSettingsRow label="Ephemeral response" hint="Only visible to the user who ran the command">
               <Toggle enabled={ephemeral} onChange={setEphemeral} />

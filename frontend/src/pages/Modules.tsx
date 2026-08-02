@@ -56,6 +56,9 @@ export function Modules() {
   const [rmEnabled, setRmEnabled] = useState<boolean | null>(null);
   const [rmToggling, setRmToggling] = useState(false);
   const [rmError, setRmError] = useState<string | null>(null);
+  const [amEnabled, setAmEnabled] = useState<boolean | null>(null);
+  const [amToggling, setAmToggling] = useState(false);
+  const [amError, setAmError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -67,6 +70,8 @@ export function Modules() {
     setAdError(null);
     setRmEnabled(null);
     setRmError(null);
+    setAmEnabled(null);
+    setAmError(null);
     if (!guildId) return () => { cancelled = true; };
     adminApi.getHackedAccountTrap(guildId)
       .then(data => { if (!cancelled) setTrapSettings(data); })
@@ -82,6 +87,9 @@ export function Modules() {
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getRoleMenuEnabled(guildId)
       .then(r => { if (!cancelled) setRmEnabled(r.enabled); })
+      .catch(error => { if (!cancelled) console.error(error); });
+    adminApi.getAutoMentionEnabled(guildId)
+      .then(r => { if (!cancelled) setAmEnabled(r.enabled); })
       .catch(error => { if (!cancelled) console.error(error); });
     return () => { cancelled = true; };
   }, [guildId]);
@@ -143,6 +151,21 @@ export function Modules() {
     }
   };
 
+  const toggleAM = async (enabled: boolean) => {
+    setAmError(null);
+    setAmToggling(true);
+    setAmEnabled(enabled);
+    try {
+      await adminApi.setAutoMentionEnabled(guildId, enabled);
+      toast(enabled ? "Auto-Mentions enabled." : "Auto-Mentions disabled.");
+    } catch (err: unknown) {
+      setAmEnabled(prev => prev !== null ? !prev : prev);
+      setAmError(apiErrorMessage(err, "Failed to change the module state."));
+    } finally {
+      setAmToggling(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 md:pl-64">
       <div className="px-4 sm:px-6 pt-5">
@@ -184,6 +207,16 @@ export function Modules() {
               toggling={rmToggling}
               loading={rmEnabled === null}
               error={rmError}
+            />
+            <ModuleCard
+              name="Auto-Mentions"
+              description="Automatically mention a role whenever a message is posted in a configured channel."
+              href="/modules/automentions"
+              enabled={amEnabled ?? false}
+              onToggle={toggleAM}
+              toggling={amToggling}
+              loading={amEnabled === null}
+              error={amError}
             />
           </div>
         )}

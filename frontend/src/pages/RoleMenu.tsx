@@ -5,11 +5,13 @@ import EmojiPicker, { Theme as EmojiTheme } from "emoji-picker-react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
   ArrowLeft, Plus, X, Loader2, CheckCircle2, AlertCircle, Trash2, Hash, ListChecks, Send, RefreshCw,
-  Search, ChevronDown, Smile,
+  Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { useSelectedGuildId, Toggle, ChannelPicker, MultiPicker } from "@/components/modules/shared";
+import {
+  useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, RoleSelect, computeDropPosition,
+} from "@/components/modules/shared";
 
 type Draft = Omit<RoleMenuConfig, "id" | "guild_id" | "message_id">;
 
@@ -27,102 +29,6 @@ const DEFAULT_DRAFT: Draft = {
 
 function emptyOption(): RoleMenuOption {
   return { role_id: "", label: "", emoji: null, description: null };
-}
-
-function roleDotColor(color: string) {
-  return color === "#000000" ? "#6b7280" : color;
-}
-
-/**
- * Positions a floating panel next to its trigger, clamped to the viewport - without this, a
- * trigger near the bottom/right edge of the screen (e.g. the last row in a long roles list)
- * would render the panel partly or fully off-screen instead of flipping to fit.
- */
-function computeDropPosition(rect: DOMRect, dropWidth: number, dropHeight: number) {
-  const margin = 8;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const spaceAbove = rect.top;
-  const openUp = spaceBelow < dropHeight + margin && spaceAbove > spaceBelow;
-  const top = openUp ? Math.max(margin, rect.top - dropHeight - 4) : rect.bottom + 4;
-  const maxLeft = Math.max(margin, window.innerWidth - dropWidth - margin);
-  const left = Math.min(Math.max(margin, rect.left), maxLeft);
-  return { top, left };
-}
-
-// ─── Role picker (single-select, Discord-colored) ────────────────────────────
-
-const ROLE_SELECT_WIDTH = 208;
-const ROLE_SELECT_HEIGHT = 260;
-
-function RoleSelect({ roles, value, onChange }: {
-  roles: { id: string; name: string; color: string }[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (dropRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  const selected = roles.find(r => r.id === value);
-  const filtered = roles.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
-
-  const handleOpen = () => {
-    if (triggerRef.current) setPos(computeDropPosition(triggerRef.current.getBoundingClientRect(), ROLE_SELECT_WIDTH, ROLE_SELECT_HEIGHT));
-    setOpen(o => !o);
-  };
-
-  return (
-    <>
-      <button ref={triggerRef} type="button" onClick={handleOpen}
-        className="w-40 flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 hover:border-zinc-500 transition-all">
-        {selected ? (
-          <>
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: roleDotColor(selected.color) }} />
-            <span className="truncate">{selected.name}</span>
-          </>
-        ) : <span className="text-zinc-500">Select role…</span>}
-        <ChevronDown className={cn("w-3 h-3 text-zinc-500 ml-auto flex-shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && pos && createPortal(
-        <div ref={dropRef} style={{
-          position: "fixed", top: pos.top, left: pos.left, width: ROLE_SELECT_WIDTH, zIndex: 9999,
-          background: "#3f3f46", border: "1px solid #52525b", borderRadius: 8,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6)", overflow: "hidden",
-        }}>
-          <div className="flex items-center gap-2 px-3 py-2" style={{ background: "#52525b", borderBottom: "1px solid #71717a" }}>
-            <Search className="w-3.5 h-3.5 text-zinc-300 flex-shrink-0" />
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-              className="bg-transparent text-sm text-white outline-none flex-1 placeholder:text-zinc-400" />
-          </div>
-          <div className="max-h-48 overflow-y-auto scrollbar-thin">
-            {filtered.length === 0 && <p className="px-3 py-3 text-xs text-zinc-400">No roles</p>}
-            {filtered.map(r => (
-              <button key={r.id} type="button" onClick={() => { onChange(r.id); setOpen(false); setSearch(""); }}
-                className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm hover:bg-zinc-600 transition-colors truncate"
-                style={{ color: value === r.id ? "#c7d2fe" : "#fff", background: value === r.id ? "rgba(99,102,241,0.25)" : undefined }}>
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: roleDotColor(r.color) }} />
-                {r.name}
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
 }
 
 // ─── Emoji picker (Discord custom emoji + unicode, with search) ─────────────
