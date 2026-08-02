@@ -8,6 +8,7 @@ spring:
     password: ${DB_PASSWORD:ais_auth}
 
   jpa:
+    open-in-view: false # inak SSE endpointy (napr. maintenance/stream) drzia Hikari connection po celu dobu spojenia
     hibernate:
       ddl-auto: validate # schéma sa spravuje výhradne cez Flyway migrácie, nie auto-generovaním
     show-sql: true
