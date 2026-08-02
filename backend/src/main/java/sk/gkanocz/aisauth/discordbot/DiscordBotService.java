@@ -43,6 +43,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final AutoMentionListener autoMentionListener;
     private final HackedAccountTrapListener hackedAccountTrapListener;
     private final TicketButtonListener ticketButtonListener;
+    private final GuildAllowlistEventManager guildAllowlistEventManager;
 
     private volatile JDA jda;
 
@@ -73,6 +74,7 @@ public class DiscordBotService implements ApplicationRunner {
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .setChunkingFilter(ChunkingFilter.ALL)
+                .setEventManager(guildAllowlistEventManager)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
                         autoMentionListener, hackedAccountTrapListener, ticketButtonListener)
                 .build()
@@ -134,7 +136,11 @@ public class DiscordBotService implements ApplicationRunner {
                                         .setChannelTypes(ChannelType.TEXT, ChannelType.NEWS)),
                 slash("serverinfo", "Display information about the server"),
                 slash("user", "Show detailed info about a server member")
-                        .addOption(OptionType.USER, "user", "Member to inspect", true)
+                        .addOption(OptionType.USER, "user", "Member to inspect", true),
+                slash("ticketclose", "Close this incident ticket"),
+                slash("ticketreopen", "Reopen this incident ticket"),
+                slash("ticketdelete", "Delete this incident ticket channel"),
+                slash("ticketrecap", "Get the saved transcript link for this ticket")
         );
     }
 

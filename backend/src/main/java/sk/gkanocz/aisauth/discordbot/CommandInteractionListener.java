@@ -31,13 +31,15 @@ class CommandInteractionListener extends ListenerAdapter {
 
     private static final Set<String> KNOWN_COMMANDS = Set.of(
             "verify", "code", "find", "manualverify", "warn", "warns", "mywarns", "removewarn", "clearwarns",
-            "info", "exportrole", "say", "serverinfo", "user");
+            "info", "exportrole", "say", "serverinfo", "user",
+            "ticketclose", "ticketreopen", "ticketdelete", "ticketrecap");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
     private static final Set<String> REDACT_OPTIONS = Set.of("email");
 
     private final VerificationSlashCommandListener verificationCommandHandler;
     private final WarnSlashCommandListener warnCommandHandler;
     private final UtilityCommandListener utilityCommandHandler;
+    private final TicketSlashCommandListener ticketCommandHandler;
     private final AdminSettingsService adminSettingsService;
     private final AuditLogService auditLogService;
 
@@ -55,15 +57,13 @@ class CommandInteractionListener extends ListenerAdapter {
 
         String guildId = event.getGuild().getId();
 
-        List<String> allowedGuildIds = adminSettingsService.get(
-                "allowed_guild_ids", new TypeReference<List<String>>() { }, List.of());
-        if (!allowedGuildIds.contains(guildId)) {
+        if (!adminSettingsService.isGuildAllowed(guildId)) {
             logCommand(event, "blocked", startedAt, "Server is not allowed");
             event.reply("**Bot príkazy nie sú povolené na tomto serveri.**").queue();
             return;
         }
 
-        if (adminSettingsService.get("maintenance_mode", Boolean.class, false)) {
+        if (adminSettingsService.isMaintenanceMode()) {
             logCommand(event, "blocked", startedAt, "Maintenance mode");
             event.reply("Bot is currently in maintenance mode. All commands are temporarily disabled.")
                     .setEphemeral(true).queue();
@@ -98,6 +98,7 @@ class CommandInteractionListener extends ListenerAdapter {
             verificationCommandHandler.dispatch(event, ephemeralOverride);
             warnCommandHandler.dispatch(event, ephemeralOverride);
             utilityCommandHandler.dispatch(event, ephemeralOverride);
+            ticketCommandHandler.dispatch(event, ephemeralOverride);
             logCommand(event, "success", startedAt, null);
         } catch (Exception e) {
             log.error("Command execution error in guild {}", guildId, e);

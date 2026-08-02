@@ -16,10 +16,9 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
+import sk.gkanocz.aisauth.discordbot.EventLogEmbedSender;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import sk.gkanocz.aisauth.settings.DashboardSettings;
 import sk.gkanocz.aisauth.settings.LogEventType;
-import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.ticket.TicketService;
 
 import java.awt.Color;
@@ -45,7 +44,7 @@ public class HackedAccountTrapListener extends ListenerAdapter {
     private final AuditLogService auditLogService;
     private final TicketService ticketService;
     private final DiscordModerationService moderationService;
-    private final LogRoutingService logRoutingService;
+    private final EventLogEmbedSender eventLogEmbedSender;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
@@ -53,7 +52,7 @@ public class HackedAccountTrapListener extends ListenerAdapter {
             return;
         }
         String guildId = event.getGuild().getId();
-        if (adminSettingsService.get("maintenance_mode", Boolean.class, false)) {
+        if (adminSettingsService.isMaintenanceMode()) {
             return;
         }
 
@@ -86,6 +85,14 @@ public class HackedAccountTrapListener extends ListenerAdapter {
         Message message = event.getMessage();
         String authorId = event.getAuthor().getId();
         String authorTag = event.getAuthor().getName();
+
+        if (settings.incidentChannelEnabled()) {
+            TextChannel existingChannel = findExistingIncidentChannel(guild, authorId);
+            if (existingChannel != null && ticketService.hasOpenTicket(existingChannel.getId())) {
+                handleRepeatTrigger(event, existingChannel, settings, authorId, authorTag);
+                return;
+            }
+        }
 
         String imageAttachmentUrl = message.getAttachments().stream()
                 .filter(Message.Attachment::isImage)
@@ -186,12 +193,19 @@ public class HackedAccountTrapListener extends ListenerAdapter {
         }
     }
 
+    private TextChannel findExistingIncidentChannel(Guild guild, String authorId) {
+        String existingChannelId = adminSettingsService.get(incidentChannelKey(guild.getId(), authorId), String.class, null);
+        return existingChannelId == null ? null : guild.getTextChannelById(existingChannelId);
+    }
+
+    private String incidentChannelKey(String guildId, String authorId) {
+        return "hacked_trap_incident_channel_" + guildId + "_" + authorId;
+    }
+
     private TextChannel createOrReuseIncidentChannel(Guild guild, HackedAccountTrapSettings settings, Member author) {
         String authorId = author.getId();
         try {
-            String key = "hacked_trap_incident_channel_" + guild.getId() + "_" + authorId;
-            String existingChannelId = adminSettingsService.get(key, String.class, null);
-            TextChannel channel = existingChannelId == null ? null : guild.getTextChannelById(existingChannelId);
+            TextChannel channel = findExistingIncidentChannel(guild, authorId);
 
             List<String> managerRoleIds = managerRoleIds(guild.getId());
             if (channel != null) {
@@ -206,12 +220,38 @@ public class HackedAccountTrapListener extends ListenerAdapter {
             TextChannel created = (category == null ? guild.createTextChannel(name) : guild.createTextChannel(name, category))
                     .complete();
             applyIncidentOverwrites(created, guild, managerRoleIds, settings, author);
-            adminSettingsService.set(key, created.getId());
+            adminSettingsService.set(incidentChannelKey(guild.getId(), authorId), created.getId());
             return created;
         } catch (Exception e) {
             log.error("HackedAccountTrap: Failed to create/reuse incident channel: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * The user is already being handled in an open incident channel (e.g. still timed out, or
+     * staff hasn't closed the ticket yet) — re-running the DM/moderation-action/intro pipeline on
+     * every repeat post would just spam the same channel, so only tag them there instead.
+     */
+    private void handleRepeatTrigger(
+            MessageReceivedEvent event, TextChannel incidentChannel, HackedAccountTrapSettings settings,
+            String authorId, String authorTag) {
+        try {
+            incidentChannel.sendMessage("<@" + authorId + "> posted in the trap channel again.").complete();
+        } catch (Exception e) {
+            log.error("HackedAccountTrap: Failed to post repeat-trigger notice: {}", e.getMessage());
+        }
+        if (settings.deleteTriggerMessage()) {
+            try {
+                event.getMessage().delete().complete();
+            } catch (Exception e) {
+                log.error("HackedAccountTrap: Failed to delete trigger message: {}", e.getMessage());
+            }
+        }
+        auditLogService.log(new AuditLogEntry(
+                "automod", "Hacked account trap repeat trigger", event.getGuild().getId(), event.getGuild().getName(),
+                event.getChannel().getId(), event.getChannel().getName(), authorId, authorTag,
+                Map.of("incidentChannelId", incidentChannel.getId())));
     }
 
     private void applyIncidentOverwrites(
@@ -246,8 +286,10 @@ public class HackedAccountTrapListener extends ListenerAdapter {
                 ? settings.incidentChannelTagRoleIds().stream().map(id -> "<@&" + id + ">")
                         .reduce((a, b) -> a + " " + b).orElse("")
                 : "";
+        // Keep both the plain username and a real mention so the affected user actually gets pinged.
+        String userReference = author.getUser().getName() + " (<@" + author.getId() + ">)";
         String customMessage = settings.incidentChannelMessage().replace("{server}", guild.getName())
-                .replace("{user}", author.getUser().getName()).trim();
+                .replace("{user}", userReference).trim();
         String intro = (mentionText + "\n" + customMessage).trim();
         if (!intro.isBlank()) {
             try {
@@ -293,15 +335,6 @@ public class HackedAccountTrapListener extends ListenerAdapter {
             Guild guild, String authorId, String authorTag, String triggerChannelId,
             String triggerContent, String result, int totalDeleted, TextChannel incidentChannel,
             String imageAttachmentUrl, int cleanupMinutes) {
-        String logChannelId = logRoutingService.channelIdFor(guild.getId(), LogEventType.HACKED_ACCOUNT_TRAP_TRIGGERED)
-                .orElse(null);
-        if (logChannelId == null) {
-            return;
-        }
-        TextChannel logChannel = guild.getTextChannelById(logChannelId);
-        if (logChannel == null) {
-            return;
-        }
         EmbedBuilder embed = new EmbedBuilder()
                 .setColor(new Color(0xFF0000))
                 .setTitle("Hacked Account Trap Triggered")
@@ -317,15 +350,10 @@ public class HackedAccountTrapListener extends ListenerAdapter {
         if (imageAttachmentUrl != null) {
             embed.setImage(imageAttachmentUrl);
         }
-        try {
-            logChannel.sendMessageEmbeds(embed.build()).queue();
-        } catch (Exception e) {
-            log.error("SpamTrap: Failed to send log: {}", e.getMessage());
-        }
+        eventLogEmbedSender.send(guild, LogEventType.HACKED_ACCOUNT_TRAP_TRIGGERED, embed);
     }
 
     private List<String> managerRoleIds(String guildId) {
-        return adminSettingsService.get("dashboard_settings_" + guildId, DashboardSettings.class, DashboardSettings.empty())
-                .managerRoleIds();
+        return adminSettingsService.dashboardSettings(guildId).managerRoleIds();
     }
 }
