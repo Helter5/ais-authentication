@@ -15,7 +15,7 @@ class TicketTranscriptResponseTest {
     void serializesMessagesAsRawJsonArrayNotAsEscapedString() {
         String rawTranscript = "[{\"authorId\":\"3\",\"authorTag\":\"tester\",\"content\":\"hi\",\"attachments\":[]}]";
         TicketTranscriptResponse response = new TicketTranscriptResponse(
-                "1", "2", "3", "closed", "4",
+                "1", "2", "3", "tester", "closed", "4", "closer",
                 LocalDateTime.of(2026, 1, 1, 10, 0), LocalDateTime.of(2026, 1, 1, 9, 0),
                 rawTranscript);
 

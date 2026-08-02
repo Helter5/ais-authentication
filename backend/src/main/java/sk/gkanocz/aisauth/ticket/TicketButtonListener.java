@@ -9,17 +9,12 @@ import net.dv8tion.jda.api.entities.channel.concrete.Category;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
 import org.springframework.stereotype.Component;
-import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
 
 import java.awt.Color;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -34,9 +29,7 @@ public class TicketButtonListener extends ListenerAdapter {
 
     private final IncidentTicketRepository incidentTicketRepository;
     private final TicketService ticketService;
-    private final AdminSettingsService adminSettingsService;
     private final LogRoutingService logRoutingService;
-    private final ObjectMapper objectMapper;
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -87,7 +80,7 @@ public class TicketButtonListener extends ListenerAdapter {
     }
 
     private void handleClose(ButtonInteractionEvent event, IncidentTicket ticket) {
-        if (closedCategoryId(ticket.getGuildId()) == null) {
+        if (ticketService.closedCategoryId(ticket.getGuildId()) == null) {
             event.reply("Set a \"Category on close\" in the Hacked Account Trap module settings before closing tickets.")
                     .setEphemeral(true).queue();
             return;
@@ -98,7 +91,7 @@ public class TicketButtonListener extends ListenerAdapter {
     }
 
     private void handleCloseConfirm(ButtonInteractionEvent event, IncidentTicket ticket, TextChannel channel) {
-        String closedCategoryId = closedCategoryId(ticket.getGuildId());
+        String closedCategoryId = ticketService.closedCategoryId(ticket.getGuildId());
         if (closedCategoryId == null) {
             event.editMessage("Set a \"Category on close\" in the Hacked Account Trap module settings before closing tickets.")
                     .setComponents(List.of()).queue();
@@ -118,14 +111,13 @@ public class TicketButtonListener extends ListenerAdapter {
         ticket.close(event.getUser().getId(), ticketService.writeTranscript(transcript));
         incidentTicketRepository.save(ticket);
 
-        event.getHook().editOriginal("Ticket closed by <@" + event.getUser().getId() + ">.")
+        event.getHook().editOriginal("Ticket closed by " + event.getUser().getName() + " (<@" + event.getUser().getId() + ">).")
                 .setComponents(List.of()).queue();
-        channel.sendMessage("Support team ticket controls")
-                .addActionRow(ticketService.closedButtons(ticket.getChannelId())).queue();
+        ticketService.postClosedControls(channel, ticket);
     }
 
     private void handleOpen(ButtonInteractionEvent event, IncidentTicket ticket, TextChannel channel) {
-        if (includeUserSetting(ticket.getGuildId())) {
+        if (ticketService.includeUserSetting(ticket.getGuildId())) {
             channel.upsertPermissionOverride(memberOrThrow(event, ticket.getUserId()))
                     .grant(Permission.VIEW_CHANNEL).queue();
         } else {
@@ -134,7 +126,7 @@ public class TicketButtonListener extends ListenerAdapter {
                 override.delete().queue();
             }
         }
-        String openCategoryId = openCategoryId(ticket.getGuildId());
+        String openCategoryId = ticketService.openCategoryId(ticket.getGuildId());
         if (openCategoryId != null) {
             Category openCategory = event.getGuild().getCategoryById(openCategoryId);
             if (openCategory != null && !openCategory.getId().equals(channelParentId(channel))) {
@@ -142,7 +134,7 @@ public class TicketButtonListener extends ListenerAdapter {
                         "IncidentTicket: Failed to move channel to open category: {}", f.getMessage()));
             }
         }
-        event.reply("Ticket reopened by <@" + event.getUser().getId() + ">.").queue();
+        event.reply("Ticket reopened by " + event.getUser().getName() + " (<@" + event.getUser().getId() + ">).").queue();
         ticketService.postTicketControls(channel, ticket.getGuildId(), ticket.getUserId());
     }
 
@@ -184,24 +176,5 @@ public class TicketButtonListener extends ListenerAdapter {
     private String channelParentId(TextChannel channel) {
         Category parent = channel.getParentCategory();
         return parent == null ? null : parent.getId();
-    }
-
-    private Map<String, Object> trapModuleSettings(String guildId) {
-        return adminSettingsService.get(
-                "module_hacked_account_trap_" + guildId, new TypeReference<Map<String, Object>>() { }, Map.of());
-    }
-
-    private boolean includeUserSetting(String guildId) {
-        return Boolean.TRUE.equals(trapModuleSettings(guildId).get("incidentChannelIncludeUser"));
-    }
-
-    private String closedCategoryId(String guildId) {
-        Object value = trapModuleSettings(guildId).get("incidentChannelClosedCategoryId");
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private String openCategoryId(String guildId) {
-        Object value = trapModuleSettings(guildId).get("incidentChannelCategoryId");
-        return value == null ? null : String.valueOf(value);
     }
 }

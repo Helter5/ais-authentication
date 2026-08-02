@@ -1,12 +1,11 @@
 package sk.gkanocz.aisauth.ticket;
 
-import com.fasterxml.jackson.annotation.JsonRawValue;
 import net.dv8tion.jda.api.entities.Guild;
 import sk.gkanocz.aisauth.discordbot.DiscordNames;
 
 import java.time.LocalDateTime;
 
-public record TicketTranscriptResponse(
+public record TicketSummaryResponse(
         String channelId,
         String guildId,
         String userId,
@@ -16,13 +15,14 @@ public record TicketTranscriptResponse(
         String closedByUsername,
         LocalDateTime closedAt,
         LocalDateTime createdAt,
-        @JsonRawValue String messages) {
+        LocalDateTime expiresAt) {
 
-    static TicketTranscriptResponse from(IncidentTicket ticket, Guild guild) {
-        String messages = ticket.getTranscript() != null ? ticket.getTranscript() : "[]";
-        return new TicketTranscriptResponse(
+    static TicketSummaryResponse from(IncidentTicket ticket, Guild guild, boolean retentionEnabled, int retentionDays) {
+        LocalDateTime expiresAt = retentionEnabled && ticket.getClosedAt() != null
+                ? ticket.getClosedAt().plusDays(retentionDays) : null;
+        return new TicketSummaryResponse(
                 ticket.getChannelId(), ticket.getGuildId(), ticket.getUserId(), DiscordNames.memberName(guild, ticket.getUserId()),
                 ticket.getStatus(), ticket.getClosedBy(), DiscordNames.memberName(guild, ticket.getClosedBy()),
-                ticket.getClosedAt(), ticket.getCreatedAt(), messages);
+                ticket.getClosedAt(), ticket.getCreatedAt(), expiresAt);
     }
 }

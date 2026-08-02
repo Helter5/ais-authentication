@@ -37,6 +37,9 @@ public class IncidentTicket {
     @JdbcTypeCode(SqlTypes.JSON)
     private String transcript;
 
+    @Column(name = "controls_message_id", length = 32)
+    private String controlsMessageId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -52,6 +55,10 @@ public class IncidentTicket {
         this.createdAt = LocalDateTime.now();
     }
 
+    public boolean isOpen() {
+        return "open".equals(status);
+    }
+
     public void reopen() {
         this.status = "open";
         this.closedBy = null;
@@ -64,5 +71,9 @@ public class IncidentTicket {
         this.closedBy = closedBy;
         this.closedAt = LocalDateTime.now();
         this.transcript = transcript;
+    }
+
+    public void setControlsMessageId(String controlsMessageId) {
+        this.controlsMessageId = controlsMessageId;
     }
 }
