@@ -16,6 +16,7 @@ const Modules = lazy(() => import("@/pages/Modules").then(module => ({ default: 
 const HackedAccountTrapModule = lazy(() => import("@/pages/HackedAccountTrap").then(module => ({ default: module.HackedAccountTrapModule })));
 const SwitchSemesterModule = lazy(() => import("@/pages/SwitchSemester").then(module => ({ default: module.SwitchSemesterModule })));
 const AutoDeleteModule = lazy(() => import("@/pages/AutoDelete").then(module => ({ default: module.AutoDeleteModule })));
+const RoleMenuModule = lazy(() => import("@/pages/RoleMenu").then(module => ({ default: module.RoleMenuModule })));
 const TicketTranscript = lazy(() => import("@/pages/TicketTranscript").then(module => ({ default: module.TicketTranscript })));
 const Transcripts = lazy(() => import("@/pages/Transcripts").then(module => ({ default: module.Transcripts })));
 const Settings = lazy(() => import("@/pages/Settings").then(module => ({ default: module.Settings })));
@@ -57,6 +58,7 @@ function App() {
                   <Route path="/modules" element={<Modules />} />
                   <Route path="/modules/hacked-account-trap" element={<HackedAccountTrapModule />} />
                   <Route path="/modules/autodelete" element={<AutoDeleteModule />} />
+                  <Route path="/modules/rolemenu" element={<RoleMenuModule />} />
                   <Route path="/commands/switchsemester" element={<SwitchSemesterModule />} />
                   {/* legacy redirect handled by duplicate route above */}
                   <Route path="/commands" element={<Commands />} />

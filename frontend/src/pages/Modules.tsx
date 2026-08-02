@@ -53,6 +53,9 @@ export function Modules() {
   const [adEnabled, setAdEnabled] = useState<boolean | null>(null);
   const [adToggling, setAdToggling] = useState(false);
   const [adError, setAdError] = useState<string | null>(null);
+  const [rmEnabled, setRmEnabled] = useState<boolean | null>(null);
+  const [rmToggling, setRmToggling] = useState(false);
+  const [rmError, setRmError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,6 +65,8 @@ export function Modules() {
     setAdEnabled(null);
     setTrapError(null);
     setAdError(null);
+    setRmEnabled(null);
+    setRmError(null);
     if (!guildId) return () => { cancelled = true; };
     adminApi.getHackedAccountTrap(guildId)
       .then(data => { if (!cancelled) setTrapSettings(data); })
@@ -74,6 +79,9 @@ export function Modules() {
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getAutoDeleteEnabled(guildId)
       .then(r => { if (!cancelled) setAdEnabled(r.enabled); })
+      .catch(error => { if (!cancelled) console.error(error); });
+    adminApi.getRoleMenuEnabled(guildId)
+      .then(r => { if (!cancelled) setRmEnabled(r.enabled); })
       .catch(error => { if (!cancelled) console.error(error); });
     return () => { cancelled = true; };
   }, [guildId]);
@@ -120,6 +128,21 @@ export function Modules() {
     }
   };
 
+  const toggleRM = async (enabled: boolean) => {
+    setRmError(null);
+    setRmToggling(true);
+    setRmEnabled(enabled);
+    try {
+      await adminApi.setRoleMenuEnabled(guildId, enabled);
+      toast(enabled ? "Role Menu enabled." : "Role Menu disabled.");
+    } catch (err: unknown) {
+      setRmEnabled(prev => prev !== null ? !prev : prev);
+      setRmError(apiErrorMessage(err, "Failed to change the module state."));
+    } finally {
+      setRmToggling(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 md:pl-64">
       <div className="px-4 sm:px-6 pt-5">
@@ -151,6 +174,16 @@ export function Modules() {
               toggling={adToggling}
               loading={adEnabled === null}
               error={adError}
+            />
+            <ModuleCard
+              name="Role Menu"
+              description="Let members self-assign roles via buttons or a dropdown menu, no moderator needed."
+              href="/modules/rolemenu"
+              enabled={rmEnabled ?? false}
+              onToggle={toggleRM}
+              toggling={rmToggling}
+              loading={rmEnabled === null}
+              error={rmError}
             />
           </div>
         )}

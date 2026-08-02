@@ -202,6 +202,28 @@ export interface DiscordEmoji {
   mention: string;
 }
 
+export interface RoleMenuOption {
+  role_id: string;
+  label: string;
+  emoji: string | null;
+  description: string | null;
+}
+
+export interface RoleMenuConfig {
+  id: number;
+  guild_id: string;
+  channel_id: string;
+  message_id: string | null;
+  title: string;
+  description: string;
+  ui_type: 'BUTTONS' | 'SELECT_MENU';
+  selection_mode: 'SINGLE' | 'MULTI';
+  require_verified: boolean;
+  options: RoleMenuOption[];
+  allowed_role_ids: string[];
+  blocked_role_ids: string[];
+}
+
 export const adminApi = {
   getAdminAccess: async (): Promise<{ allowed: boolean }> => {
     const res = await api.get('/admin/access');
@@ -578,6 +600,41 @@ export const adminApi = {
 
   setAutoDeleteEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
     const res = await api.post('/autodelete/enabled', { guildId, enabled });
+    return res.data;
+  },
+
+  getRoleMenus: async (guildId: string): Promise<RoleMenuConfig[]> => {
+    const res = await api.get('/rolemenu', { params: { guildId } });
+    return res.data;
+  },
+
+  createRoleMenu: async (guildId: string, data: Partial<RoleMenuConfig>): Promise<RoleMenuConfig> => {
+    const res = await api.post('/rolemenu', { guildId, ...data });
+    return res.data;
+  },
+
+  updateRoleMenu: async (id: number, guildId: string, data: Partial<RoleMenuConfig>): Promise<RoleMenuConfig> => {
+    const res = await api.patch(`/rolemenu/${id}`, { guildId, ...data });
+    return res.data;
+  },
+
+  deleteRoleMenu: async (id: number, guildId: string): Promise<{ success: boolean }> => {
+    const res = await api.delete(`/rolemenu/${id}`, { params: { guildId } });
+    return res.data;
+  },
+
+  repostRoleMenu: async (id: number, guildId: string): Promise<RoleMenuConfig> => {
+    const res = await api.post(`/rolemenu/${id}/repost`, null, { params: { guildId } });
+    return res.data;
+  },
+
+  getRoleMenuEnabled: async (guildId: string): Promise<{ enabled: boolean }> => {
+    const res = await api.get('/rolemenu/enabled', { params: { guildId } });
+    return res.data;
+  },
+
+  setRoleMenuEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
+    const res = await api.post('/rolemenu/enabled', { guildId, enabled });
     return res.data;
   },
 };

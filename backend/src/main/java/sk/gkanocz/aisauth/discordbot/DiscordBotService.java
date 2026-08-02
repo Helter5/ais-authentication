@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import sk.gkanocz.aisauth.automod.AutoDeleteListener;
 import sk.gkanocz.aisauth.automod.AutoMentionListener;
 import sk.gkanocz.aisauth.automod.HackedAccountTrapListener;
+import sk.gkanocz.aisauth.rolemenu.RoleMenuInteractionListener;
 import sk.gkanocz.aisauth.ticket.TicketButtonListener;
 import sk.gkanocz.aisauth.verification.DatabaseSyncService;
 
@@ -43,6 +44,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final AutoMentionListener autoMentionListener;
     private final HackedAccountTrapListener hackedAccountTrapListener;
     private final TicketButtonListener ticketButtonListener;
+    private final RoleMenuInteractionListener roleMenuInteractionListener;
     private final GuildAllowlistEventManager guildAllowlistEventManager;
     private final DatabaseSyncService databaseSyncService;
 
@@ -77,7 +79,7 @@ public class DiscordBotService implements ApplicationRunner {
                 .setChunkingFilter(ChunkingFilter.ALL)
                 .setEventManager(guildAllowlistEventManager)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
-                        autoMentionListener, hackedAccountTrapListener, ticketButtonListener)
+                        autoMentionListener, hackedAccountTrapListener, ticketButtonListener, roleMenuInteractionListener)
                 .build()
                 .awaitReady();
 
