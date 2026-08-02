@@ -17,6 +17,7 @@ const HackedAccountTrapModule = lazy(() => import("@/pages/HackedAccountTrap").t
 const SwitchSemesterModule = lazy(() => import("@/pages/SwitchSemester").then(module => ({ default: module.SwitchSemesterModule })));
 const AutoDeleteModule = lazy(() => import("@/pages/AutoDelete").then(module => ({ default: module.AutoDeleteModule })));
 const TicketTranscript = lazy(() => import("@/pages/TicketTranscript").then(module => ({ default: module.TicketTranscript })));
+const Transcripts = lazy(() => import("@/pages/Transcripts").then(module => ({ default: module.Transcripts })));
 const Settings = lazy(() => import("@/pages/Settings").then(module => ({ default: module.Settings })));
 const Wipe = lazy(() => import("@/pages/Wipe").then(module => ({ default: module.Wipe })));
 const SelectServer = lazy(() => import("@/pages/SelectServer").then(module => ({ default: module.SelectServer })));
@@ -45,6 +46,7 @@ function App() {
             <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/codes" element={<Codes />} />
+                <Route path="/transcripts" element={<Transcripts />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/semester" element={<SwitchSemesterModule />} />
                 <Route path="/semester/switch" element={<SwitchSemesterModule />} />
