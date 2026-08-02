@@ -37,12 +37,18 @@ class WarnSlashCommandListener {
     private final EventLogEmbedSender eventLogEmbedSender;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        switch (event.getName()) {
-            case "warn" -> handleWarn(event, ephemeralOverride);
-            case "warns" -> handleWarns(event, ephemeralOverride);
-            case "mywarns" -> handleMyWarns(event, ephemeralOverride);
-            case "removewarn" -> handleRemoveWarn(event, ephemeralOverride);
-            case "clearwarns" -> handleClearWarns(event, ephemeralOverride);
+        if ("mywarns".equals(event.getName())) {
+            handleMyWarns(event, ephemeralOverride);
+            return;
+        }
+        if (!"warn".equals(event.getName())) {
+            return;
+        }
+        switch (event.getSubcommandName()) {
+            case "add" -> handleWarn(event, ephemeralOverride);
+            case "list" -> handleWarns(event, ephemeralOverride);
+            case "remove" -> handleRemoveWarn(event, ephemeralOverride);
+            case "clearall" -> handleClearWarns(event, ephemeralOverride);
             default -> {
             }
         }

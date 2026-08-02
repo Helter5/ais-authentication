@@ -2,9 +2,9 @@ package sk.gkanocz.aisauth.settings;
 
 public enum LogEventType {
 
-    WARN_ISSUED("/warn", "New warning issued"),
-    WARN_REMOVED("/removewarn", "Warning removed"),
-    WARNS_CLEARED("/clearwarns", "All warnings cleared"),
+    WARN_ISSUED("/warn add", "New warning issued"),
+    WARN_REMOVED("/warn remove", "Warning removed"),
+    WARNS_CLEARED("/warn clearall", "All warnings cleared"),
     WARN_THRESHOLD_ACTION("Warn threshold", "Automatic action when a warn threshold is reached"),
     HACKED_ACCOUNT_TRAP_TRIGGERED("Hacked Account Trap", "Trap triggered (timeout/kick/ban)"),
     TICKET_TRANSCRIPT_SAVED("Ticket transcript", "Incident ticket transcript saved"),

@@ -7,10 +7,9 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Icon;
-import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
-import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
@@ -113,34 +112,27 @@ public class DiscordBotService implements ApplicationRunner {
                         .addOption(OptionType.USER, "user", "The Discord user to verify", true)
                         .addOption(OptionType.STRING, "ais_id", "The AIS ID to assign to this user", true)
                         .addOption(OptionType.STRING, "email", "Email address of the user", true),
-                slash("warn", "Warn a user")
-                        .addOption(OptionType.USER, "user", "User to warn", true)
-                        .addOption(OptionType.STRING, "reason", "Reason for the warning", true),
-                slash("warns", "View warnings - for a specific user or all warnings in this server")
-                        .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false),
+                slash("warn", "Manage warnings for a user")
+                        .addSubcommands(
+                                new SubcommandData("add", "Warn a user")
+                                        .addOption(OptionType.USER, "user", "User to warn", true)
+                                        .addOption(OptionType.STRING, "reason", "Reason for the warning", true),
+                                new SubcommandData("remove", "Remove a specific warning by its ID")
+                                        .addOption(OptionType.INTEGER, "id", "Warning ID to remove", true),
+                                new SubcommandData("clearall", "Clear all warnings for a user")
+                                        .addOption(OptionType.USER, "user", "User to clear warnings for", true),
+                                new SubcommandData("list", "View warnings - for a specific user or all warnings in this server")
+                                        .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false)),
                 slash("mywarns", "Show your own warnings on this server"),
-                slash("removewarn", "Remove a specific warning by its ID")
-                        .addOption(OptionType.INTEGER, "id", "Warning ID to remove", true),
-                slash("clearwarns", "Clear all warnings for a user")
-                        .addOption(OptionType.USER, "user", "User to clear warnings for", true),
-                slash("info", "Show bot configuration information"),
-                slash("exportrole", "Export server members with a specific role")
-                        .addOption(OptionType.ROLE, "role", "Role to filter members by", true)
-                        .addOption(OptionType.BOOLEAN, "only",
-                                "true = members with ONLY this role | false = members with this role AND others", false),
-                slash("say", "Send a message as the bot")
-                        .addOptions(
-                                new OptionData(OptionType.STRING, "message", "Message to send", true).setMaxLength(2000),
-                                new OptionData(OptionType.CHANNEL, "channel",
-                                        "Channel to send the message in (defaults to this channel)", false)
-                                        .setChannelTypes(ChannelType.TEXT, ChannelType.NEWS)),
-                slash("serverinfo", "Display information about the server"),
+                slash("info", "Show bot configuration and server information"),
                 slash("user", "Show detailed info about a server member")
                         .addOption(OptionType.USER, "user", "Member to inspect", true),
-                slash("ticketclose", "Close this incident ticket"),
-                slash("ticketreopen", "Reopen this incident ticket"),
-                slash("ticketdelete", "Delete this incident ticket channel"),
-                slash("ticketrecap", "Get the saved transcript link for this ticket")
+                slash("ticket", "Manage this incident ticket channel")
+                        .addSubcommands(
+                                new SubcommandData("close", "Close this incident ticket"),
+                                new SubcommandData("reopen", "Reopen this incident ticket"),
+                                new SubcommandData("delete", "Delete this incident ticket channel"),
+                                new SubcommandData("recap", "Get the saved transcript link for this ticket"))
         );
     }
 

@@ -30,9 +30,7 @@ import java.util.Set;
 class CommandInteractionListener extends ListenerAdapter {
 
     private static final Set<String> KNOWN_COMMANDS = Set.of(
-            "verify", "code", "find", "manualverify", "warn", "warns", "mywarns", "removewarn", "clearwarns",
-            "info", "exportrole", "say", "serverinfo", "user",
-            "ticketclose", "ticketreopen", "ticketdelete", "ticketrecap");
+            "verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "ticket");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
     private static final Set<String> REDACT_OPTIONS = Set.of("email");
 
@@ -114,8 +112,10 @@ class CommandInteractionListener extends ListenerAdapter {
             details.put("options", serializeOptions(event.getOptions()));
             details.put("blockedReason", blockedReason);
 
+            String commandLabel = event.getSubcommandName() == null
+                    ? "/" + event.getName() : "/" + event.getName() + " " + event.getSubcommandName();
             auditLogService.log(new AuditLogEntry(
-                    "commands", "/" + event.getName(),
+                    "commands", commandLabel,
                     event.getGuild().getId(), event.getGuild().getName(),
                     event.getChannel().getId(), event.getChannel().getName(),
                     event.getUser().getId(), event.getUser().getName(),

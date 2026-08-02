@@ -36,10 +36,6 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean;
 }> = {
   warn:         { ephemeral: true },
-  warns:        { ephemeral: true },
-  removewarn:   { ephemeral: true },
-  clearwarns:   { ephemeral: true },
-  exportrole:   { ephemeral: true, includeBots: true },
   wipe:         { dmUser: true, ephemeral: true },
   verify:       { ephemeral: true },
   code:         {},
@@ -47,17 +43,11 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   find:         { ephemeral: true },
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
-  serverinfo:   { ephemeral: true },
   user:         { ephemeral: true },
-  say:          { ephemeral: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   warn:         { ephemeral: false },
-  warns:        { ephemeral: true },
-  removewarn:   { ephemeral: false },
-  clearwarns:   { ephemeral: false },
-  exportrole:   { ephemeral: false, includeBots: false },
   wipe:         { dmUser: false, ephemeral: false },
   verify:       { ephemeral: true },
   code:         {},
@@ -65,9 +55,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   find:     { ephemeral: true },
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
-  serverinfo:   { ephemeral: false },
   user:         { ephemeral: false },
-  say:          { ephemeral: true },
 };
 
 const CATEGORY_ICONS: Record<CmdCategory, React.ElementType> = {
@@ -78,18 +66,10 @@ const CATEGORY_ICONS: Record<CmdCategory, React.ElementType> = {
 
 const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   Moderation: [
-    { name: "/warn",          description: "Warn a member with an optional reason. Logged to the warn log channel.", hasSettings: true },
-    { name: "/warns",         description: "View all active warnings for a specific user.", hasSettings: true },
-    { name: "/removewarn",    description: "Remove a specific warning from a user by its ID.", hasSettings: true },
-    { name: "/clearwarns",    description: "Clear all warnings for a user at once.", hasSettings: true },
-    { name: "/exportrole",    description: "Export server members with a specific role, with optional role-only filter.", hasSettings: true },
+    { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list.", hasSettings: true },
     { name: "/manualverify",  description: "Manually verify a user by Discord ID and email.", hasSettings: true },
     { name: "/user",          description: "Show detailed Discord info, verification status, and warn history for a member.", hasSettings: true },
-    { name: "/say",           description: "Send a message as the bot in the current or a chosen channel.", hasSettings: true },
-    { name: "/ticketclose",   description: "Close the incident ticket in the current channel." },
-    { name: "/ticketreopen",  description: "Reopen the incident ticket in the current channel." },
-    { name: "/ticketdelete",  description: "Delete the incident ticket channel." },
-    { name: "/ticketrecap",   description: "Get the saved transcript link for the current ticket." },
+    { name: "/ticket",        description: "Manage the incident ticket in the current channel: close, reopen, delete, recap." },
   ],
   Verification: [
     { name: "/verify",   description: "Verify yourself as an active FEI student using your AIS ID.", hasSettings: true },
@@ -98,8 +78,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/mywarns",  description: "Check your own active warnings on this server.", hasSettings: true },
   ],
   Utility: [
-    { name: "/info",       description: "Show bot configuration and status information.", hasSettings: true },
-    { name: "/serverinfo", description: "Display general information about the current server.", hasSettings: true },
+    { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
   ],
 };
 

@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Slash-command equivalents of the ticket_* buttons in TicketButtonListener, so tickets can be
- * managed without hunting for the button (e.g. after it has scrolled out of view): /ticketclose,
- * /ticketreopen, /ticketdelete, /ticketrecap. Only usable inside an actual ticket channel.
+ * managed without hunting for the button (e.g. after it has scrolled out of view): /ticket
+ * close/reopen/delete/recap. Only usable inside an actual ticket channel.
  */
 @Slf4j
 @Component
@@ -32,11 +32,14 @@ class TicketSlashCommandListener {
     private final LogRoutingService logRoutingService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        switch (event.getName()) {
-            case "ticketclose" -> handleClose(event);
-            case "ticketreopen" -> handleReopen(event);
-            case "ticketdelete" -> handleDelete(event);
-            case "ticketrecap" -> handleRecap(event);
+        if (!"ticket".equals(event.getName())) {
+            return;
+        }
+        switch (event.getSubcommandName()) {
+            case "close" -> handleClose(event);
+            case "reopen" -> handleReopen(event);
+            case "delete" -> handleDelete(event);
+            case "recap" -> handleRecap(event);
             default -> {
             }
         }
