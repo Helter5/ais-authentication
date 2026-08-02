@@ -4,8 +4,9 @@ import {
   AlertCircle, Copy, Hash, Layers3, Loader2,
   Mic2, RefreshCw, Server, ShieldCheck, Users,
 } from "lucide-react";
-import { adminApi, type DashboardData } from "@/lib/api";
+import { adminApi, apiErrorMessage, type DashboardData } from "@/lib/api";
 import { useSelectedGuildId } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: number }) {
   return (
@@ -31,6 +32,7 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +49,7 @@ export function Dashboard() {
         setData(dashboard);
       })
       .catch(err => {
-        if (!cancelled) setError(err?.response?.data?.error ?? "Failed to load dashboard.");
+        if (!cancelled) setError(apiErrorMessage(err, "Failed to load dashboard."));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -92,7 +94,9 @@ export function Dashboard() {
         <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Server Info</h2>
-            <button onClick={() => navigator.clipboard.writeText(data.server.id)}
+            <button onClick={() => navigator.clipboard.writeText(data.server.id)
+                .then(() => toast("Server ID copied."))
+                .catch(() => toast("Failed to copy Server ID.", "error"))}
               className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300">
               <Copy className="h-3.5 w-3.5" /> Copy Server ID
             </button>

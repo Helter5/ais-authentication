@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminApi, type DiscordGuild } from "@/lib/api";
+import { adminApi, apiErrorMessage, type DiscordGuild } from "@/lib/api";
 import { Loader2, LogOut, Server } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ export function SelectServer() {
           navigate("/", { replace: true });
         }
       })
-      .catch(e => setError(e?.response?.data?.error ?? e?.message ?? "Failed to load servers"))
+      .catch(e => setError(apiErrorMessage(e, e?.message ?? "Failed to load servers")))
       .finally(() => setLoading(false));
   }, [navigate]);
 

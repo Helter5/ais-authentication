@@ -29,6 +29,17 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Backend validation errors are Spring's RFC 7807 ProblemDetail — the message lives under
+ * `detail`, not `error`. Every catch block that surfaces an API error message should go through
+ * this instead of reading `err.response?.data?.error` directly, which is always undefined and
+ * silently falls back to a generic message no matter what the backend actually rejected.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: { error?: string; detail?: string } } })?.response?.data;
+  return data?.error ?? data?.detail ?? fallback;
+}
+
 export interface VerificationCode {
   id: number;
   discord_id: string;
@@ -113,20 +124,37 @@ export interface HackedAccountTrapSettings {
 export interface TicketTranscriptMessage {
   authorId: string;
   authorTag: string;
+  authorAvatarUrl: string | null;
   timestamp: string;
   content: string;
   attachments: { url: string; name: string }[];
+  eventKind: string | null;
 }
 
 export interface TicketTranscript {
   channelId: string;
   guildId: string;
   userId: string;
+  username: string | null;
   status: 'open' | 'closed';
   closedBy: string | null;
+  closedByUsername: string | null;
   closedAt: string | null;
   createdAt: string;
   messages: TicketTranscriptMessage[];
+}
+
+export interface TicketSummary {
+  channelId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  status: 'open' | 'closed';
+  closedBy: string | null;
+  closedByUsername: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  expiresAt: string | null;
 }
 
 export interface AutoDeleteConfig {
@@ -270,6 +298,8 @@ export const adminApi = {
     spam_trap_channel_id: string | null;
     spam_delete_interval: number;
     verification_enabled: boolean;
+    ticket_retention_enabled: boolean;
+    ticket_retention_days: number;
   }> => {
     const res = await api.get('/settings', { params: { guildId } });
     return res.data;
@@ -318,6 +348,11 @@ export const adminApi = {
 
   getTicketTranscript: async (channelId: string, guildId: string): Promise<TicketTranscript> => {
     const res = await api.get(`/tickets/${channelId}`, { params: { guildId } });
+    return res.data;
+  },
+
+  listTicketTranscripts: async (guildId: string): Promise<TicketSummary[]> => {
+    const res = await api.get('/tickets', { params: { guildId } });
     return res.data;
   },
 

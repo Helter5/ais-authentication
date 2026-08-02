@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { adminApi, type AutoDeleteConfig } from "@/lib/api";
+import { adminApi, apiErrorMessage, type AutoDeleteConfig } from "@/lib/api";
 import {
   ArrowLeft, Plus, X, Loader2, CheckCircle2, AlertCircle, Search, Trash2, ChevronDown, Hash, AtSign, Timer,
   ToggleLeft, ToggleRight,
@@ -255,17 +255,21 @@ export function AutoDeleteModule() {
       }
       toast("Config saved successfully.");
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      toast(err.response?.data?.error ?? "Failed to save config.", "error");
+      toast(apiErrorMessage(e, "Failed to save config."), "error");
     } finally { setSaving(false); }
   };
 
   const deleteCfg = async (id: number) => {
     if (!guildId) return;
-    await adminApi.deleteAutoDeleteConfig(id, guildId);
-    setConfigs(prev => prev.filter(c => c.id !== id));
-    if (selectedId === id) setSelectedId(null);
-    setDeleteId(null);
+    try {
+      await adminApi.deleteAutoDeleteConfig(id, guildId);
+      setConfigs(prev => prev.filter(c => c.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      setDeleteId(null);
+      toast("Config deleted.");
+    } catch (e: unknown) {
+      toast(apiErrorMessage(e, "Failed to delete config."), "error");
+    }
   };
 
   const channelName = (id: string) => channels.find(c => c.id === id)?.name ?? id;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { adminApi } from "@/lib/api";
+import { adminApi, apiErrorMessage } from "@/lib/api";
 import { SemesterRunPanel } from "@/components/semester/SemesterRunPanel";
 import { ConfirmSwitchModal, ConfirmSetupModal, ModeInfoModal } from "@/components/semester/SemesterModals";
 import {
@@ -12,13 +12,14 @@ import {
   type SemesterRole,
 } from "@/components/semester/SemesterPickers";
 import {
-  Plus, X, Loader2, CheckCircle2, AlertCircle,
+  Plus, X, Loader2, CheckCircle2,
   Trash2, CalendarDays, ArrowLeftRight,
   ChevronRight, Users, ShieldCheck,
   Eye, EyeOff, XCircle, Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ export function SwitchSemesterModule() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null);
+  const { toast } = useToast();
 
   // Role mapping add form
   const [newFrom, setNewFrom] = useState<string | null>(null);
@@ -134,7 +135,6 @@ export function SwitchSemesterModule() {
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
   const consoleContainerRef = useRef<HTMLDivElement | null>(null);
   const isConsoleAtBottomRef = useRef(true);
-  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearedStartedAt, setClearedStartedAt] = useState<string | null>(
     () => localStorage.getItem(`semester_console_cleared_${guildId}`) ?? null
   );
@@ -172,7 +172,6 @@ export function SwitchSemesterModule() {
     setLoading(true);
     setSaving(false);
     setDeleteId(null);
-    setNotice(null);
     setNewFrom(null);
     setNewTo([]);
     setRunOld("");
@@ -274,20 +273,14 @@ export function SwitchSemesterModule() {
     };
   }, [guildId, access, ssProgress?.running, setupProgress?.running]);
 
-  const flash = (ok: boolean, msg: string) => {
-    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
-    setNotice({ ok, msg });
-    flashTimerRef.current = setTimeout(() => setNotice(null), 3000);
-  };
-
   const saveAll = async (updated: SemesterConfig[], newLogActions = logActions, newTransitions = allowedTransitions) => {
     if (!guildId) return;
     setSaving(true);
     try {
       await adminApi.saveSemesterConfigs(guildId, { configs: updated, logActions: newLogActions, allowedTransitions: newTransitions });
-      flash(true, "Saved");
+      toast("Saved.");
     } catch {
-      flash(false, "Failed to save");
+      toast("Failed to save.", "error");
     } finally {
       setSaving(false);
     }
@@ -424,9 +417,11 @@ export function SwitchSemesterModule() {
       await adminApi.runSwitchSemester(guildId, runOld, runNew);
       const p = await adminApi.getSwitchSemesterProgress(guildId);
       setSsProgress(p);
+      toast("Semester switch started.");
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to start.";
+      const msg = apiErrorMessage(e, "Failed to start.");
       setRunError(msg);
+      toast(msg, "error");
     } finally {
       setRunStarting(false);
     }
@@ -441,9 +436,11 @@ export function SwitchSemesterModule() {
       await adminApi.runSemesterSetup(guildId, setupSemester, setupVisible, setupClearRoles);
       const p = await adminApi.getSemesterSetupProgress(guildId);
       setSetupProgress(p);
+      toast("Semester setup started.");
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to start.";
+      const msg = apiErrorMessage(e, "Failed to start.");
       setRunError(msg);
+      toast(msg, "error");
     } finally {
       setSetupStarting(false);
     }
@@ -461,8 +458,11 @@ export function SwitchSemesterModule() {
       try {
         await adminApi.runSwitchSemester(guildId, params.oldName, params.newName, true);
         setSsProgress(await adminApi.getSwitchSemesterProgress(guildId));
+        toast("Semester switch resumed.");
       } catch (e: unknown) {
-        setRunError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to resume.");
+        const msg = apiErrorMessage(e, "Failed to resume.");
+        setRunError(msg);
+        toast(msg, "error");
       } finally {
         setRunStarting(false);
       }
@@ -478,8 +478,11 @@ export function SwitchSemesterModule() {
     try {
       await adminApi.runSemesterSetup(guildId, params.semesterName, params.visible, params.clearRoles, true);
       setSetupProgress(await adminApi.getSemesterSetupProgress(guildId));
+      toast("Semester setup resumed.");
     } catch (e: unknown) {
-      setRunError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to resume.");
+      const msg = apiErrorMessage(e, "Failed to resume.");
+      setRunError(msg);
+      toast(msg, "error");
     } finally {
       setSetupStarting(false);
     }
@@ -548,13 +551,6 @@ export function SwitchSemesterModule() {
         {anyRunActive && (
           <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border text-emerald-300 bg-emerald-500/10 border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Running
-          </span>
-        )}
-        {notice && (
-          <span className={cn("ml-auto flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border",
-            notice.ok ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : "text-red-300 bg-red-500/10 border-red-500/20")}>
-            {notice.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-            {notice.msg}
           </span>
         )}
       </div>

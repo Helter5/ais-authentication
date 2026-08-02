@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { adminApi } from "@/lib/api";
+import { adminApi, apiErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Loader2, Terminal, Trash2, Users, XCircle, Settings, XSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSelectedGuildId, MultiPicker } from "@/components/modules/shared";
+import { useToast } from "@/components/ui/toast";
 
 type LogEntry = { time: string; msg: string; level: "info" | "warn" | "error" | "success" };
 type WipeStats = { total: number; processed: number; inactive: number; errors: number };
@@ -50,6 +51,7 @@ export function Wipe() {
   const [removeAllRoles, setRemoveAllRoles] = useState(false);
   const [keepRoleIds, setKeepRoleIds] = useState<string[]>([]);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
+  const { toast } = useToast();
   const [clearedStartedAt, setClearedStartedAt] = useState<string | null>(
     () => localStorage.getItem(`wipe_console_cleared_${guildId}`) ?? null
   );
@@ -136,9 +138,11 @@ export function Wipe() {
       // immediately poll
       const s = await adminApi.getWipeStatus(guildId);
       setState(s);
+      toast("Wipe started.");
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to start wipe.";
+      const msg = apiErrorMessage(e, "Failed to start wipe.");
       setError(msg);
+      toast(msg, "error");
     } finally {
       setStarting(false);
     }
