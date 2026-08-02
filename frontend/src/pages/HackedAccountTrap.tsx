@@ -100,7 +100,7 @@ export function HackedAccountTrapModule() {
       return;
     }
     if (enabled && !spamLogChannelId) {
-      toast("Set an Automod Log channel in Settings → Log Channels before enabling this module.", "error");
+      toast("Set a Log Channel for this module on the Modules page before enabling it.", "error");
       return;
     }
     setToggling(true);

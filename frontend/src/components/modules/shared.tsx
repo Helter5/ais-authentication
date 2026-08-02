@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Plus, Search, Trash2, X, ChevronDown as ChevDown } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Plus, Search, Trash2, X, ChevronDown as ChevDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { adminApi, apiErrorMessage } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
 
 // ─── Guild selection ──────────────────────────────────────────────────────────
 
@@ -403,5 +406,139 @@ export function RoleSelect({ roles, value, onChange }: {
         document.body
       )}
     </>
+  );
+}
+
+// ─── Log channel picker (self-saving, embedded in a command/module's own settings) ──
+
+/**
+ * Per-event-type Discord log channel picker, embedded directly in whichever command settings
+ * modal or module page owns those event types (instead of one big combined screen in Settings) -
+ * each row saves itself immediately on change via a partial PUT, so this never touches event
+ * types outside the given list.
+ */
+export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", onSaved, combined }: {
+  guildId: string;
+  eventTypes: string[];
+  title?: string;
+  /** Called after a channel is successfully saved - e.g. to re-check an access gate that depends on it. */
+  onSaved?: () => void;
+  /** One shared picker driving every event type in the list at once, instead of one row each. */
+  combined?: boolean;
+}) {
+  const [entries, setEntries] = useState<{ eventType: string; label: string; description: string; channelId: string | null }[]>([]);
+  const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const eventTypesKey = eventTypes.join(",");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([adminApi.getLogChannels(guildId), adminApi.getDiscordTextChannels(guildId)])
+      .then(([lc, c]) => {
+        if (cancelled) return;
+        const filtered = lc.eventTypes.filter(e => eventTypesKey.split(",").includes(e.eventType));
+        setEntries(filtered);
+        setChannels(c);
+
+        // Self-heal: if this is a combined picker and a new event type was added to the code
+        // after the channel was last saved, that one has no row yet even though its siblings do -
+        // backfill it to match instead of silently dropping logs for it until someone happens to
+        // re-open this picker and re-select a channel.
+        if (combined) {
+          const configured = filtered.filter(e => e.channelId !== null);
+          const target = configured[0]?.channelId ?? null;
+          const needsBackfill = target !== null && filtered.some(e => e.channelId !== target);
+          if (needsBackfill) {
+            adminApi.updateLogChannels(guildId, Object.fromEntries(filtered.map(e => [e.eventType, target])))
+              .then(() => { if (!cancelled) setEntries(prev => prev.map(e => ({ ...e, channelId: target }))); })
+              .catch(() => { /* best-effort - the picker still shows/lets you fix it manually */ });
+          }
+        }
+      })
+      .catch(() => { /* leave entries empty, section just shows nothing to pick */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [guildId, eventTypesKey, combined]);
+
+  const setChannel = async (eventType: string, channelId: string | null) => {
+    const previous = entries;
+    setEntries(prev => prev.map(e => e.eventType === eventType ? { ...e, channelId } : e));
+    try {
+      await adminApi.updateLogChannels(guildId, { [eventType]: channelId });
+      toast("Log channel saved.");
+      onSaved?.();
+    } catch (e: unknown) {
+      setEntries(previous);
+      toast(apiErrorMessage(e, "Failed to save log channel."), "error");
+    }
+  };
+
+  const setAllChannels = async (channelId: string | null) => {
+    const previous = entries;
+    setEntries(prev => prev.map(e => ({ ...e, channelId })));
+    try {
+      await adminApi.updateLogChannels(guildId, Object.fromEntries(eventTypes.map(et => [et, channelId])));
+      toast("Log channel saved.");
+      onSaved?.();
+    } catch (e: unknown) {
+      setEntries(previous);
+      toast(apiErrorMessage(e, "Failed to save log channel."), "error");
+    }
+  };
+
+  if (loading) {
+    return <p className="text-xs text-zinc-600 flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Loading log channels…</p>;
+  }
+
+  if (combined) {
+    return (
+      <div className="space-y-2">
+        {title && <p className="text-xs font-semibold text-zinc-400">{title}</p>}
+        <ChannelPicker channels={channels} value={entries[0]?.channelId ?? null} onChange={setAllChannels} placeholder="Not logged" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {title && <p className="text-xs font-semibold text-zinc-400">{title}</p>}
+      {entries.map(e => (
+        <div key={e.eventType} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-zinc-200">{e.label}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{e.description}</p>
+          </div>
+          <div className="w-48 flex-shrink-0">
+            <ChannelPicker channels={channels} value={e.channelId} onChange={id => setChannel(e.eventType, id)} placeholder="Not logged" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Small modal wrapping LogChannelPicker - the "Log Channel" button on a command/module card opens this. */
+export function LogChannelModal({ title, eventTypes, guildId, onClose, combined }: {
+  title: string;
+  eventTypes: string[];
+  guildId: string;
+  onClose: () => void;
+  combined?: boolean;
+}) {
+  return (
+    <ModalOverlay onClose={onClose} panelClassName="w-full max-w-lg overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-100">{title}</h2>
+        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X className="w-5 h-5" /></button>
+      </div>
+      <div className="px-6 py-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
+        <LogChannelPicker guildId={guildId} eventTypes={eventTypes} title="" combined={combined} />
+      </div>
+      <div className="px-6 py-4 border-t border-zinc-800">
+        <button onClick={onClose} className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Close</button>
+      </div>
+    </ModalOverlay>
   );
 }

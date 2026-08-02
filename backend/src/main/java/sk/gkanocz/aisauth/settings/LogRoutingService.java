@@ -24,15 +24,14 @@ public class LogRoutingService {
     }
 
     /**
-     * Applies the full desired guild<->channel mapping in one load-mutate-save, mirroring
-     * GuildSettingsService.updateFields: a caller saving several event-type assignments at once
-     * (the dashboard's log-channels form) shouldn't fire N concurrent single-assignment writes
-     * against this guild's rows and risk losing one to a racing partial update.
+     * Applies only the event types present in the given map, leaving every other event type's
+     * routing untouched - each owning command/module page (Warn, Ticket, Hacked Account Trap,
+     * Wipe, Semester Switch) saves its own small subset of event types independently, so this
+     * must not wipe out assignments some other page is responsible for.
      */
     @Transactional
-    public void replaceAll(String guildId, Map<LogEventType, String> assignments) {
-        for (LogEventType eventType : LogEventType.values()) {
-            String channelId = assignments.get(eventType);
+    public void upsert(String guildId, Map<LogEventType, String> assignments) {
+        assignments.forEach((eventType, channelId) -> {
             Optional<LogChannelSubscription> existing =
                     logChannelSubscriptionRepository.findByGuildIdAndEventType(guildId, eventType);
 
@@ -43,6 +42,6 @@ public class LogRoutingService {
             } else {
                 logChannelSubscriptionRepository.save(new LogChannelSubscription(guildId, channelId, eventType));
             }
-        }
+        });
     }
 }

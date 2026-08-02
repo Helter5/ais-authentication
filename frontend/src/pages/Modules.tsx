@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, SlidersHorizontal } from "lucide-react";
+import { AlertCircle, Bell, SlidersHorizontal } from "lucide-react";
 import { adminApi, apiErrorMessage, type HackedAccountTrapSettings } from "@/lib/api";
-import { useSelectedGuildId, Toggle } from "@/components/modules/shared";
+import { useSelectedGuildId, Toggle, LogChannelModal } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 
-function ModuleCard({ name, description, href, enabled, onToggle, toggling, loading, error }: {
+/** Modules that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
+const MODULE_LOG_EVENT_TYPES: Record<string, string[]> = {
+  "Hacked Account Trap": ["HACKED_ACCOUNT_TRAP_TRIGGERED"],
+};
+
+function ModuleCard({ name, description, href, enabled, onToggle, toggling, loading, error, guildId }: {
   name: string;
   description: string;
   href: string;
@@ -14,7 +19,11 @@ function ModuleCard({ name, description, href, enabled, onToggle, toggling, load
   toggling?: boolean;
   loading?: boolean;
   error?: string | null;
+  guildId: string | null;
 }) {
+  const [showLogModal, setShowLogModal] = useState(false);
+  const logEventTypes = MODULE_LOG_EVENT_TYPES[name];
+
   return (
     <div className="flex flex-col rounded-lg border border-zinc-700/60 bg-zinc-800/50 hover:border-zinc-600 transition-colors">
       <div className="flex items-start justify-between px-4 pt-4 pb-2">
@@ -32,14 +41,32 @@ function ModuleCard({ name, description, href, enabled, onToggle, toggling, load
           {error}
         </p>
       )}
-      <div className="px-4 pb-4 pt-3">
+      <div className="flex items-center gap-3 px-4 pb-4 pt-3">
         <Link
           to={href}
           className="flex items-center gap-1.5 text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-wider"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" /> Settings
         </Link>
+        {logEventTypes && (
+          <button
+            onClick={() => setShowLogModal(true)}
+            disabled={!guildId}
+            className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Bell className="w-3.5 h-3.5" /> Log Channel
+          </button>
+        )}
       </div>
+
+      {showLogModal && guildId && logEventTypes && (
+        <LogChannelModal
+          title={`Log Channel (${name})`}
+          eventTypes={logEventTypes}
+          guildId={guildId}
+          onClose={() => setShowLogModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -102,7 +129,7 @@ export function Modules() {
       return;
     }
     if (enabled && !spamLogChannelId) {
-      setTrapError("Set an Automod Log channel in Settings → Log Channels before enabling this module.");
+      setTrapError("Set a Log Channel below before enabling this module.");
       return;
     }
     setTrapToggling(true);
@@ -187,6 +214,7 @@ export function Modules() {
               toggling={trapToggling}
               loading={trapSettings === null}
               error={trapError}
+              guildId={guildId}
             />
             <ModuleCard
               name="Auto Delete"
@@ -197,6 +225,7 @@ export function Modules() {
               toggling={adToggling}
               loading={adEnabled === null}
               error={adError}
+              guildId={guildId}
             />
             <ModuleCard
               name="Role Menu"
@@ -207,6 +236,7 @@ export function Modules() {
               toggling={rmToggling}
               loading={rmEnabled === null}
               error={rmError}
+              guildId={guildId}
             />
             <ModuleCard
               name="Auto-Mentions"
@@ -217,6 +247,7 @@ export function Modules() {
               toggling={amToggling}
               loading={amEnabled === null}
               error={amError}
+              guildId={guildId}
             />
           </div>
         )}

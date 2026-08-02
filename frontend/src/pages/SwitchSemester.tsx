@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { adminApi, apiErrorMessage } from "@/lib/api";
 import { SemesterRunPanel } from "@/components/semester/SemesterRunPanel";
 import { ConfirmSwitchModal, ConfirmSetupModal, ModeInfoModal } from "@/components/semester/SemesterModals";
@@ -18,7 +17,7 @@ import {
   Eye, EyeOff, XCircle, Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSelectedGuildId } from "@/components/modules/shared";
+import { useSelectedGuildId, LogChannelPicker } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -100,7 +99,6 @@ export function SwitchSemesterModule() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [configs, setConfigs] = useState<SemesterConfig[]>([]);
-  const [logActions, setLogActions] = useState(false);
   const [allowedTransitions, setAllowedTransitions] = useState<AllowedTransition[]>([]);
   const [newTFrom, setNewTFrom] = useState("");
   const [newTTo, setNewTTo] = useState("");
@@ -155,6 +153,13 @@ export function SwitchSemesterModule() {
     isConsoleAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   };
 
+  const recheckAccess = () => {
+    if (!guildId) return;
+    adminApi.getSemesterAccess(guildId)
+      .then(r => { setAccess(r.allowed); setAccessReason(r.reason ?? null); })
+      .catch(() => setAccess(false));
+  };
+
   // Access check
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +168,6 @@ export function SwitchSemesterModule() {
     setCategories([]);
     setRoles([]);
     setConfigs([]);
-    setLogActions(false);
     setAllowedTransitions([]);
     setNewTFrom("");
     setNewTTo("");
@@ -229,7 +233,6 @@ export function SwitchSemesterModule() {
         everyoneViewChannel: config.everyoneViewChannel === true,
       }));
       setConfigs(normalizedConfigs);
-      setLogActions(s.logActions === true);
       setAllowedTransitions(s.allowedTransitions ?? []);
       if (normalizedConfigs.length > 0) {
         const first = normalizedConfigs[0];
@@ -273,22 +276,18 @@ export function SwitchSemesterModule() {
     };
   }, [guildId, access, ssProgress?.running, setupProgress?.running]);
 
-  const saveAll = async (updated: SemesterConfig[], newLogActions = logActions, newTransitions = allowedTransitions) => {
+  const saveAll = async (updated: SemesterConfig[], newTransitions = allowedTransitions) => {
     if (!guildId) return;
     setSaving(true);
     try {
-      await adminApi.saveSemesterConfigs(guildId, { configs: updated, logActions: newLogActions, allowedTransitions: newTransitions });
+      // Always logged to Access Logs - not user-configurable, so this is hardcoded rather than a draft toggle.
+      await adminApi.saveSemesterConfigs(guildId, { configs: updated, logActions: true, allowedTransitions: newTransitions });
       toast("Saved.");
     } catch {
       toast("Failed to save.", "error");
     } finally {
       setSaving(false);
     }
-  };
-
-  const toggleLogActions = async (val: boolean) => {
-    setLogActions(val);
-    await saveAll(configs, val);
   };
 
   const addTransition = async () => {
@@ -298,13 +297,13 @@ export function SwitchSemesterModule() {
     const next = [...allowedTransitions, { from: newTFrom, to: newTTo }];
     setAllowedTransitions(next);
     setNewTFrom(""); setNewTTo("");
-    await saveAll(configs, logActions, next);
+    await saveAll(configs, next);
   };
 
   const removeTransition = async (i: number) => {
     const next = allowedTransitions.filter((_, idx) => idx !== i);
     setAllowedTransitions(next);
-    await saveAll(configs, logActions, next);
+    await saveAll(configs, next);
   };
 
   const newCfg = () => {
@@ -531,13 +530,18 @@ export function SwitchSemesterModule() {
             {isNoChannel ? (
               <>
                 <p className="font-semibold">Semester log channel not configured.</p>
-                <p className="text-amber-400/80 text-xs">A log channel is required before running a semester switch. <Link to="/settings" className="underline hover:text-amber-200">Go to Settings → Recap Logs</Link> to set it up.</p>
+                <p className="text-amber-400/80 text-xs">A log channel is required before running a semester switch - set one under Log Channels below.</p>
               </>
             ) : (
               <p>Access denied. Admin or manager role required.</p>
             )}
           </div>
         </div>
+        {isNoChannel && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <LogChannelPicker guildId={guildId} eventTypes={["SEMESTER_RECAP"]} title="Log Channels" onSaved={recheckAccess} />
+          </div>
+        )}
       </div>
     );
   }
@@ -564,6 +568,9 @@ export function SwitchSemesterModule() {
 
           {/* ── Left: config list ── */}
           <div className="w-52 flex-shrink-0 border-r border-zinc-800 flex flex-col">
+            <div className="p-3 border-b border-zinc-800">
+              <LogChannelPicker guildId={guildId} eventTypes={["SEMESTER_RECAP"]} title="Log Channel" combined />
+            </div>
             <div className="p-3 border-b border-zinc-800">
               <button onClick={newCfg}
                 className={cn("w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border transition-all",
@@ -602,19 +609,6 @@ export function SwitchSemesterModule() {
                   )}
                 </div>
               ))}
-            </div>
-            <div className="p-3 border-t border-zinc-800">
-              <label className="flex items-center gap-2.5 cursor-pointer group">
-                <div onClick={() => toggleLogActions(!logActions)}
-                  className={cn("w-8 h-4 rounded-full transition-colors flex-shrink-0 relative cursor-pointer",
-                    logActions ? "bg-indigo-600" : "bg-zinc-700")}>
-                  <div className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform",
-                    logActions ? "translate-x-4" : "translate-x-0.5")} />
-                </div>
-                <span className="text-[11px] text-zinc-500 group-hover:text-zinc-400 transition-colors leading-tight">
-                  Log to Access Logs
-                </span>
-              </label>
             </div>
           </div>
 

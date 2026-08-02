@@ -61,7 +61,7 @@ public class LogChannelsController {
             assignments.put(eventType, channelId);
         });
 
-        logRoutingService.replaceAll(request.guildId(), assignments);
+        logRoutingService.upsert(request.guildId(), assignments);
         dashboardAuditLogger.log(claims, guild, "Updated log channel routing", Map.of("assignments", request.assignments()));
         return Map.of("success", true);
     }

@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Loader2, Terminal, Trash2, Users, XCircle, Settings, XSquare } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useSelectedGuildId, MultiPicker } from "@/components/modules/shared";
+import { useSelectedGuildId, MultiPicker, LogChannelPicker } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 
 type LogEntry = { time: string; msg: string; level: "info" | "warn" | "error" | "success" };
@@ -64,6 +63,13 @@ export function Wipe() {
     const el = logContainerRef.current;
     if (!el) return;
     isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  };
+
+  const recheckAccess = () => {
+    if (!guildId) return;
+    adminApi.getWipeAccess(guildId)
+      .then(r => { setAccess(r.allowed); setAccessReason(r.reason ?? null); })
+      .catch(() => setAccess(false));
   };
 
   // Check access
@@ -180,13 +186,24 @@ export function Wipe() {
             {isNoChannel ? (
               <>
                 <p className="font-semibold">Wipe log channel not configured.</p>
-                <p className="text-amber-400/80 text-xs">A log channel is required before running a wipe. <Link to="/settings" className="underline hover:text-amber-200">Go to Settings → Recap Logs</Link> to set it up.</p>
+                <p className="text-amber-400/80 text-xs">A log channel is required before running a wipe - set one under Log Channels below.</p>
               </>
             ) : (
               <p>Access denied. You need to be an admin or have a manager role.</p>
             )}
           </div>
         </div>
+        {isNoChannel && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <LogChannelPicker
+              guildId={guildId}
+              eventTypes={["WIPE_INACTIVE_USER_REMOVED", "WIPE_RECAP"]}
+              title="Log Channel"
+              onSaved={recheckAccess}
+              combined
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -212,6 +229,11 @@ export function Wipe() {
               <p>Every verified user is checked against LDAP. Those no longer active FEI students get the <strong>Inactive</strong> role and are removed from the database.</p>
               <p>This cannot be undone.</p>
             </div>
+          </div>
+
+          {/* Log Channels */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <LogChannelPicker guildId={guildId} eventTypes={["WIPE_INACTIVE_USER_REMOVED", "WIPE_RECAP"]} title="Log Channel" combined />
           </div>
 
           {/* Stats */}

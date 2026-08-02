@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage } from "@/lib/api";
 import {
-  Loader2, CheckCircle2, AlertCircle, Search, X, Plus,
-  ChevronDown, Shield, Bell, AlertTriangle,
-  Hash, UserCheck, UserMinus, Clock, Users, Save,
+  Loader2, CheckCircle2, AlertCircle, Search, X,
+  ChevronDown, Shield, UserCheck, UserMinus, Users, Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NumberStepper } from "@/components/ui/number-stepper";
 import { Toggle, useSelectedGuildId } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type DiscordRole    = { id: string; name: string; color: string; position: number };
-type DiscordChannel = { id: string; name: string; position: number };
+type DiscordRole = { id: string; name: string; color: string; position: number };
 
 // ─── Searchable picker ────────────────────────────────────────────────────────
 
@@ -281,154 +278,10 @@ function ManagerRolesSection({ roles, selected, onChange }: {
       <div className="space-y-3">
         <p className="rounded border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs leading-relaxed text-indigo-200">
           Managers can sign in and access Dashboard, Codes, Users Directory, Semester, and Logs.
-          They cannot access the Super Admin area: Admin, Settings, Modules, Commands, Wipe, or Docker Logs.
+          They cannot access the Super Admin area: Admin, Settings, Modules, Commands, or Wipe.
         </p>
         <ManagerRolePicker roles={roles} value={selected} onChange={onChange} />
       </div>
-    </Section>
-  );
-}
-
-type LogChannelEntry = Awaited<ReturnType<typeof adminApi.getLogChannels>>["eventTypes"][number];
-
-function LogChannelsSection({ channels, entries, assignments, setAssignments, channelSlots, setChannelSlots }: {
-  channels: DiscordChannel[];
-  entries: LogChannelEntry[];
-  assignments: Record<string, string | null>;
-  setAssignments: React.Dispatch<React.SetStateAction<Record<string, string | null>>>;
-  channelSlots: string[];
-  setChannelSlots: React.Dispatch<React.SetStateAction<string[]>>;
-}) {
-  const [newChannel, setNewChannel] = useState<string | null>(null);
-
-  const channelOptions = channels.map(c => ({ id: c.id, name: `#${c.name}` }));
-  const channelName = (id: string) => channelOptions.find(c => c.id === id)?.name ?? `#${id}`;
-
-  const reassign = (fromChannelId: string | null, toChannelId: string | null) => {
-    setAssignments(a => {
-      const next = { ...a };
-      Object.keys(next).forEach(key => { if (next[key] === fromChannelId) next[key] = toChannelId; });
-      return next;
-    });
-  };
-
-  const addChannelSlot = () => {
-    if (!newChannel || channelSlots.includes(newChannel)) return;
-    setChannelSlots(s => [...s, newChannel]);
-    setNewChannel(null);
-  };
-
-  const removeChannelSlot = (channelId: string) => {
-    setChannelSlots(s => s.filter(id => id !== channelId));
-    reassign(channelId, null);
-  };
-
-  const changeSlotChannel = (oldChannelId: string, newChannelId: string | null) => {
-    if (!newChannelId || newChannelId === oldChannelId || channelSlots.includes(newChannelId)) return;
-    setChannelSlots(s => s.map(id => id === oldChannelId ? newChannelId : id));
-    reassign(oldChannelId, newChannelId);
-  };
-
-  const toggleEvent = (eventType: string, channelId: string) => {
-    setAssignments(a => ({ ...a, [eventType]: a[eventType] === channelId ? null : channelId }));
-  };
-
-  const unassigned = entries.filter(e => !assignments[e.eventType]);
-
-  return (
-    <Section icon={Bell} title="Log Channels" description="Pick a channel, then choose which events log to it.">
-      <div className="space-y-4">
-        {entries.filter(e => e.configured && !e.ok && assignments[e.eventType] === e.channelId).map(e => (
-          <div key={e.eventType} className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-            <span><strong>{e.label}:</strong> {e.error}</span>
-          </div>
-        ))}
-
-        {channelSlots.length === 0 && (
-          <p className="text-xs text-zinc-600">No log channels configured yet.</p>
-        )}
-
-        {channelSlots.map(channelId => (
-          <div key={channelId} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Hash className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-              <div className="flex-1">
-                <Picker
-                  options={channelOptions.filter(c => c.id === channelId || !channelSlots.includes(c.id))}
-                  value={channelId}
-                  onChange={id => id && changeSlotChannel(channelId, id)}
-                  placeholder="Select channel…" />
-              </div>
-              <button onClick={() => removeChannelSlot(channelId)} className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="space-y-1 pl-1">
-              {entries.map(e => (
-                <div key={e.eventType} className="flex items-start gap-2 py-1">
-                  <button type="button" onClick={() => toggleEvent(e.eventType, channelId)}
-                    className={cn("mt-0.5 flex h-4 w-4 items-center justify-center rounded border flex-shrink-0",
-                      assignments[e.eventType] === channelId ? "border-indigo-500 bg-indigo-600" : "border-zinc-600")}>
-                    {assignments[e.eventType] === channelId && <CheckCircle2 className="h-3 w-3 text-white" />}
-                  </button>
-                  <span className="text-xs leading-snug">
-                    <span className="font-semibold text-zinc-200">{e.label}</span>
-                    <span className="text-zinc-500"> — {e.description}</span>
-                    {assignments[e.eventType] && assignments[e.eventType] !== channelId && (
-                      <span className="text-zinc-600"> (currently {channelName(assignments[e.eventType]!)})</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {unassigned.length > 0 && (
-          <p className="text-[11px] text-zinc-600">Not logged anywhere: {unassigned.map(e => e.label).join(", ")}</p>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end pt-1">
-          <div>
-            <p className="text-[11px] text-zinc-600 mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Add channel</p>
-            <Picker
-              options={channelOptions.filter(c => !channelSlots.includes(c.id))}
-              value={newChannel} onChange={setNewChannel} placeholder="Pick channel…" />
-          </div>
-          <button onClick={addChannelSlot} disabled={!newChannel}
-            className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-            <Plus className="w-3.5 h-3.5" /> Add
-          </button>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-// ─── Ticket retention section ──────────────────────────────────────────────────
-
-function TicketRetentionSection({ enabled, onEnabledChange, days, onDaysChange }: {
-  enabled: boolean;
-  onEnabledChange: (v: boolean) => void;
-  days: number;
-  onDaysChange: (v: number) => void;
-}) {
-  return (
-    <Section icon={Clock} title="Ticket Transcripts" description="Automatically clear saved ticket transcript content once it's old enough.">
-      <FieldRow label="Auto-delete transcripts" hint="Clears transcript content for tickets closed longer ago than the retention period" icon={Clock}>
-        <div className="flex items-center gap-3 pt-1.5">
-          <Toggle enabled={enabled} onChange={onEnabledChange} />
-        </div>
-      </FieldRow>
-      {enabled && (
-        <FieldRow label="Retention period" hint="Days to keep a transcript after the ticket is closed" icon={Clock}>
-          <div className="flex items-center gap-2">
-            <NumberStepper value={days} onChange={onDaysChange} min={1} max={365} className="w-32" ariaLabel="Ticket transcript retention in days" />
-            <span className="text-xs text-zinc-500">days</span>
-          </div>
-        </FieldRow>
-      )}
     </Section>
   );
 }
@@ -440,7 +293,6 @@ export function Settings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roles, setRoles] = useState<DiscordRole[]>([]);
-  const [channels, setChannels] = useState<DiscordChannel[]>([]);
 
   // Draft state for every "simple setting" section - nothing here saves until the single
   // "Save Settings" button below is clicked (Warn Thresholds / Auto-Mentions are exempt: adding or
@@ -449,13 +301,8 @@ export function Settings() {
   const [verifiedRole, setVerifiedRole] = useState<string | null>(null);
   const [inactiveRole, setInactiveRole] = useState<string | null>(null);
   const [verifEnabled, setVerifEnabled] = useState(false);
-  const [ticketRetentionEnabled, setTicketRetentionEnabled] = useState(false);
-  const [ticketRetentionDays, setTicketRetentionDays] = useState(90);
   const [managerRoles, setManagerRoles] = useState<ManagerRole[]>([]);
   const [managerRoleIds, setManagerRoleIds] = useState<string[]>([]);
-  const [logChannelEntries, setLogChannelEntries] = useState<LogChannelEntry[]>([]);
-  const [logChannelAssignments, setLogChannelAssignments] = useState<Record<string, string | null>>({});
-  const [logChannelSlots, setLogChannelSlots] = useState<string[]>([]);
 
   const { save, indicator } = useSave();
 
@@ -464,7 +311,6 @@ export function Settings() {
     setLoading(true);
     setError(null);
     setRoles([]);
-    setChannels([]);
     if (!guildId) {
       setError("No server selected. Go back and pick one.");
       setLoading(false);
@@ -473,30 +319,16 @@ export function Settings() {
     Promise.all([
       adminApi.getSettings(guildId),
       adminApi.getDiscordRoles(guildId),
-      adminApi.getDiscordTextChannels(guildId),
       adminApi.getManagerRoles(guildId),
-      adminApi.getLogChannels(guildId),
     ])
-      .then(([s, r, c, mr, lc]) => {
+      .then(([s, r, mr]) => {
         if (cancelled) return;
         setRoles(r);
-        setChannels(c);
         setVerifiedRole(s.verified_role_id);
         setInactiveRole(s.inactive_role_id);
         setVerifEnabled(s.verification_enabled);
-        setTicketRetentionEnabled(s.ticket_retention_enabled);
-        setTicketRetentionDays(s.ticket_retention_days);
         setManagerRoles(mr.roles);
         setManagerRoleIds(mr.managerRoleIds);
-        const initialAssignments: Record<string, string | null> = {};
-        const initialSlots: string[] = [];
-        lc.eventTypes.forEach(e => {
-          initialAssignments[e.eventType] = e.channelId;
-          if (e.channelId && !initialSlots.includes(e.channelId)) initialSlots.push(e.channelId);
-        });
-        setLogChannelEntries(lc.eventTypes);
-        setLogChannelAssignments(initialAssignments);
-        setLogChannelSlots(initialSlots);
       })
       .catch(e => {
         if (!cancelled) setError(apiErrorMessage(e, e?.message ?? "Failed to load"));
@@ -514,11 +346,8 @@ export function Settings() {
         verified_role_id: verifiedRole,
         inactive_role_id: inactiveRole,
         verification_enabled: verifEnabled,
-        ticket_retention_enabled: ticketRetentionEnabled,
-        ticket_retention_days: ticketRetentionDays,
       }),
       adminApi.updateManagerRoles(guildId, managerRoleIds),
-      adminApi.updateLogChannels(guildId, logChannelAssignments),
     ]), "Settings saved.");
   };
 
@@ -554,16 +383,6 @@ export function Settings() {
             {/* Right column */}
             <div className="flex flex-col gap-4">
               <ManagerRolesSection roles={managerRoles} selected={managerRoleIds} onChange={setManagerRoleIds} />
-              <LogChannelsSection
-                channels={channels}
-                entries={logChannelEntries}
-                assignments={logChannelAssignments} setAssignments={setLogChannelAssignments}
-                channelSlots={logChannelSlots} setChannelSlots={setLogChannelSlots}
-              />
-              <TicketRetentionSection
-                enabled={ticketRetentionEnabled} onEnabledChange={setTicketRetentionEnabled}
-                days={ticketRetentionDays} onDaysChange={setTicketRetentionDays}
-              />
             </div>
           </div>
         )}
