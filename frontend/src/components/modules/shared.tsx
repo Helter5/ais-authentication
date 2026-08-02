@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { AlertCircle, ArrowLeft, CheckCircle2, Search, X, ChevronDown as ChevDown } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Plus, Search, Trash2, X, ChevronDown as ChevDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Guild selection ──────────────────────────────────────────────────────────
@@ -41,32 +41,110 @@ export function Toggle({ enabled, onChange, disabled }: { enabled: boolean; onCh
   );
 }
 
-// ─── Module page shell ────────────────────────────────────────────────────────
+// ─── Module page header ───────────────────────────────────────────────────────
 
-export function ModuleShell({ title, children, guildId, action }: {
-  title: string;
-  children: React.ReactNode;
-  guildId: string;
-  action?: React.ReactNode;
+/** Breadcrumb + optional enabled/disabled toggle, shared by every /modules/* page. */
+export function ModulePageHeader({ moduleName, guildId, loading, enabled, onToggleEnabled, toggling }: {
+  moduleName: string;
+  guildId?: string;
+  loading?: boolean;
+  enabled?: boolean;
+  onToggleEnabled?: (v: boolean) => void;
+  toggling?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0 md:pl-64 min-h-screen">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 px-4 pb-4 pt-5 sm:px-6">
-        <div className="flex items-center gap-2 text-sm">
-          <Link to="/modules" className="text-rose-400 hover:text-rose-300 font-semibold transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Modules
-          </Link>
-          <span className="text-zinc-600">/</span>
-          <span className="text-zinc-200 font-semibold">{title}</span>
-        </div>
-        {action}
+    <div className="flex items-center justify-between border-b border-zinc-800 px-4 sm:px-6 py-4">
+      <div className="flex items-center gap-2 text-sm">
+        <Link to="/modules" className="text-rose-400 hover:text-rose-300 font-semibold transition-colors flex items-center gap-1">
+          <ArrowLeft className="w-3.5 h-3.5" /> Modules
+        </Link>
+        <span className="text-zinc-600">/</span>
+        <span className="text-zinc-200 font-semibold">{moduleName}</span>
       </div>
-      <div className="px-4 sm:px-6 py-6 max-w-3xl w-full">
-        {!guildId ? (
-          <div className="flex items-center gap-2 text-zinc-500 text-sm p-4 bg-zinc-800/40 border border-zinc-700 rounded-lg">
-            <AlertCircle className="w-4 h-4" /> No server selected. <Link to="/select-server" className="text-indigo-400 hover:text-indigo-300 underline ml-1">Pick one</Link>.
-          </div>
-        ) : children}
+      {guildId && !loading && onToggleEnabled && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500">{enabled ? "Enabled" : "Disabled"}</span>
+          <Toggle enabled={!!enabled} onChange={onToggleEnabled} disabled={toggling} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Right-panel placeholder shown before a config in a ConfigSidebar list is selected. */
+export function EmptyConfigSelection({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center text-zinc-600">
+      <div className="text-center space-y-2">
+        {icon}
+        <p className="text-sm">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Left sidebar for list-based modules (Auto Delete, Role Menu, Auto-Mentions): a "+ New" button
+ * plus the list of existing configs, each with a click-to-select row and a hover-to-reveal
+ * delete button with an inline Yes/No confirm - shared so each module doesn't reimplement it.
+ */
+export function ConfigSidebar<T, K extends string | number = string | number>({
+  items, getKey, selectedKey, onSelect, onNew, newLabel, emptyLabel, renderTitle, renderSubtitle,
+  deleteKey, onRequestDelete, onDelete,
+}: {
+  items: T[];
+  getKey: (item: T) => K;
+  selectedKey: K | "new" | null;
+  onSelect: (item: T) => void;
+  onNew: () => void;
+  newLabel: string;
+  emptyLabel: string;
+  renderTitle: (item: T) => ReactNode;
+  renderSubtitle: (item: T) => ReactNode;
+  deleteKey: K | null;
+  onRequestDelete: (key: K | null) => void;
+  onDelete: (item: T) => void;
+}) {
+  return (
+    <div className="w-64 flex-shrink-0 border-r border-zinc-800 flex flex-col">
+      <div className="p-3 border-b border-zinc-800">
+        <button type="button" onClick={onNew}
+          className={cn("w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border transition-all",
+            selectedKey === "new"
+              ? "border-rose-500/60 text-rose-400 bg-rose-500/10"
+              : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200")}>
+          <Plus className="w-3.5 h-3.5" /> {newLabel}
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+        {items.length === 0 && (
+          <p className="text-xs text-zinc-600 text-center py-4">{emptyLabel}</p>
+        )}
+        {items.map(item => {
+          const key = getKey(item);
+          return (
+            <div key={key}
+              className={cn("group flex items-center gap-2 px-3 py-2.5 rounded cursor-pointer transition-all",
+                selectedKey === key ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200")}
+              onClick={() => onSelect(item)}>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold truncate flex items-center gap-1">{renderTitle(item)}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1">{renderSubtitle(item)}</p>
+              </div>
+              {deleteKey === key ? (
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  <button type="button" onClick={() => onDelete(item)} className="text-red-400 hover:text-red-300 text-[10px] font-bold">Yes</button>
+                  <button type="button" onClick={() => onRequestDelete(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold">No</button>
+                </div>
+              ) : (
+                <button type="button" onClick={e => { e.stopPropagation(); onRequestDelete(key); }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-red-400">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

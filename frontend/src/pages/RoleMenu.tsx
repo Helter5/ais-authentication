@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
 import EmojiPicker, { Theme as EmojiTheme } from "emoji-picker-react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
-  ArrowLeft, Plus, X, Loader2, CheckCircle2, AlertCircle, Trash2, Hash, ListChecks, Send, RefreshCw,
+  Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw,
   Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import {
   useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, RoleSelect, computeDropPosition,
+  ModulePageHeader, ConfigSidebar, EmptyConfigSelection,
 } from "@/components/modules/shared";
 
 type Draft = Omit<RoleMenuConfig, "id" | "guild_id" | "message_id">;
@@ -25,6 +26,7 @@ const DEFAULT_DRAFT: Draft = {
   options: [],
   allowed_role_ids: [],
   blocked_role_ids: [],
+  max_selectable: null,
 };
 
 function emptyOption(): RoleMenuOption {
@@ -175,6 +177,7 @@ export function RoleMenuModule() {
       options: cfg.options,
       allowed_role_ids: cfg.allowed_role_ids,
       blocked_role_ids: cfg.blocked_role_ids,
+      max_selectable: cfg.max_selectable,
     });
   };
 
@@ -245,21 +248,7 @@ export function RoleMenuModule() {
 
   return (
     <div className="flex flex-col md:pl-64 min-h-screen">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Link to="/modules" className="text-rose-400 hover:text-rose-300 font-semibold transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Modules
-          </Link>
-          <span className="text-zinc-600">/</span>
-          <span className="text-zinc-200 font-semibold">Role Menu</span>
-        </div>
-        {guildId && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">{enabled ? "Enabled" : "Disabled"}</span>
-            <Toggle enabled={enabled} onChange={toggleEnabled} disabled={toggling} />
-          </div>
-        )}
-      </div>
+      <ModulePageHeader moduleName="Role Menu" guildId={guildId} loading={loading} enabled={enabled} onToggleEnabled={toggleEnabled} toggling={toggling} />
 
       {!guildId ? (
         <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
@@ -271,57 +260,29 @@ export function RoleMenuModule() {
         </div>
       ) : (
         <div className="flex flex-1 min-h-0">
-          {/* ── Left sidebar ── */}
-          <div className="w-64 flex-shrink-0 border-r border-zinc-800 flex flex-col">
-            <div className="p-3 border-b border-zinc-800">
-              <button type="button" onClick={newCfg}
-                className={cn("w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border transition-all",
-                  selectedId === "new"
-                    ? "border-rose-500/60 text-rose-400 bg-rose-500/10"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200")}>
-                <Plus className="w-3.5 h-3.5" /> New Menu
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
-              {configs.length === 0 && (
-                <p className="text-xs text-zinc-600 text-center py-4">No role menus configured</p>
-              )}
-              {configs.map(cfg => (
-                <div key={cfg.id}
-                  className={cn("group flex items-center gap-2 px-3 py-2.5 rounded cursor-pointer transition-all",
-                    selectedId === cfg.id ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200")}
-                  onClick={() => selectCfg(cfg)}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">{cfg.title || "Untitled menu"}</p>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1">
-                      <Hash className="w-2.5 h-2.5" />{channels.find(c => c.id === cfg.channel_id)?.name ?? cfg.channel_id}
-                      <span className="text-zinc-600">·</span>{cfg.options.length} role{cfg.options.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  {deleteId === cfg.id ? (
-                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <button type="button" onClick={() => deleteCfg(cfg.id)} className="text-red-400 hover:text-red-300 text-[10px] font-bold">Yes</button>
-                      <button type="button" onClick={() => setDeleteId(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold">No</button>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={e => { e.stopPropagation(); setDeleteId(cfg.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-red-400">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <ConfigSidebar
+            items={configs}
+            getKey={cfg => cfg.id}
+            selectedKey={selectedId}
+            onSelect={selectCfg}
+            onNew={newCfg}
+            newLabel="New Menu"
+            emptyLabel="No role menus configured"
+            renderTitle={cfg => cfg.title || "Untitled menu"}
+            renderSubtitle={cfg => (
+              <>
+                <Hash className="w-2.5 h-2.5" />{channels.find(c => c.id === cfg.channel_id)?.name ?? cfg.channel_id}
+                <span className="text-zinc-600">·</span>{cfg.options.length} role{cfg.options.length === 1 ? "" : "s"}
+              </>
+            )}
+            deleteKey={deleteId}
+            onRequestDelete={setDeleteId}
+            onDelete={cfg => deleteCfg(cfg.id)}
+          />
 
           {/* ── Right editor ── */}
           {selectedId === null ? (
-            <div className="flex-1 flex items-center justify-center text-zinc-600">
-              <div className="text-center space-y-2">
-                <ListChecks className="w-10 h-10 mx-auto opacity-30" />
-                <p className="text-sm">Select a role menu or create a new one</p>
-              </div>
-            </div>
+            <EmptyConfigSelection icon={<ListChecks className="w-10 h-10 mx-auto opacity-30" />} label="Select a role menu or create a new one" />
           ) : (
             <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-5 max-w-2xl">
 
@@ -388,10 +349,33 @@ export function RoleMenuModule() {
                         : "Members can hold several roles from this menu at once."}
                     </p>
                   </div>
+                  {draft.selection_mode === "MULTI" && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">Limit selectable roles</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          Cap how many of this menu's roles a member can hold at once, regardless of how many are configured
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Toggle enabled={draft.max_selectable !== null} onChange={v => upd("max_selectable", v ? 1 : null)} />
+                        {draft.max_selectable !== null && (
+                          <NumberStepper
+                            value={draft.max_selectable}
+                            onChange={v => upd("max_selectable", v)}
+                            min={1}
+                            max={Math.max(1, draft.options.length)}
+                            className="h-9 w-32"
+                            ariaLabel="Max selectable roles"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-zinc-200">Require verified</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Only members with the Verified role can use this menu</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Only members who hold the Verified role and are in the Users Directory can use this menu</p>
                     </div>
                     <Toggle enabled={draft.require_verified} onChange={v => upd("require_verified", v)} />
                   </div>

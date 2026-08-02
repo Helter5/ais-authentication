@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { adminApi, apiErrorMessage, type AutoDeleteConfig } from "@/lib/api";
 import {
-  ArrowLeft, Plus, X, Loader2, CheckCircle2, AlertCircle, Search, Trash2, ChevronDown, Hash, AtSign, Timer,
+  X, Loader2, CheckCircle2, AlertCircle, Search, ChevronDown, Hash, AtSign, Timer,
   ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { useSelectedGuildId } from "@/components/modules/shared";
+import { useSelectedGuildId, ModulePageHeader, ConfigSidebar, EmptyConfigSelection } from "@/components/modules/shared";
 
 const DEFAULT_NOTIFY_MSG = "Your message in {channel} was automatically deleted.";
 
@@ -284,15 +283,7 @@ export function AutoDeleteModule() {
 
   return (
     <div className="flex flex-col md:pl-64 min-h-screen">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Link to="/modules" className="text-rose-400 hover:text-rose-300 font-semibold transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Modules
-          </Link>
-          <span className="text-zinc-600">/</span>
-          <span className="text-zinc-200 font-semibold">Auto Delete</span>
-        </div>
-      </div>
+      <ModulePageHeader moduleName="Auto Delete" guildId={guildId} loading={loading} />
 
       {!guildId ? (
         <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
@@ -304,56 +295,24 @@ export function AutoDeleteModule() {
         </div>
       ) : (
         <div className="flex flex-1 min-h-0">
-          {/* ── Left sidebar ── */}
-          <div className="w-64 flex-shrink-0 border-r border-zinc-800 flex flex-col">
-            <div className="p-3 border-b border-zinc-800">
-              <button type="button" onClick={newCfg}
-                className={cn("w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border transition-all",
-                  selectedId === "new"
-                    ? "border-rose-500/60 text-rose-400 bg-rose-500/10"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200")}>
-                <Plus className="w-3.5 h-3.5" /> New Channel
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
-              {configs.length === 0 && (
-                <p className="text-xs text-zinc-600 text-center py-4">No channels configured</p>
-              )}
-              {configs.map(cfg => (
-                <div key={cfg.id}
-                  className={cn("group flex items-center gap-2 px-3 py-2.5 rounded cursor-pointer transition-all",
-                    selectedId === cfg.id ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200")}
-                  onClick={() => selectCfg(cfg)}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate flex items-center gap-1">
-                      <Hash className="w-3 h-3 flex-shrink-0" />{channelName(cfg.channel_id)}
-                    </p>
-                    <p className="text-[10px] text-zinc-500 mt-0.5">{formatDelay(cfg.delay_seconds)}</p>
-                  </div>
-                  {deleteId === cfg.id ? (
-                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <button type="button" onClick={() => deleteCfg(cfg.id)} className="text-red-400 hover:text-red-300 text-[10px] font-bold">Yes</button>
-                      <button type="button" onClick={() => setDeleteId(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold">No</button>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={e => { e.stopPropagation(); setDeleteId(cfg.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-red-400">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <ConfigSidebar
+            items={configs}
+            getKey={cfg => cfg.id}
+            selectedKey={selectedId}
+            onSelect={selectCfg}
+            onNew={newCfg}
+            newLabel="New Channel"
+            emptyLabel="No channels configured"
+            renderTitle={cfg => (<><Hash className="w-3 h-3 flex-shrink-0" />{channelName(cfg.channel_id)}</>)}
+            renderSubtitle={cfg => formatDelay(cfg.delay_seconds)}
+            deleteKey={deleteId}
+            onRequestDelete={setDeleteId}
+            onDelete={cfg => deleteCfg(cfg.id)}
+          />
 
           {/* ── Right editor ── */}
           {selectedId === null ? (
-            <div className="flex-1 flex items-center justify-center text-zinc-600">
-              <div className="text-center space-y-2">
-                <Timer className="w-10 h-10 mx-auto opacity-30" />
-                <p className="text-sm">Select a channel config or create a new one</p>
-              </div>
-            </div>
+            <EmptyConfigSelection icon={<Timer className="w-10 h-10 mx-auto opacity-30" />} label="Select a channel config or create a new one" />
           ) : (
             <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-5 max-w-2xl">
 

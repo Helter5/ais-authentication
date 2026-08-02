@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, Bell, Trash2, MessageSquare, Radio } from "lucide-react";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { adminApi, apiErrorMessage, type HackedAccountTrapSettings } from "@/lib/api";
-import { useSelectedGuildId, ModuleShell, Toggle, CmdSettingsRow, MultiPicker, ChannelPicker } from "@/components/modules/shared";
+import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker, ChannelPicker, ModulePageHeader } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 
 const DEFAULT_TRAP_SETTINGS: HackedAccountTrapSettings = {
@@ -40,14 +39,8 @@ export function HackedAccountTrapModule() {
   const [loading, setLoading] = useState(Boolean(guildId));
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => () => {
-    if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +50,6 @@ export function HackedAccountTrapModule() {
     setChannels([]);
     setCategories([]);
     setRoles([]);
-    setSaved(false);
     if (!guildId) return () => { cancelled = true; };
     Promise.all([
       adminApi.getHackedAccountTrap(guildId),
@@ -94,10 +86,7 @@ export function HackedAccountTrapModule() {
     try {
       const next = await adminApi.saveHackedAccountTrap(guildId, settings);
       setSettings(next);
-      setSaved(true);
       toast("Module settings saved.");
-      if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch (err: unknown) {
       toast(apiErrorMessage(err, "Failed to save module settings."), "error");
     } finally {
@@ -105,8 +94,7 @@ export function HackedAccountTrapModule() {
     }
   };
 
-  const toggleModule = async () => {
-    const enabled = !settings.enabled;
+  const toggleModule = async (enabled: boolean) => {
     if (enabled && !settings.trapChannelId) {
       toast("Choose a trap channel before enabling the module.", "error");
       return;
@@ -130,77 +118,78 @@ export function HackedAccountTrapModule() {
   };
 
   return (
-    <ModuleShell
-      title="Hacked Account Trap"
-      guildId={guildId}
-      action={guildId && !loading ? (
-        <button
-          type="button"
-          onClick={toggleModule}
-          disabled={toggling}
-          className="flex items-center gap-3 text-sm font-semibold text-zinc-200 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
-        >
-          <span className={cn(
-            "relative h-7 w-12 rounded-full border transition-colors",
-            settings.enabled
-              ? "border-emerald-400/40 bg-zinc-800"
-              : "border-zinc-700 bg-zinc-800",
-          )}>
-            <span className={cn(
-              "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
-              settings.enabled
-                ? "left-6 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.45)]"
-                : "left-0.5 bg-zinc-500",
-            )}>
-              {toggling && <Loader2 className="h-3 w-3 animate-spin text-zinc-900" />}
-            </span>
-          </span>
-          {settings.enabled ? "Disable Module" : "Enable Module"}
-        </button>
-      ) : undefined}
-    >
-      {loading ? (
-        <div className="flex items-center gap-2 py-8 text-sm text-zinc-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading settings...
+    <div className="flex flex-col md:pl-64 min-h-screen">
+      <ModulePageHeader moduleName="Hacked Account Trap" guildId={guildId} loading={loading}
+        enabled={settings.enabled} onToggleEnabled={toggleModule} toggling={toggling} />
+
+      {!guildId ? (
+        <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
+          <AlertCircle className="w-4 h-4" /> No server selected.
+        </div>
+      ) : loading ? (
+        <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
       ) : (
-        <div className="space-y-5">
-          <div className="space-y-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5">
-            <div className="space-y-1.5">
-              <p className="text-sm font-semibold text-zinc-200">Trap channel</p>
-              <p className="text-xs text-zinc-500">Posting any message in this channel triggers the module.</p>
-              <ChannelPicker channels={channels} value={settings.trapChannelId} onChange={value => update("trapChannelId", value)} />
-            </div>
+        <div className="p-6 max-w-2xl space-y-5">
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-zinc-200">Moderation action</p>
-                <select value={settings.action} onChange={event => update("action", event.target.value as HackedAccountTrapSettings["action"])}
-                  className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500">
-                  <option value="timeout">Timeout</option>
-                  <option value="kick">Kick</option>
-                  <option value="ban">Ban</option>
-                </select>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <Radio className="w-4 h-4 text-indigo-400" />
+              <div>
+                <h2 className="text-sm font-bold text-zinc-100">Trigger</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Posting any message in the trap channel triggers the module.</p>
               </div>
-              {settings.action === "timeout" && (
-                <div className="space-y-1.5">
-                  <p className="text-sm font-semibold text-zinc-200">Timeout duration</p>
-                  <div className="flex items-center gap-2">
-                    <NumberStepper
-                      value={settings.timeoutMinutes}
-                      onChange={value => update("timeoutMinutes", value)}
-                      min={1}
-                      max={40320}
-                      className="w-full"
-                      ariaLabel="Timeout duration in minutes"
-                    />
-                    <span className="text-xs text-zinc-500">minutes</span>
-                  </div>
-                </div>
-              )}
             </div>
+            <div className="px-4 py-4 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">Trap channel</p>
+                <ChannelPicker channels={channels} value={settings.trapChannelId} onChange={value => update("trapChannelId", value)} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">Moderation action</p>
+                  <select value={settings.action} onChange={event => update("action", event.target.value as HackedAccountTrapSettings["action"])}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors">
+                    <option value="timeout">Timeout</option>
+                    <option value="kick">Kick</option>
+                    <option value="ban">Ban</option>
+                  </select>
+                </div>
+                {settings.action === "timeout" && (
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Timeout duration</p>
+                    <div className="flex items-center gap-2">
+                      <NumberStepper
+                        value={settings.timeoutMinutes}
+                        onChange={value => update("timeoutMinutes", value)}
+                        min={1}
+                        max={40320}
+                        className="w-full"
+                        ariaLabel="Timeout duration in minutes"
+                      />
+                      <span className="text-xs text-zinc-500">minutes</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <CmdSettingsRow label="Ignore administrators" hint="Administrators will never trigger the trap">
+                <Toggle enabled={settings.ignoreAdministrators} onChange={value => update("ignoreAdministrators", value)} />
+              </CmdSettingsRow>
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">Exempt roles</p>
+                <MultiPicker options={roles} selected={settings.exemptRoleIds} onChange={value => update("exemptRoleIds", value)} placeholder="Select exempt roles" />
+                <p className="text-[11px] text-zinc-600 mt-1">Members with any selected role will not trigger the module.</p>
+              </div>
+            </div>
+          </div>
 
-            <div className="space-y-3 border-t border-zinc-800 pt-4">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-amber-400" />
+              <h2 className="text-sm font-bold text-zinc-100">Message Cleanup</h2>
+            </div>
+            <div className="px-4 py-4 space-y-4">
               <CmdSettingsRow label="Delete triggering message" hint="Remove the message posted in the trap channel">
                 <Toggle enabled={settings.deleteTriggerMessage} onChange={value => update("deleteTriggerMessage", value)} />
               </CmdSettingsRow>
@@ -222,53 +211,61 @@ export function HackedAccountTrapModule() {
                   </div>
                 </CmdSettingsRow>
               )}
-              <CmdSettingsRow label="Ignore administrators" hint="Administrators will never trigger the trap">
-                <Toggle enabled={settings.ignoreAdministrators} onChange={value => update("ignoreAdministrators", value)} />
-              </CmdSettingsRow>
             </div>
+          </div>
 
-            <div className="space-y-1.5 border-t border-zinc-800 pt-4">
-              <p className="text-sm font-semibold text-zinc-200">Exempt roles</p>
-              <p className="text-xs text-zinc-500">Members with any selected role will not trigger the module.</p>
-              <MultiPicker options={roles} selected={settings.exemptRoleIds} onChange={value => update("exemptRoleIds", value)} placeholder="Select exempt roles" />
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-sm font-bold text-zinc-100">Notify User</h2>
             </div>
-
-            <div className="space-y-3 border-t border-zinc-800 pt-4">
+            <div className="px-4 py-4 space-y-3">
               <CmdSettingsRow label="DM affected user" hint="Attempt to notify the account before applying the action">
                 <Toggle enabled={settings.dmUser} onChange={value => update("dmUser", value)} />
               </CmdSettingsRow>
               {settings.dmUser && (
-                <textarea value={settings.dmMessage} onChange={event => update("dmMessage", event.target.value)} rows={4}
-                  className="w-full resize-none rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500"
-                  placeholder="Message sent to the affected user" />
+                <>
+                  <textarea value={settings.dmMessage} onChange={event => update("dmMessage", event.target.value)} rows={4}
+                    className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
+                    placeholder="Message sent to the affected user" />
+                  <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
+                </>
               )}
-              {settings.dmUser && <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>}
             </div>
+          </div>
 
-            <div className="space-y-3 border-t border-zinc-800 pt-4">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <Bell className="w-4 h-4 text-rose-400" />
+              <div>
+                <h2 className="text-sm font-bold text-zinc-100">Incident Channel</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Create a private channel for this incident when the trap triggers.</p>
+              </div>
+            </div>
+            <div className="px-4 py-4 space-y-4">
               <CmdSettingsRow label="Create incident channel" hint="Create a private channel for this incident when the trap triggers">
                 <Toggle enabled={settings.incidentChannelEnabled} onChange={value => update("incidentChannelEnabled", value)} />
               </CmdSettingsRow>
 
               {settings.incidentChannelEnabled && (
-                <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+                <div className="space-y-4 rounded border border-zinc-800 bg-zinc-950/40 p-3">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <p className="text-sm font-semibold text-zinc-200">Channel name</p>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel name</p>
                       <input value={settings.incidentChannelNameTemplate} onChange={event => update("incidentChannelNameTemplate", event.target.value)}
-                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
                         placeholder="hacked-{user}" />
-                      <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {id}"}</span></p>
+                      <p className="text-[11px] text-zinc-600 mt-1">Variables: <span className="font-mono">{"{user}, {id}"}</span></p>
                     </div>
-                    <div className="space-y-1.5">
-                      <p className="text-sm font-semibold text-zinc-200">Category</p>
-                      <p className="text-xs text-zinc-500">Where the created channel is placed. Optional.</p>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Category</p>
                       <ChannelPicker channels={categories} value={settings.incidentChannelCategoryId} onChange={value => update("incidentChannelCategoryId", value)} prefix="" placeholder="No category" />
+                      <p className="text-[11px] text-zinc-600 mt-1">Where the created channel is placed. Optional.</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <p className="text-sm font-semibold text-zinc-200">Category on close</p>
-                      <p className="text-xs text-zinc-500">Where the channel is moved when the ticket is closed. Optional.</p>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Category on close</p>
                       <ChannelPicker channels={categories} value={settings.incidentChannelClosedCategoryId} onChange={value => update("incidentChannelClosedCategoryId", value)} prefix="" placeholder="Don't move" />
+                      <p className="text-[11px] text-zinc-600 mt-1">Where the channel is moved when the ticket is closed. Optional.</p>
                     </div>
                   </div>
 
@@ -278,13 +275,12 @@ export function HackedAccountTrapModule() {
                     <Toggle enabled={settings.incidentChannelIncludeUser} onChange={value => update("incidentChannelIncludeUser", value)} />
                   </CmdSettingsRow>
 
-                  <div className="space-y-1.5">
-                    <p className="text-sm font-semibold text-zinc-200">Channel message</p>
-                    <p className="text-xs text-zinc-500">Posted in the created channel when it's opened.</p>
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel message</p>
                     <textarea value={settings.incidentChannelMessage} onChange={event => update("incidentChannelMessage", event.target.value)} rows={3}
-                      className="w-full resize-none rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500"
+                      className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
                       placeholder="Message posted in the created channel" />
-                    <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
+                    <p className="text-[11px] text-zinc-600 mt-1">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
                   </div>
 
                   {settings.dmUser && (
@@ -302,23 +298,35 @@ export function HackedAccountTrapModule() {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="space-y-1.5 border-t border-zinc-800 pt-4">
-              <p className="text-sm font-semibold text-zinc-200">Moderation reason</p>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-zinc-400" />
+              <h2 className="text-sm font-bold text-zinc-100">Audit Log</h2>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Moderation reason</p>
               <input value={settings.reason} onChange={event => update("reason", event.target.value)}
-                className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
                 placeholder="Reason shown in Discord's audit log" />
             </div>
           </div>
 
-          {error && <div className="rounded border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
-          <button onClick={save} disabled={saving}
-            className="flex items-center gap-2 rounded bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
-            {saved ? "Saved!" : "Save Module"}
+          {error && (
+            <div className="flex items-center gap-2 rounded border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
+            </div>
+          )}
+
+          <button type="button" onClick={save} disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-bold text-white disabled:opacity-50 transition-colors">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Save
           </button>
+
         </div>
       )}
-    </ModuleShell>
+    </div>
   );
 }
