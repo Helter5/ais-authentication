@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,9 +25,23 @@ export function NumberStepper({
   inputClassName,
   ariaLabel = "Number",
 }: NumberStepperProps) {
+  // The input shows this local draft, not `value` directly, so the field can be freely emptied
+  // and retyped while the user is mid-edit - a controlled input bound straight to `value` snaps
+  // back to the old digit the instant the box is cleared (an empty string can't parse to a valid
+  // number), which made it impossible to delete a single digit rather than replace it.
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
   const clamp = (next: number) => Math.min(max, Math.max(min, next));
   const change = (next: number) => {
-    if (Number.isFinite(next)) onChange(clamp(next));
+    if (Number.isFinite(next)) {
+      const clamped = clamp(next);
+      onChange(clamped);
+      setText(String(clamped));
+    }
   };
 
   return (
@@ -48,12 +63,19 @@ export function NumberStepper({
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
-        value={value}
+        value={text}
         onChange={event => {
-          const next = event.target.value.replace(/\D/g, "");
-          if (next !== "") change(Number(next));
+          const digits = event.target.value.replace(/\D/g, "");
+          setText(digits);
+          if (digits !== "") {
+            const parsed = Number(digits);
+            if (Number.isFinite(parsed)) onChange(clamp(parsed));
+          }
         }}
-        onBlur={() => change(value)}
+        onBlur={() => {
+          if (text === "") { setText(String(value)); return; }
+          change(Number(text));
+        }}
         onKeyDown={event => {
           if (event.key === "ArrowUp") {
             event.preventDefault();
