@@ -267,6 +267,7 @@ LDAP server, SMTP), alebo reálny servlet request/AsyncListener lifecycle (SSE),
 - [ ] `/user @niekto` — embed s account info, roles, verified status, warns; skús aj na niekom, kto už nie je na serveri.
 - [ ] `/warn add`, `/warn list`, `/warn remove`, `/mywarns`, `/warn clearall` — celý flow, Discord embed/reply formátovanie.
 - [ ] `/verify` flow — AIS ID, doručenie emailu s kódom (bod 5), `/code` na potvrdenie, pridelenie Verified role.
+- [ ] Po úspešnom `/code` — log embed v Verification log kanáli má titulok "User Verified" a polia User, Channel, AIS ID (nielen User ako predtým).
 - [ ] Role menu interakcie (klik na tlačidlo/select v role menu správe) — pridelenie/odobratie role.
 - [ ] Moderation auto-action z `/warn` (timeout/kick/ban pri dosiahnutí limitu) — bot má reálne oprávnenia, akcia prebehne v Discorde.
 
