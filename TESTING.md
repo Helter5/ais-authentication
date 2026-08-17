@@ -281,6 +281,7 @@ LDAP server, SMTP), alebo reálny servlet request/AsyncListener lifecycle (SSE),
 ## 4. LDAP (reálny univerzitný server)
 - [X] `/verify` s reálnym AIS ID — `LdapStudentDirectoryService` sa pripojí a spáruje študenta (meno, email, fakulta, account status) zo skutočného LDAP servera.
 - [X] Rate-limit (`LdapRequestThrottle`) pri viacerých rýchlo za sebou idúcich `/verify` — mimo testing mode oddelené min. 1 sekundou.
+- [ ] Rate-limit `/verify` sa už nespotrebuje na "lacných" zamietnutiach — spusti `/verify` opakovane s AIS ID, ktoré je už verifikované (alebo s vlastným už-verifikovaným Discord účtom): odpoveď musí byť vždy "already verified", NIKDY "Vyčerpal si limit..." (predtým sa po pár pokusoch limit vyčerpal, aj keď sa LDAP vôbec nevolal). Skutočný LDAP-backed pokus (platné, ešte neverifikované AIS ID) limit stále spotrebuje ako predtým.
 
 ## 5. Reálne odoslanie emailu
 - [ ] `/verify` doručí email s kódom na skutočnú adresu (skontroluj inbox, nie len logy) — predmet "Discord - Overovací kód", formátovanie tela.
