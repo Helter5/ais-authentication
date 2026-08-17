@@ -18,7 +18,6 @@ import sk.gkanocz.aisauth.discordbot.EventLogEmbedSender;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 
-import java.awt.Color;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -166,11 +165,9 @@ public class HackedAccountTrapListener extends ListenerAdapter {
     private void sendSpamLog(
             Guild guild, String authorId, String authorTag, String triggerChannelId,
             String triggerContent, String result, int deleteMessageSeconds, String imageAttachmentUrl) {
-        EmbedBuilder embed = new EmbedBuilder()
-                .setColor(new Color(0xFF0000))
-                .setTitle("Hacked Account Trap Triggered")
-                .addField("User", "<@" + authorId + "> (" + authorTag + ")", true)
-                .addField("User ID", authorId, true)
+        EmbedBuilder embed = EventLogEmbedSender.base(EventLogEmbedSender.DANGER, "Hacked Account Trap Triggered",
+                        "A message in the trap channel triggered a permanent ban.")
+                .addField("User", EventLogEmbedSender.userField(authorId, authorTag), true)
                 .addField("Trap Channel", "<#" + triggerChannelId + ">", true)
                 .addField("Message", triggerContent, false)
                 .addField("Action", result, true)

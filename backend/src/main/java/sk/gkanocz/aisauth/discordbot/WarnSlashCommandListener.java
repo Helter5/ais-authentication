@@ -2,7 +2,6 @@ package sk.gkanocz.aisauth.discordbot;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -16,7 +15,6 @@ import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
 import sk.gkanocz.aisauth.warn.WarnThreshold;
 
-import java.awt.Color;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -82,13 +80,12 @@ class WarnSlashCommandListener {
             warnService.addWarn(guildId, target.getId(), event.getUser().getId(), reason);
             long warnCount = warnService.countWarns(target.getId(), guildId);
 
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.WARN_ISSUED, new EmbedBuilder()
-                    .setColor(new Color(0xF59E0B))
-                    .setTitle("Warning Issued")
-                    .addField("User", "<@" + target.getId() + "> (" + target.getUser().getName() + ")", true)
-                    .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
-                    .addField("Total Warns", String.valueOf(warnCount), true)
-                    .addField("Reason", reason, false));
+            eventLogEmbedSender.send(event.getGuild(), LogEventType.WARN_ISSUED,
+                    EventLogEmbedSender.base(EventLogEmbedSender.WARNING, "Warning Issued", null)
+                            .addField("User", EventLogEmbedSender.userField(target.getId(), target.getUser().getName()), true)
+                            .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                            .addField("Total Warns", String.valueOf(warnCount), true)
+                            .addField("Reason", reason, false));
 
             Optional<WarnThreshold> matched = warnService.matchingThreshold(guildId, warnCount);
 
@@ -136,12 +133,12 @@ class WarnSlashCommandListener {
                         ? Map.of("status", "success", "warningCount", warnCount, "result", outcome.detail())
                         : Map.of("status", "failed", "warningCount", warnCount, "error", outcome.detail())));
 
-        eventLogEmbedSender.send(target.getGuild(), LogEventType.WARN_THRESHOLD_ACTION, new EmbedBuilder()
-                .setColor(outcome.success() ? new Color(0xF97316) : new Color(0xEF4444))
-                .setTitle("Warn Threshold Action")
-                .addField("User", "<@" + target.getId() + "> (" + target.getUser().getName() + ")", true)
-                .addField("Warn Count", String.valueOf(warnCount), true)
-                .addField("Result", outcome.success() ? outcome.detail() + " applied" : action + " failed: " + outcome.detail(), false));
+        eventLogEmbedSender.send(target.getGuild(), LogEventType.WARN_THRESHOLD_ACTION,
+                EventLogEmbedSender.base(outcome.success() ? EventLogEmbedSender.WARNING : EventLogEmbedSender.DANGER,
+                                "Warn Threshold Action", null)
+                        .addField("User", EventLogEmbedSender.userField(target.getId(), target.getUser().getName()), true)
+                        .addField("Warn Count", String.valueOf(warnCount), true)
+                        .addField("Result", outcome.success() ? outcome.detail() + " applied" : action + " failed: " + outcome.detail(), false));
 
         return new PunishmentOutcome(action, outcome.success(), outcome.detail());
     }
@@ -181,13 +178,12 @@ class WarnSlashCommandListener {
             Warn removed = warnService.removeWarn(warnId, guildId);
             event.getHook().sendMessage("Warn #" + warnId + " removed.").queue();
 
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.WARN_REMOVED, new EmbedBuilder()
-                    .setColor(new Color(0x22C55E))
-                    .setTitle("Warning Removed")
-                    .addField("Warn ID", "#" + warnId, true)
-                    .addField("User", "<@" + removed.getDiscordId() + ">", true)
-                    .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
-                    .addField("Original Reason", removed.getReason(), false));
+            eventLogEmbedSender.send(event.getGuild(), LogEventType.WARN_REMOVED,
+                    EventLogEmbedSender.base(EventLogEmbedSender.SUCCESS, "Warning Removed", null)
+                            .addField("Warn ID", "#" + warnId, true)
+                            .addField("User", "<@" + removed.getDiscordId() + ">", true)
+                            .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                            .addField("Original Reason", removed.getReason(), false));
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         }
@@ -205,12 +201,11 @@ class WarnSlashCommandListener {
         }
         event.getHook().sendMessage("Cleared " + cleared + " warning(s) for " + target.getName() + ".").queue();
 
-        eventLogEmbedSender.send(event.getGuild(), LogEventType.WARNS_CLEARED, new EmbedBuilder()
-                .setColor(new Color(0x22C55E))
-                .setTitle("Warnings Cleared")
-                .addField("User", "<@" + target.getId() + "> (" + target.getName() + ")", true)
-                .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
-                .addField("Warnings Cleared", String.valueOf(cleared), true));
+        eventLogEmbedSender.send(event.getGuild(), LogEventType.WARNS_CLEARED,
+                EventLogEmbedSender.base(EventLogEmbedSender.SUCCESS, "Warnings Cleared", null)
+                        .addField("User", EventLogEmbedSender.userField(target.getId(), target.getName()), true)
+                        .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
+                        .addField("Warnings Cleared", String.valueOf(cleared), true));
     }
 
     private String formatWarnList(String title, List<Warn> warns, boolean includeTarget) {

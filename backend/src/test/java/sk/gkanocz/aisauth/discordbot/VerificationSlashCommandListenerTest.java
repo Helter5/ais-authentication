@@ -434,6 +434,9 @@ class VerificationSlashCommandListenerTest {
         Member target = mock(Member.class);
         when(target.getId()).thenReturn("target-1");
         when(target.getRoles()).thenReturn(List.of());
+        User targetUser = mock(User.class);
+        when(targetUser.getName()).thenReturn("Target");
+        when(target.getUser()).thenReturn(targetUser);
         stubMemberOption("user", target);
         stubStringOption("ais_id", "12345");
         stubStringOption("email", "s@stuba.sk");

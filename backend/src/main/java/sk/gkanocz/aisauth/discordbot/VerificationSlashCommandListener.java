@@ -145,12 +145,11 @@ class VerificationSlashCommandListener {
                 return;
             }
 
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.CODE_CONFIRMED, new EmbedBuilder()
-                    .setColor(new Color(0x22C55E))
-                    .setTitle("User Verified")
-                    .addField("User", "<@" + discordId + ">", true)
-                    .addField("Channel", "<#" + event.getChannel().getId() + ">", true)
-                    .addField("AIS ID", verifiedUser.getAisId(), true));
+            eventLogEmbedSender.send(event.getGuild(), LogEventType.CODE_CONFIRMED,
+                    EventLogEmbedSender.base(EventLogEmbedSender.SUCCESS, "User Verified", null)
+                            .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
+                            .addField("AIS ID", verifiedUser.getAisId(), true)
+                            .addField("Channel", "<#" + event.getChannel().getId() + ">", true));
             event.getHook().sendMessage("Úspešne overené! Vitaj.").queue();
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
@@ -211,12 +210,11 @@ class VerificationSlashCommandListener {
                 return;
             }
 
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.MANUAL_VERIFY_PERFORMED, new EmbedBuilder()
-                    .setColor(new Color(0xF59E0B))
-                    .setTitle("Manual Verification")
-                    .addField("User", "<@" + target.getId() + ">", true)
-                    .addField("AIS ID", aisId, true)
-                    .addField("Performed by", "<@" + event.getUser().getId() + ">", true));
+            eventLogEmbedSender.send(event.getGuild(), LogEventType.MANUAL_VERIFY_PERFORMED,
+                    EventLogEmbedSender.base(EventLogEmbedSender.WARNING, "Manual Verification", null)
+                            .addField("User", EventLogEmbedSender.userField(target.getId(), target.getUser().getName()), true)
+                            .addField("AIS ID", aisId, true)
+                            .addField("Performed by", "<@" + event.getUser().getId() + ">", true));
             event.getHook().sendMessage(
                     "<@" + target.getId() + "> has been manually verified with AIS ID `" + aisId + "`.").queue();
         } catch (DomainException e) {

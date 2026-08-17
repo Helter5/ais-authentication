@@ -254,11 +254,10 @@ public class WipeService {
             return;
         }
         for (InactiveEntry entry : inactiveEntries) {
-            EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(new java.awt.Color(0xFF6B6B))
-                    .setTitle("Wipe - Inactive User Removed")
-                    .addField("Discord", entry.member() == null ? "Unknown" : entry.member().getUser().getName(), true)
-                    .addField("Discord ID", entry.user().getDiscordId(), true)
+            String username = entry.member() == null ? "Unknown" : entry.member().getUser().getName();
+            EmbedBuilder embed = EventLogEmbedSender.base(EventLogEmbedSender.DANGER, "Wipe - Inactive User Removed",
+                            "No longer an active FEI student per LDAP - removed from the Users Directory and reassigned roles.")
+                    .addField("User", EventLogEmbedSender.userField(entry.user().getDiscordId(), username), true)
                     .addField("AIS ID", entry.user().getAisId(), true)
                     .addField("Email", entry.user().getEmail(), true)
                     .setFooter("Wipe via web dashboard");

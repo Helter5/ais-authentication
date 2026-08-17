@@ -2,7 +2,6 @@ package sk.gkanocz.aisauth.discordbot;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.audit.ActionType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Role;
@@ -19,7 +18,6 @@ import sk.gkanocz.aisauth.verification.VerificationService;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
-import java.awt.Color;
 import java.util.Map;
 
 @Slf4j
@@ -52,12 +50,11 @@ class GuildLifecycleListener extends ListenerAdapter {
         }
 
         if (aisId != null) {
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_USER_REMOVED, new EmbedBuilder()
-                    .setColor(new Color(0xEF4444))
-                    .setTitle("Removed From Users Directory")
-                    .addField("User", "<@" + discordId + "> (" + event.getUser().getName() + ")", true)
-                    .addField("AIS ID", aisId, true)
-                    .setDescription("This member left the server, or was kicked/banned, and has been removed from the Users Directory."));
+            eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_USER_REMOVED,
+                    EventLogEmbedSender.base(EventLogEmbedSender.DANGER, "Removed From Users Directory",
+                                    "This member left the server, or was kicked/banned, and has been removed from the Users Directory.")
+                            .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
+                            .addField("AIS ID", aisId, true));
         }
     }
 
@@ -84,13 +81,12 @@ class GuildLifecycleListener extends ListenerAdapter {
         }
 
         resolveRoleChangeActor(event.getGuild(), discordId, actor ->
-                eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_ROLE_ADDED_WITHOUT_VERIFY, new EmbedBuilder()
-                        .setColor(new Color(0xF59E0B))
-                        .setTitle("Verified Role Added Outside /verify")
-                        .addField("User", "<@" + discordId + "> (" + event.getUser().getName() + ")", true)
-                        .addField("Role", "<@&" + verifiedRoleId + ">", true)
-                        .addField("Assigned By", actor, true)
-                        .setDescription("This member has no matching Users Directory record - the role was likely assigned manually rather than through /verify or /manualverify.")));
+                eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_ROLE_ADDED_WITHOUT_VERIFY,
+                        EventLogEmbedSender.base(EventLogEmbedSender.WARNING, "Verified Role Added Outside /verify",
+                                        "This member has no matching Users Directory record - the role was likely assigned manually rather than through /verify or /manualverify.")
+                                .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
+                                .addField("Role", "<@&" + verifiedRoleId + ">", true)
+                                .addField("Assigned By", actor, true)));
     }
 
     /**
@@ -147,12 +143,11 @@ class GuildLifecycleListener extends ListenerAdapter {
         }
 
         resolveRoleChangeActor(event.getGuild(), discordId, actor ->
-                eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_USER_REMOVED, new EmbedBuilder()
-                        .setColor(new Color(0xEF4444))
-                        .setTitle("Removed From Users Directory")
-                        .addField("User", "<@" + discordId + "> (" + event.getUser().getName() + ")", true)
-                        .addField("AIS ID", aisId, true)
-                        .addField("Removed By", actor, true)
-                        .setDescription("The Verified role was removed while this member is still in the server, and they have been removed from the Users Directory.")));
+                eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_USER_REMOVED,
+                        EventLogEmbedSender.base(EventLogEmbedSender.DANGER, "Removed From Users Directory",
+                                        "The Verified role was removed while this member is still in the server, and they have been removed from the Users Directory.")
+                                .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
+                                .addField("AIS ID", aisId, true)
+                                .addField("Removed By", actor, true)));
     }
 }
