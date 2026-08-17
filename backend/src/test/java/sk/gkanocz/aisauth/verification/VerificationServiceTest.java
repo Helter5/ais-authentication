@@ -195,4 +195,68 @@ class VerificationServiceTest {
         verify(verificationCodeRepository).deleteByDiscordIdAndGuildId("discord-1", "guild-1");
         verify(verifiedUserRepository).deleteByDiscordIdAndGuildId("discord-1", "guild-1");
     }
+
+    @Test
+    void checkEligibilityReturnsEmailWithoutWritingAnything() {
+        when(studentDirectoryService.findByAisId("12345")).thenReturn(Optional.of(eligibleStudent()));
+
+        String email = verificationService.checkEligibility("discord-1", "guild-1", "12345");
+
+        assertThat(email).isEqualTo("student@stuba.sk");
+        verify(verificationCodeRepository, never()).save(any());
+        verify(verificationCodeRepository, never()).deleteByDiscordIdAndGuildId(any(), any());
+    }
+
+    @Test
+    void checkEligibilityRejectsNonNumericAisId() {
+        assertThatThrownBy(() -> verificationService.checkEligibility("discord-1", "guild-1", "not-a-number"))
+                .isInstanceOf(InvalidAisIdException.class);
+    }
+
+    @Test
+    void checkEligibilityRejectsWhenDiscordUserAlreadyVerified() {
+        when(verifiedUserRepository.existsByDiscordIdAndGuildId("discord-1", "guild-1")).thenReturn(true);
+
+        assertThatThrownBy(() -> verificationService.checkEligibility("discord-1", "guild-1", "12345"))
+                .isInstanceOf(AlreadyVerifiedException.class);
+    }
+
+    @Test
+    void checkEligibilityRejectsUnknownAisId() {
+        when(studentDirectoryService.findByAisId("12345")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> verificationService.checkEligibility("discord-1", "guild-1", "12345"))
+                .isInstanceOf(StudentNotFoundException.class);
+    }
+
+    @Test
+    void checkEligibilityRejectsInactiveAccountStatus() {
+        StudentRecord inactive = new StudentRecord("12345", "s@stuba.sk", List.of("fei-stud"),
+                List.of("student:inactive"), "Jane", "Doe", "Jane Doe", "jdoe");
+        when(studentDirectoryService.findByAisId("12345")).thenReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> verificationService.checkEligibility("discord-1", "guild-1", "12345"))
+                .isInstanceOf(StudentNotEligibleException.class)
+                .hasMessageContaining("active");
+    }
+
+    @Test
+    void checkEligibilityRejectsWrongFaculty() {
+        StudentRecord wrongFaculty = new StudentRecord("12345", "s@stuba.sk", List.of("fchpt-stud"),
+                List.of("student:active"), "Jane", "Doe", "Jane Doe", "jdoe");
+        when(studentDirectoryService.findByAisId("12345")).thenReturn(Optional.of(wrongFaculty));
+
+        assertThatThrownBy(() -> verificationService.checkEligibility("discord-1", "guild-1", "12345"))
+                .isInstanceOf(StudentNotEligibleException.class)
+                .hasMessageContaining("faculty");
+    }
+
+    @Test
+    void revertVerificationDeletesTheGivenRecord() {
+        VerifiedUser verifiedUser = new VerifiedUser("12345", "discord-1", "guild-1", "s@stuba.sk");
+
+        verificationService.revertVerification(verifiedUser);
+
+        verify(verifiedUserRepository).delete(verifiedUser);
+    }
 }
