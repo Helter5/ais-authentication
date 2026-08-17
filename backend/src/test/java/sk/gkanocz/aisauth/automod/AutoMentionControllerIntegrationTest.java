@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
-class AutoDeleteControllerIntegrationTest {
+class AutoMentionControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -32,7 +32,7 @@ class AutoDeleteControllerIntegrationTest {
     void getEnabledForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(get("/api/autodelete/enabled")
+        mockMvc.perform(get("/api/auto-mentions/enabled")
                         .param("guildId", "some-other-guild")
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isForbidden());
@@ -42,7 +42,7 @@ class AutoDeleteControllerIntegrationTest {
     void setEnabledForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(post("/api/autodelete/enabled")
+        mockMvc.perform(post("/api/auto-mentions/enabled")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"some-other-guild\",\"enabled\":true}"))
@@ -53,7 +53,7 @@ class AutoDeleteControllerIntegrationTest {
     void listForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(get("/api/autodelete")
+        mockMvc.perform(get("/api/auto-mentions")
                         .param("guildId", "some-other-guild")
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isForbidden());
@@ -63,10 +63,10 @@ class AutoDeleteControllerIntegrationTest {
     void createForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(post("/api/autodelete")
+        mockMvc.perform(post("/api/auto-mentions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"some-other-guild\",\"channel_id\":\"chan-1\"}"))
+                        .content("{\"guildId\":\"some-other-guild\",\"channel_id\":\"chan-1\",\"role_id\":\"role-1\"}"))
                 .andExpect(status().isForbidden());
     }
 
@@ -74,10 +74,10 @@ class AutoDeleteControllerIntegrationTest {
     void updateForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(patch("/api/autodelete/999")
+        mockMvc.perform(patch("/api/auto-mentions/999")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"some-other-guild\",\"channel_id\":\"chan-1\"}"))
+                        .content("{\"guildId\":\"some-other-guild\",\"channel_id\":\"chan-1\",\"role_id\":\"role-1\"}"))
                 .andExpect(status().isForbidden());
     }
 
@@ -85,58 +85,84 @@ class AutoDeleteControllerIntegrationTest {
     void deleteForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(delete("/api/autodelete/999")
+        mockMvc.perform(delete("/api/auto-mentions/999")
                         .param("guildId", "some-other-guild")
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void updateNotFoundWhenIdDoesNotBelongToGuild() throws Exception {
-        String guildId = "guild-ad-3";
+    void createdAutoMentionAppliesDefaultsForOmittedFields() throws Exception {
+        String guildId = "guild-am-1";
         String token = auth.managerTokenFor(guildId);
 
-        mockMvc.perform(patch("/api/autodelete/999999")
+        mockMvc.perform(post("/api/auto-mentions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\"}"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void createdConfigAppliesDefaultsForOmittedFields() throws Exception {
-        String guildId = "guild-ad-1";
-        String token = auth.managerTokenFor(guildId);
-
-        mockMvc.perform(post("/api/autodelete")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\"}"))
+                        .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"role_id\":\"role-1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.channel_id").value("chan-1"))
-                .andExpect(jsonPath("$.delay_seconds").value(60))
-                .andExpect(jsonPath("$.ignore_bots").value(true))
-                .andExpect(jsonPath("$.notify_via").value("channel"));
+                .andExpect(jsonPath("$.role_id").value("role-1"))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.delete_after_seconds").doesNotExist());
     }
 
     @Test
-    void creatingASecondConfigForTheSameChannelConflicts() throws Exception {
-        String guildId = "guild-ad-2";
+    void creatingASecondAutoMentionForTheSameChannelConflicts() throws Exception {
+        String guildId = "guild-am-2";
         String token = auth.managerTokenFor(guildId);
-        String body = "{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-dup\"}";
+        String body = "{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-dup\",\"role_id\":\"role-1\"}";
 
-        mockMvc.perform(post("/api/autodelete")
+        mockMvc.perform(post("/api/auto-mentions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content(body))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/autodelete")
+        mockMvc.perform(post("/api/auto-mentions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content(body))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.detail").value("Config for this channel already exists"));
+                .andExpect(jsonPath("$.detail").value("Auto-mention for this channel already exists"));
+    }
+
+    @Test
+    void updateNotFoundWhenIdDoesNotBelongToGuild() throws Exception {
+        String guildId = "guild-am-3";
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(patch("/api/auto-mentions/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"role_id\":\"role-1\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteAutoMentionSucceedsForOwningGuild() throws Exception {
+        String guildId = "guild-am-4";
+        String token = auth.managerTokenFor(guildId);
+
+        String response = mockMvc.perform(post("/api/auto-mentions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"role_id\":\"role-1\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long id = new tools.jackson.databind.ObjectMapper().readTree(response).get("id").asLong();
+
+        mockMvc.perform(delete("/api/auto-mentions/" + id)
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/auto-mentions")
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
     }
 }
