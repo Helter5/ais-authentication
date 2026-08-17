@@ -22,7 +22,6 @@ import sk.gkanocz.aisauth.automod.AutoDeleteListener;
 import sk.gkanocz.aisauth.automod.AutoMentionListener;
 import sk.gkanocz.aisauth.automod.HackedAccountTrapListener;
 import sk.gkanocz.aisauth.rolemenu.RoleMenuInteractionListener;
-import sk.gkanocz.aisauth.ticket.TicketButtonListener;
 import sk.gkanocz.aisauth.verification.DatabaseSyncService;
 
 import java.io.IOException;
@@ -43,7 +42,6 @@ public class DiscordBotService implements ApplicationRunner {
     private final AutoDeleteListener autoDeleteListener;
     private final AutoMentionListener autoMentionListener;
     private final HackedAccountTrapListener hackedAccountTrapListener;
-    private final TicketButtonListener ticketButtonListener;
     private final RoleMenuInteractionListener roleMenuInteractionListener;
     private final VerifyConfirmationButtonListener verifyConfirmationButtonListener;
     private final GuildAllowlistEventManager guildAllowlistEventManager;
@@ -80,7 +78,7 @@ public class DiscordBotService implements ApplicationRunner {
                 .setChunkingFilter(ChunkingFilter.ALL)
                 .setEventManager(guildAllowlistEventManager)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
-                        autoMentionListener, hackedAccountTrapListener, ticketButtonListener, roleMenuInteractionListener,
+                        autoMentionListener, hackedAccountTrapListener, roleMenuInteractionListener,
                         verifyConfirmationButtonListener)
                 .build()
                 .awaitReady();
@@ -133,13 +131,7 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("mywarns", "Show your own warnings on this server"),
                 slash("info", "Show bot configuration and server information"),
                 slash("user", "Show detailed info about a server member")
-                        .addOption(OptionType.USER, "user", "Member to inspect", true),
-                slash("ticket", "Manage this incident ticket channel")
-                        .addSubcommands(
-                                new SubcommandData("close", "Close this incident ticket"),
-                                new SubcommandData("reopen", "Reopen this incident ticket"),
-                                new SubcommandData("delete", "Delete this incident ticket channel"),
-                                new SubcommandData("recap", "Get the saved transcript link for this ticket"))
+                        .addOption(OptionType.USER, "user", "Member to inspect", true)
         );
     }
 

@@ -13,7 +13,7 @@ import sk.gkanocz.aisauth.settings.LogRoutingService;
 
 /**
  * Resolves a guild's configured log channel for an event type and posts an embed to it. Shared by
- * every feature (Hacked Account Trap, warn thresholds, ticket transcripts, wipe) that previously
+ * every feature (Hacked Account Trap, warn thresholds, wipe) that previously
  * reimplemented the same channel-lookup/null-check/try-catch boilerplate around LogRoutingService.
  */
 @Slf4j

@@ -47,10 +47,19 @@ public class DiscordModerationService {
      * exception being swallowed by a bare .queue() or logged only to the console.
      */
     public Outcome apply(Member target, String action, String reason, Duration timeoutDuration) {
+        return apply(target, action, reason, timeoutDuration, 0);
+    }
+
+    /**
+     * Same as {@link #apply(Member, String, String, Duration)}, but for "ban" lets the caller
+     * also delete the target's recent message history (Discord's own ban-dialog durations, in
+     * seconds - 0 means don't delete any).
+     */
+    public Outcome apply(Member target, String action, String reason, Duration timeoutDuration, int deleteMessageSeconds) {
         try {
             String result = switch (action) {
                 case "ban" -> {
-                    target.ban(0, TimeUnit.SECONDS).reason(reason).complete();
+                    target.ban(deleteMessageSeconds, TimeUnit.SECONDS).reason(reason).complete();
                     yield "banned";
                 }
                 case "kick" -> {

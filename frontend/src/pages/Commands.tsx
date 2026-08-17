@@ -71,7 +71,6 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
 const CMD_LOG_EVENT_TYPES: Record<string, string[]> = {
   warn:         ["WARN_ISSUED", "WARN_REMOVED", "WARNS_CLEARED", "WARN_THRESHOLD_ACTION"],
-  ticket:       ["TICKET_TRANSCRIPT_SAVED"],
   manualverify: ["MANUAL_VERIFY_PERFORMED"],
   verify:       ["VERIFY_REQUESTED", "VERIFIED_ROLE_ADDED_WITHOUT_VERIFY", "VERIFIED_USER_REMOVED"],
   code:         ["CODE_CONFIRMED"],
@@ -91,7 +90,6 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list. Settings also configure auto-punishment thresholds.", hasSettings: true },
     { name: "/manualverify",  description: "Manually verify a user by Discord ID and email.", hasSettings: true },
     { name: "/user",          description: "Show detailed Discord info, verification status, and warn history for a member.", hasSettings: true },
-    { name: "/ticket",        description: "Manage the incident ticket in the current channel: close, reopen, delete, recap.", hasSettings: true },
   ],
   Verification: [
     { name: "/verify",   description: "Verify yourself as an active FEI student using your AIS ID.", hasSettings: true },
@@ -207,74 +205,6 @@ function WarnThresholdsEditor({ guildId }: { guildId: string }) {
   );
 }
 
-// ─── Ticket transcript retention (shown inside /ticket's settings modal) ──────
-
-function TicketSettingsEditor({ guildId }: { guildId: string }) {
-  const [retentionEnabled, setRetentionEnabled] = useState(false);
-  const [retentionDays, setRetentionDays] = useState(90);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    adminApi.getSettings(guildId)
-      .then(s => {
-        setRetentionEnabled(s.ticket_retention_enabled);
-        setRetentionDays(s.ticket_retention_days);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [guildId]);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await adminApi.updateSettingsBulk(guildId, {
-        ticket_retention_enabled: retentionEnabled,
-        ticket_retention_days: retentionDays,
-      });
-      toast("Ticket transcript retention saved.");
-    } catch (e: unknown) {
-      toast(apiErrorMessage(e, "Failed to save ticket settings."), "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="rounded-lg border border-zinc-700 overflow-hidden">
-      <div className="p-3 bg-zinc-800/50">
-        <p className="text-sm font-bold text-zinc-200">Ticket Transcripts</p>
-        <p className="text-xs text-zinc-500 mt-0.5">Automatically clear saved transcript content once it's old enough.</p>
-      </div>
-      <div className="p-3 border-t border-zinc-700/50 space-y-3">
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
-        ) : (
-          <>
-            <CmdSettingsRow label="Auto-delete transcripts" hint="Clears transcript content for tickets closed longer ago than the retention period">
-              <Toggle enabled={retentionEnabled} onChange={setRetentionEnabled} />
-            </CmdSettingsRow>
-            {retentionEnabled && (
-              <CmdSettingsRow label="Retention period" hint="Days to keep a transcript after the ticket is closed">
-                <div className="flex items-center gap-2">
-                  <NumberStepper value={retentionDays} onChange={setRetentionDays} min={1} max={365} className="w-32" ariaLabel="Ticket transcript retention in days" />
-                  <span className="text-xs text-zinc-500">days</span>
-                </div>
-              </CmdSettingsRow>
-            )}
-            <button onClick={save} disabled={saving}
-              className="flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border border-zinc-600 bg-zinc-800 text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-all disabled:opacity-40">
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-              Save retention
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Command settings modal ───────────────────────────────────────────────────
 
 function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
@@ -349,7 +279,6 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
       ) : (
         <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
           {commandKey === "warn" && <WarnThresholdsEditor guildId={guildId} />}
-          {commandKey === "ticket" && <TicketSettingsEditor guildId={guildId} />}
           {schema.ephemeral && (
             <CmdSettingsRow label="Ephemeral response" hint="Only visible to the user who ran the command">
               <Toggle enabled={ephemeral} onChange={setEphemeral} />

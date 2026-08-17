@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Users, Ticket, LayoutDashboard, LogOut, Shield, Sliders, Settings, LayoutGrid, ScrollText, Trash2, CalendarDays, FileText } from "lucide-react";
+import { Users, Ticket, LayoutDashboard, LogOut, Shield, Sliders, Settings, LayoutGrid, ScrollText, Trash2, CalendarDays } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,7 +42,6 @@ export function Sidebar({ isMobile, onNavItemClick, maintenanceBannerShown }: { 
   const links = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Codes", href: "/codes", icon: Ticket },
-    { name: "Transcripts", href: "/transcripts", icon: FileText },
     { name: "Users Directory", href: "/users", icon: Users },
     ...(canSemester ? [{ name: "Semester", href: "/semester", icon: CalendarDays }] : []),
     { name: "Logs", href: "/access-logs", icon: ScrollText },

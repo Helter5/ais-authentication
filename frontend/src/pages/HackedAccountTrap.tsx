@@ -1,32 +1,29 @@
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, Bell, Trash2, MessageSquare, Radio } from "lucide-react";
-import { NumberStepper } from "@/components/ui/number-stepper";
-import { adminApi, apiErrorMessage, type HackedAccountTrapSettings } from "@/lib/api";
+import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, Trash2, MessageSquare, Radio } from "lucide-react";
+import { adminApi, apiErrorMessage, type HackedAccountTrapSettings, type DeleteMessageHistorySeconds } from "@/lib/api";
 import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker, ChannelPicker, ModulePageHeader } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
+
+const DELETE_MESSAGE_HISTORY_OPTIONS: { value: DeleteMessageHistorySeconds; label: string }[] = [
+  { value: 3600, label: "Previous Hour" },
+  { value: 21600, label: "Previous 6 Hours" },
+  { value: 43200, label: "Previous 12 Hours" },
+  { value: 86400, label: "Previous 24 Hours" },
+  { value: 259200, label: "Previous 3 Days" },
+  { value: 604800, label: "Previous 7 Days" },
+];
 
 const DEFAULT_TRAP_SETTINGS: HackedAccountTrapSettings = {
   enabled: false,
   trapChannelId: null,
-  action: "timeout",
-  timeoutMinutes: 1440,
   deleteTriggerMessage: true,
-  deleteRecentMessages: true,
-  cleanupMinutes: 60,
-  exemptRoleIds: [],
   ignoreAdministrators: true,
+  exemptRoleIds: [],
+  deleteMessageHistory: false,
+  deleteMessageHistorySeconds: 3600,
   dmUser: false,
   dmMessage: "Your account triggered the hacked-account trap in {server}. Please contact a server administrator if this was a mistake.",
   reason: "Hacked account trap triggered",
-  incidentChannelEnabled: false,
-  incidentChannelCategoryId: null,
-  incidentChannelClosedCategoryId: null,
-  incidentChannelNameTemplate: "hacked-{user}",
-  incidentChannelIncludeUser: false,
-  incidentChannelMessage: "Hacked account trap triggered by {user}.",
-  incidentChannelPostDmStatus: false,
-  incidentChannelTagRoles: false,
-  incidentChannelTagRoleIds: [],
 };
 
 export function HackedAccountTrapModule() {
@@ -34,7 +31,6 @@ export function HackedAccountTrapModule() {
   const [settings, setSettings] = useState<HackedAccountTrapSettings>(DEFAULT_TRAP_SETTINGS);
   const [spamLogChannelId, setSpamLogChannelId] = useState<string | null>(null);
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(Boolean(guildId));
   const [saving, setSaving] = useState(false);
@@ -48,21 +44,18 @@ export function HackedAccountTrapModule() {
     setError(null);
     setSettings(DEFAULT_TRAP_SETTINGS);
     setChannels([]);
-    setCategories([]);
     setRoles([]);
     if (!guildId) return () => { cancelled = true; };
     Promise.all([
       adminApi.getHackedAccountTrap(guildId),
       adminApi.getDiscordTextChannels(guildId),
-      adminApi.getDiscordCategories(guildId),
       adminApi.getDiscordRoles(guildId),
       adminApi.getLogChannels(guildId),
     ])
-      .then(([data, channelList, categoryList, roleList, logChannels]) => {
+      .then(([data, channelList, roleList, logChannels]) => {
         if (cancelled) return;
         setSettings(data);
         setChannels(channelList);
-        setCategories(categoryList);
         setRoles(roleList);
         setSpamLogChannelId(
           logChannels.eventTypes.find(e => e.eventType === "HACKED_ACCOUNT_TRAP_TRIGGERED")?.channelId ?? null);
@@ -138,7 +131,7 @@ export function HackedAccountTrapModule() {
               <Radio className="w-4 h-4 text-indigo-400" />
               <div>
                 <h2 className="text-sm font-bold text-zinc-100">Trigger</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Posting any message in the trap channel triggers the module.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Posting any message in the trap channel bans the author permanently.</p>
               </div>
             </div>
             <div className="px-4 py-4 space-y-4">
@@ -146,36 +139,27 @@ export function HackedAccountTrapModule() {
                 <p className="text-xs font-semibold text-zinc-400 mb-1.5">Trap channel</p>
                 <ChannelPicker channels={channels} value={settings.trapChannelId} onChange={value => update("trapChannelId", value)} />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">Moderation action</p>
-                  <select value={settings.action} onChange={event => update("action", event.target.value as HackedAccountTrapSettings["action"])}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors">
-                    <option value="timeout">Timeout</option>
-                    <option value="kick">Kick</option>
-                    <option value="ban">Ban</option>
-                  </select>
-                </div>
-                {settings.action === "timeout" && (
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Timeout duration</p>
-                    <div className="flex items-center gap-2">
-                      <NumberStepper
-                        value={settings.timeoutMinutes}
-                        onChange={value => update("timeoutMinutes", value)}
-                        min={1}
-                        max={40320}
-                        className="w-full"
-                        ariaLabel="Timeout duration in minutes"
-                      />
-                      <span className="text-xs text-zinc-500">minutes</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+
               <CmdSettingsRow label="Ignore administrators" hint="Administrators will never trigger the trap">
                 <Toggle enabled={settings.ignoreAdministrators} onChange={value => update("ignoreAdministrators", value)} />
               </CmdSettingsRow>
+
+              <CmdSettingsRow label="Delete message history" hint="Also delete the banned account's recent messages, using Discord's own ban duration options">
+                <Toggle enabled={settings.deleteMessageHistory} onChange={value => update("deleteMessageHistory", value)} />
+              </CmdSettingsRow>
+              {settings.deleteMessageHistory && (
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 mb-1.5">Delete messages from</p>
+                  <select value={settings.deleteMessageHistorySeconds}
+                    onChange={event => update("deleteMessageHistorySeconds", Number(event.target.value) as DeleteMessageHistorySeconds)}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors">
+                    {DELETE_MESSAGE_HISTORY_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <p className="text-xs font-semibold text-zinc-400 mb-1.5">Exempt roles</p>
                 <MultiPicker options={roles} selected={settings.exemptRoleIds} onChange={value => update("exemptRoleIds", value)} placeholder="Select exempt roles" />
@@ -187,30 +171,12 @@ export function HackedAccountTrapModule() {
           <div className="rounded-lg border border-zinc-800 bg-zinc-900">
             <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
               <Trash2 className="w-4 h-4 text-amber-400" />
-              <h2 className="text-sm font-bold text-zinc-100">Message Cleanup</h2>
+              <h2 className="text-sm font-bold text-zinc-100">Trigger Message</h2>
             </div>
-            <div className="px-4 py-4 space-y-4">
+            <div className="px-4 py-4">
               <CmdSettingsRow label="Delete triggering message" hint="Remove the message posted in the trap channel">
                 <Toggle enabled={settings.deleteTriggerMessage} onChange={value => update("deleteTriggerMessage", value)} />
               </CmdSettingsRow>
-              <CmdSettingsRow label="Delete recent messages" hint="Remove the affected account's recent messages across accessible channels">
-                <Toggle enabled={settings.deleteRecentMessages} onChange={value => update("deleteRecentMessages", value)} />
-              </CmdSettingsRow>
-              {settings.deleteRecentMessages && (
-                <CmdSettingsRow label="Cleanup period" hint="How far back message cleanup should search">
-                  <div className="flex items-center gap-2">
-                    <NumberStepper
-                      value={settings.cleanupMinutes}
-                      onChange={value => update("cleanupMinutes", value)}
-                      min={1}
-                      max={1440}
-                      className="w-36"
-                      ariaLabel="Message cleanup period in minutes"
-                    />
-                    <span className="text-xs text-zinc-500">minutes</span>
-                  </div>
-                </CmdSettingsRow>
-              )}
             </div>
           </div>
 
@@ -230,72 +196,6 @@ export function HackedAccountTrapModule() {
                     placeholder="Message sent to the affected user" />
                   <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
                 </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-              <Bell className="w-4 h-4 text-rose-400" />
-              <div>
-                <h2 className="text-sm font-bold text-zinc-100">Incident Channel</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Create a private channel for this incident when the trap triggers.</p>
-              </div>
-            </div>
-            <div className="px-4 py-4 space-y-4">
-              <CmdSettingsRow label="Create incident channel" hint="Create a private channel for this incident when the trap triggers">
-                <Toggle enabled={settings.incidentChannelEnabled} onChange={value => update("incidentChannelEnabled", value)} />
-              </CmdSettingsRow>
-
-              {settings.incidentChannelEnabled && (
-                <div className="space-y-4 rounded border border-zinc-800 bg-zinc-950/40 p-3">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel name</p>
-                      <input value={settings.incidentChannelNameTemplate} onChange={event => update("incidentChannelNameTemplate", event.target.value)}
-                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
-                        placeholder="hacked-{user}" />
-                      <p className="text-[11px] text-zinc-600 mt-1">Variables: <span className="font-mono">{"{user}, {id}"}</span></p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Category</p>
-                      <ChannelPicker channels={categories} value={settings.incidentChannelCategoryId} onChange={value => update("incidentChannelCategoryId", value)} prefix="" placeholder="No category" />
-                      <p className="text-[11px] text-zinc-600 mt-1">Where the created channel is placed. Optional.</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Category on close</p>
-                      <ChannelPicker channels={categories} value={settings.incidentChannelClosedCategoryId} onChange={value => update("incidentChannelClosedCategoryId", value)} prefix="" placeholder="Don't move" />
-                      <p className="text-[11px] text-zinc-600 mt-1">Where the channel is moved when the ticket is closed. Optional.</p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-zinc-500">Manager Roles (Settings → Manager Roles) always get View Channel on the created channel.</p>
-
-                  <CmdSettingsRow label="Give affected user access" hint="Grant the triggering user View Channel while the ticket is open; removed on close, restored on reopen">
-                    <Toggle enabled={settings.incidentChannelIncludeUser} onChange={value => update("incidentChannelIncludeUser", value)} />
-                  </CmdSettingsRow>
-
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel message</p>
-                    <textarea value={settings.incidentChannelMessage} onChange={event => update("incidentChannelMessage", event.target.value)} rows={3}
-                      className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
-                      placeholder="Message posted in the created channel" />
-                    <p className="text-[11px] text-zinc-600 mt-1">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
-                  </div>
-
-                  {settings.dmUser && (
-                    <CmdSettingsRow label="Post DM status" hint="Post whether the DM to the affected user succeeded or failed">
-                      <Toggle enabled={settings.incidentChannelPostDmStatus} onChange={value => update("incidentChannelPostDmStatus", value)} />
-                    </CmdSettingsRow>
-                  )}
-
-                  <CmdSettingsRow label="Tag roles" hint="Mention selected roles in the created channel">
-                    <Toggle enabled={settings.incidentChannelTagRoles} onChange={value => update("incidentChannelTagRoles", value)} />
-                  </CmdSettingsRow>
-                  {settings.incidentChannelTagRoles && (
-                    <MultiPicker options={roles} selected={settings.incidentChannelTagRoleIds} onChange={value => update("incidentChannelTagRoleIds", value)} placeholder="Select roles to tag" />
-                  )}
-                </div>
               )}
             </div>
           </div>

@@ -7,7 +7,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import sk.gkanocz.aisauth.auth.GuildAccessDeniedException;
 import sk.gkanocz.aisauth.automod.AutoDeleteConfigExistsException;
-import sk.gkanocz.aisauth.ticket.TicketNotFoundException;
+import sk.gkanocz.aisauth.automod.AutoDeleteConfigNotFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,7 +34,7 @@ class GlobalExceptionHandlerTest {
     void differentDomainExceptionSubtypesMapToTheirOwnDistinctStatus() {
         assertThat(handler.handleDomainException(AutoDeleteConfigExistsException.forChannel()).getStatus())
                 .isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(handler.handleDomainException(TicketNotFoundException.withChannelId("chan-1")).getStatus())
+        assertThat(handler.handleDomainException(AutoDeleteConfigNotFoundException.create()).getStatus())
                 .isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(handler.handleDomainException(InvalidRequestException.withMessage("bad input")).getStatus())
                 .isEqualTo(HttpStatus.BAD_REQUEST.value());

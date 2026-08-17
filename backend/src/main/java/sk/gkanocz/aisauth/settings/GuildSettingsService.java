@@ -48,18 +48,11 @@ public class GuildSettingsService {
             case "spam_delete_interval" -> settings.setSpamDeleteInterval(((Number) value).intValue());
             case "verification_enabled" -> settings.setVerificationEnabled(
                     Boolean.TRUE.equals(value) || "true".equals(value));
-            case "ticket_retention_enabled" -> settings.setTicketRetentionEnabled(
-                    Boolean.TRUE.equals(value) || "true".equals(value));
-            case "ticket_retention_days" -> settings.setTicketRetentionDays(clampRetentionDays(((Number) value).intValue()));
             default -> throw UnknownSettingFieldException.forField(field);
         }
     }
 
     private String asString(Object value) {
         return value == null ? null : value.toString();
-    }
-
-    private int clampRetentionDays(int days) {
-        return Math.max(1, Math.min(365, days));
     }
 }

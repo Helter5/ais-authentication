@@ -18,7 +18,7 @@ public class AdminSettingsService {
 
     /**
      * Whether the guild has been added via the Admin dashboard's "Allowed Servers" panel. Every
-     * bot-facing feature (slash commands, automod listeners, ticket buttons) must check this
+     * bot-facing feature (slash commands, automod listeners) must check this
      * before doing anything, so a server removed from the allowlist stops working everywhere,
      * not just for commands.
      */

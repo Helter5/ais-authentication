@@ -32,12 +32,6 @@ public class GuildSettings {
     @Column(name = "verification_enabled", nullable = false)
     private boolean verificationEnabled = true;
 
-    @Column(name = "ticket_retention_enabled", nullable = false)
-    private boolean ticketRetentionEnabled = false;
-
-    @Column(name = "ticket_retention_days", nullable = false)
-    private int ticketRetentionDays = 90;
-
     @Column(name = "last_sync_at")
     private LocalDateTime lastSyncAt;
 
@@ -85,16 +79,6 @@ public class GuildSettings {
 
     public void setVerificationEnabled(boolean verificationEnabled) {
         this.verificationEnabled = verificationEnabled;
-        touch();
-    }
-
-    public void setTicketRetentionEnabled(boolean ticketRetentionEnabled) {
-        this.ticketRetentionEnabled = ticketRetentionEnabled;
-        touch();
-    }
-
-    public void setTicketRetentionDays(int ticketRetentionDays) {
-        this.ticketRetentionDays = ticketRetentionDays;
         touch();
     }
 

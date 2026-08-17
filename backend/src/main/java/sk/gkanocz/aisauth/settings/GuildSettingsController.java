@@ -33,9 +33,7 @@ public class GuildSettingsController {
                 settings.getInactiveRoleId(),
                 settings.getSpamTrapChannelId(),
                 settings.getSpamDeleteInterval(),
-                settings.isVerificationEnabled(),
-                settings.isTicketRetentionEnabled(),
-                settings.getTicketRetentionDays());
+                settings.isVerificationEnabled());
     }
 
     @PatchMapping("/settings")

@@ -46,7 +46,7 @@ class HackedAccountTrapControllerIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false))
-                .andExpect(jsonPath("$.action").value("timeout"));
+                .andExpect(jsonPath("$.deleteMessageHistory").value(false));
     }
 
     @Test

@@ -25,7 +25,7 @@ public class LogRoutingService {
 
     /**
      * Applies only the event types present in the given map, leaving every other event type's
-     * routing untouched - each owning command/module page (Warn, Ticket, Hacked Account Trap,
+     * routing untouched - each owning command/module page (Warn, Hacked Account Trap,
      * Wipe, Semester Switch) saves its own small subset of event types independently, so this
      * must not wipe out assignments some other page is responsible for.
      */

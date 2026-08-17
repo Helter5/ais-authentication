@@ -118,64 +118,20 @@ export interface DashboardData {
   }[];
 }
 
+/** Discord's own ban-dialog "delete message history" durations, in seconds. */
+export type DeleteMessageHistorySeconds = 3600 | 21600 | 43200 | 86400 | 259200 | 604800;
+
 export interface HackedAccountTrapSettings {
   enabled: boolean;
   trapChannelId: string | null;
-  action: 'timeout' | 'kick' | 'ban';
-  timeoutMinutes: number;
   deleteTriggerMessage: boolean;
-  deleteRecentMessages: boolean;
-  cleanupMinutes: number;
-  exemptRoleIds: string[];
   ignoreAdministrators: boolean;
+  exemptRoleIds: string[];
+  deleteMessageHistory: boolean;
+  deleteMessageHistorySeconds: DeleteMessageHistorySeconds;
   dmUser: boolean;
   dmMessage: string;
   reason: string;
-  incidentChannelEnabled: boolean;
-  incidentChannelCategoryId: string | null;
-  incidentChannelClosedCategoryId: string | null;
-  incidentChannelNameTemplate: string;
-  incidentChannelIncludeUser: boolean;
-  incidentChannelMessage: string;
-  incidentChannelPostDmStatus: boolean;
-  incidentChannelTagRoles: boolean;
-  incidentChannelTagRoleIds: string[];
-}
-
-export interface TicketTranscriptMessage {
-  authorId: string;
-  authorTag: string;
-  authorAvatarUrl: string | null;
-  timestamp: string;
-  content: string;
-  attachments: { url: string; name: string }[];
-  eventKind: string | null;
-}
-
-export interface TicketTranscript {
-  channelId: string;
-  guildId: string;
-  userId: string;
-  username: string | null;
-  status: 'open' | 'closed';
-  closedBy: string | null;
-  closedByUsername: string | null;
-  closedAt: string | null;
-  createdAt: string;
-  messages: TicketTranscriptMessage[];
-}
-
-export interface TicketSummary {
-  channelId: string;
-  guildId: string;
-  userId: string;
-  username: string | null;
-  status: 'open' | 'closed';
-  closedBy: string | null;
-  closedByUsername: string | null;
-  closedAt: string | null;
-  createdAt: string;
-  expiresAt: string | null;
 }
 
 export interface AutoMention {
@@ -355,8 +311,6 @@ export const adminApi = {
     spam_trap_channel_id: string | null;
     spam_delete_interval: number;
     verification_enabled: boolean;
-    ticket_retention_enabled: boolean;
-    ticket_retention_days: number;
   }> => {
     const res = await api.get('/settings', { params: { guildId } });
     return res.data;
@@ -400,16 +354,6 @@ export const adminApi = {
 
   saveHackedAccountTrap: async (guildId: string, settings: HackedAccountTrapSettings): Promise<HackedAccountTrapSettings> => {
     const res = await api.post('/modules/hacked-account-trap', { guildId, ...settings });
-    return res.data;
-  },
-
-  getTicketTranscript: async (channelId: string, guildId: string): Promise<TicketTranscript> => {
-    const res = await api.get(`/tickets/${channelId}`, { params: { guildId } });
-    return res.data;
-  },
-
-  listTicketTranscripts: async (guildId: string): Promise<TicketSummary[]> => {
-    const res = await api.get('/tickets', { params: { guildId } });
     return res.data;
   },
 

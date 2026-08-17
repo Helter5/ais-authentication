@@ -41,8 +41,6 @@ class CommandInteractionListenerTest {
     @Mock
     private UtilityCommandListener utilityCommandHandler;
     @Mock
-    private TicketSlashCommandListener ticketCommandHandler;
-    @Mock
     private AdminSettingsService adminSettingsService;
     @Mock
     private AuditLogService auditLogService;
@@ -63,7 +61,7 @@ class CommandInteractionListenerTest {
     @BeforeEach
     void setUp() {
         listener = new CommandInteractionListener(
-                verificationCommandHandler, warnCommandHandler, utilityCommandHandler, ticketCommandHandler,
+                verificationCommandHandler, warnCommandHandler, utilityCommandHandler,
                 adminSettingsService, auditLogService);
 
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
@@ -231,7 +229,7 @@ class CommandInteractionListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void dispatchesToAllFourHandlersAndLogsSuccess() {
+    void dispatchesToAllHandlersAndLogsSuccess() {
         when(adminSettingsService.get(eq("cmd_states_guild-1"), any(TypeReference.class), any())).thenReturn(Map.of());
         when(adminSettingsService.get(eq("cmd_perms_guild-1_verify"), eq(CommandPermissions.class), any()))
                 .thenReturn(CommandPermissions.empty());
@@ -243,7 +241,6 @@ class CommandInteractionListenerTest {
         verify(verificationCommandHandler).dispatch(event, null);
         verify(warnCommandHandler).dispatch(event, null);
         verify(utilityCommandHandler).dispatch(event, null);
-        verify(ticketCommandHandler).dispatch(event, null);
 
         ArgumentCaptor<AuditLogEntry> captor = ArgumentCaptor.forClass(AuditLogEntry.class);
         verify(auditLogService).log(captor.capture());

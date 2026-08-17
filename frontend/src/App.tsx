@@ -18,8 +18,6 @@ const SwitchSemesterModule = lazy(() => import("@/pages/SwitchSemester").then(mo
 const AutoDeleteModule = lazy(() => import("@/pages/AutoDelete").then(module => ({ default: module.AutoDeleteModule })));
 const RoleMenuModule = lazy(() => import("@/pages/RoleMenu").then(module => ({ default: module.RoleMenuModule })));
 const AutoMentionsModule = lazy(() => import("@/pages/AutoMentions").then(module => ({ default: module.AutoMentionsModule })));
-const TicketTranscript = lazy(() => import("@/pages/TicketTranscript").then(module => ({ default: module.TicketTranscript })));
-const Transcripts = lazy(() => import("@/pages/Transcripts").then(module => ({ default: module.Transcripts })));
 const Settings = lazy(() => import("@/pages/Settings").then(module => ({ default: module.Settings })));
 const Wipe = lazy(() => import("@/pages/Wipe").then(module => ({ default: module.Wipe })));
 const SelectServer = lazy(() => import("@/pages/SelectServer").then(module => ({ default: module.SelectServer })));
@@ -48,13 +46,11 @@ function App() {
             <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/codes" element={<Codes />} />
-                <Route path="/transcripts" element={<Transcripts />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/semester" element={<SwitchSemesterModule />} />
                 <Route path="/semester/switch" element={<SwitchSemesterModule />} />
                 <Route path="/semester/setup" element={<SwitchSemesterModule />} />
                 <Route path="/access-logs" element={<Logs />} />
-                <Route path="/tickets/:channelId" element={<TicketTranscript />} />
                 <Route element={<SuperAdminRoute />}>
                   <Route path="/modules" element={<Modules />} />
                   <Route path="/modules/hacked-account-trap" element={<HackedAccountTrapModule />} />

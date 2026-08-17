@@ -45,26 +45,26 @@ class EventLogEmbedSenderTest {
 
     @Test
     void resolveChannelReturnsNullWhenNoChannelConfigured() {
-        when(logRoutingService.channelIdFor("guild-1", LogEventType.TICKET_TRANSCRIPT_SAVED)).thenReturn(Optional.empty());
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.empty());
 
-        assertThat(sender.resolveChannel(guild, LogEventType.TICKET_TRANSCRIPT_SAVED)).isNull();
+        assertThat(sender.resolveChannel(guild, LogEventType.WIPE_RECAP)).isNull();
     }
 
     @Test
     void resolveChannelReturnsTheConfiguredChannel() {
-        when(logRoutingService.channelIdFor("guild-1", LogEventType.TICKET_TRANSCRIPT_SAVED)).thenReturn(Optional.of("chan-1"));
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.of("chan-1"));
         when(guild.getTextChannelById("chan-1")).thenReturn(channel);
 
-        assertThat(sender.resolveChannel(guild, LogEventType.TICKET_TRANSCRIPT_SAVED)).isSameAs(channel);
+        assertThat(sender.resolveChannel(guild, LogEventType.WIPE_RECAP)).isSameAs(channel);
     }
 
     // ---- send ----
 
     @Test
     void sendReturnsFalseWhenNoChannelConfigured() {
-        when(logRoutingService.channelIdFor("guild-1", LogEventType.TICKET_TRANSCRIPT_SAVED)).thenReturn(Optional.empty());
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.empty());
 
-        boolean result = sender.send(guild, LogEventType.TICKET_TRANSCRIPT_SAVED, new EmbedBuilder().setTitle("Test"));
+        boolean result = sender.send(guild, LogEventType.WIPE_RECAP, new EmbedBuilder().setTitle("Test"));
 
         assertThat(result).isFalse();
     }
@@ -72,12 +72,12 @@ class EventLogEmbedSenderTest {
     @Test
     @SuppressWarnings("unchecked")
     void sendPostsTheEmbedWhenChannelIsConfigured() {
-        when(logRoutingService.channelIdFor("guild-1", LogEventType.TICKET_TRANSCRIPT_SAVED)).thenReturn(Optional.of("chan-1"));
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.of("chan-1"));
         when(guild.getTextChannelById("chan-1")).thenReturn(channel);
         MessageCreateAction action = mock(MessageCreateAction.class, Mockito.RETURNS_SELF);
         when(channel.sendMessageEmbeds(any(net.dv8tion.jda.api.entities.MessageEmbed.class))).thenReturn(action);
 
-        boolean result = sender.send(guild, LogEventType.TICKET_TRANSCRIPT_SAVED, new EmbedBuilder().setTitle("Test"));
+        boolean result = sender.send(guild, LogEventType.WIPE_RECAP, new EmbedBuilder().setTitle("Test"));
 
         assertThat(result).isTrue();
         verify(action, never()).addActionRow(any(Button.class));
@@ -87,13 +87,13 @@ class EventLogEmbedSenderTest {
     @Test
     @SuppressWarnings("unchecked")
     void sendAddsTheLinkButtonWhenProvided() {
-        when(logRoutingService.channelIdFor("guild-1", LogEventType.TICKET_TRANSCRIPT_SAVED)).thenReturn(Optional.of("chan-1"));
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.of("chan-1"));
         when(guild.getTextChannelById("chan-1")).thenReturn(channel);
         MessageCreateAction action = mock(MessageCreateAction.class, Mockito.RETURNS_SELF);
         when(channel.sendMessageEmbeds(any(net.dv8tion.jda.api.entities.MessageEmbed.class))).thenReturn(action);
         Button link = Button.link("https://example.com", "View");
 
-        boolean result = sender.send(guild, LogEventType.TICKET_TRANSCRIPT_SAVED, new EmbedBuilder().setTitle("Test"), link);
+        boolean result = sender.send(guild, LogEventType.WIPE_RECAP, new EmbedBuilder().setTitle("Test"), link);
 
         assertThat(result).isTrue();
         verify(action).addActionRow(link);

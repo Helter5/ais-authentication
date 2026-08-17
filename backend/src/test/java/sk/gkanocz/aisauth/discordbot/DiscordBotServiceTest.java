@@ -14,7 +14,6 @@ import sk.gkanocz.aisauth.automod.AutoDeleteListener;
 import sk.gkanocz.aisauth.automod.AutoMentionListener;
 import sk.gkanocz.aisauth.automod.HackedAccountTrapListener;
 import sk.gkanocz.aisauth.rolemenu.RoleMenuInteractionListener;
-import sk.gkanocz.aisauth.ticket.TicketButtonListener;
 import sk.gkanocz.aisauth.verification.DatabaseSyncService;
 
 import java.util.List;
@@ -46,7 +45,7 @@ class DiscordBotServiceTest {
                 mock(DiscordBotProperties.class), mock(CommandInteractionListener.class),
                 mock(GuildLifecycleListener.class), mock(AutoDeleteListener.class),
                 mock(AutoMentionListener.class), mock(HackedAccountTrapListener.class),
-                mock(TicketButtonListener.class), mock(RoleMenuInteractionListener.class),
+                mock(RoleMenuInteractionListener.class),
                 mock(VerifyConfirmationButtonListener.class), mock(GuildAllowlistEventManager.class),
                 mock(DatabaseSyncService.class));
     }
@@ -97,7 +96,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands).extracting(SlashCommandData::getName)
-                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "ticket");
+                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user");
     }
 
     @Test
@@ -107,14 +106,5 @@ class DiscordBotServiceTest {
 
         assertThat(warn.getSubcommands()).extracting(SubcommandData::getName)
                 .containsExactly("add", "remove", "clearall", "list");
-    }
-
-    @Test
-    void ticketCommandHasAllFourSubcommands() {
-        SlashCommandData ticket = service.baseCommands().stream()
-                .filter(c -> c.getName().equals("ticket")).findFirst().orElseThrow();
-
-        assertThat(ticket.getSubcommands()).extracting(SubcommandData::getName)
-                .containsExactly("close", "reopen", "delete", "recap");
     }
 }

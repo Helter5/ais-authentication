@@ -16,21 +16,19 @@ import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.discordbot.DiscordModerationService;
 import sk.gkanocz.aisauth.discordbot.EventLogEmbedSender;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
-import sk.gkanocz.aisauth.ticket.TicketService;
 
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Covers only the guard clauses in onMessageReceived (does the trap correctly decide whether to
- * fire at all) - the actual trigger() pipeline (incident channel creation, message history sweep,
- * moderation action) needs a disproportionate amount of JDA action-chain mocking for its value and
- * is left uncovered here.
+ * fire at all) - the actual trigger() pipeline (DM, moderation action) needs a disproportionate
+ * amount of JDA action-chain mocking for its value and is left uncovered here.
  */
 @ExtendWith(MockitoExtension.class)
 class HackedAccountTrapListenerTest {
@@ -41,8 +39,6 @@ class HackedAccountTrapListenerTest {
     private AdminSettingsService adminSettingsService;
     @Mock
     private AuditLogService auditLogService;
-    @Mock
-    private TicketService ticketService;
     @Mock
     private DiscordModerationService moderationService;
     @Mock
@@ -62,8 +58,7 @@ class HackedAccountTrapListenerTest {
     @BeforeEach
     void setUp() {
         listener = new HackedAccountTrapListener(
-                hackedAccountTrapService, adminSettingsService, auditLogService, ticketService,
-                moderationService, eventLogEmbedSender);
+                hackedAccountTrapService, adminSettingsService, auditLogService, moderationService, eventLogEmbedSender);
 
         Mockito.lenient().when(event.isFromGuild()).thenReturn(true);
         Mockito.lenient().when(event.getAuthor()).thenReturn(author);
@@ -76,43 +71,33 @@ class HackedAccountTrapListenerTest {
     }
 
     private HackedAccountTrapSettings enabledSettings() {
-        return HackedAccountTrapSettings.defaults("trap-channel-1", 15);
+        return HackedAccountTrapSettings.defaults("trap-channel-1");
     }
 
     private HackedAccountTrapSettings withEnabled(HackedAccountTrapSettings base, boolean enabled) {
         return new HackedAccountTrapSettings(
-                enabled, base.trapChannelId(), base.action(), base.timeoutMinutes(),
-                base.deleteTriggerMessage(), base.deleteRecentMessages(), base.cleanupMinutes(),
-                base.exemptRoleIds(), base.ignoreAdministrators(), base.dmUser(), base.dmMessage(), base.reason(),
-                base.incidentChannelEnabled(), base.incidentChannelCategoryId(), base.incidentChannelClosedCategoryId(),
-                base.incidentChannelNameTemplate(), base.incidentChannelIncludeUser(), base.incidentChannelMessage(),
-                base.incidentChannelPostDmStatus(), base.incidentChannelTagRoles(), base.incidentChannelTagRoleIds());
+                enabled, base.trapChannelId(), base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                base.exemptRoleIds(), base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
+                base.dmUser(), base.dmMessage(), base.reason());
     }
 
     private HackedAccountTrapSettings withTrapChannelId(HackedAccountTrapSettings base, String trapChannelId) {
         return new HackedAccountTrapSettings(
-                base.enabled(), trapChannelId, base.action(), base.timeoutMinutes(),
-                base.deleteTriggerMessage(), base.deleteRecentMessages(), base.cleanupMinutes(),
-                base.exemptRoleIds(), base.ignoreAdministrators(), base.dmUser(), base.dmMessage(), base.reason(),
-                base.incidentChannelEnabled(), base.incidentChannelCategoryId(), base.incidentChannelClosedCategoryId(),
-                base.incidentChannelNameTemplate(), base.incidentChannelIncludeUser(), base.incidentChannelMessage(),
-                base.incidentChannelPostDmStatus(), base.incidentChannelTagRoles(), base.incidentChannelTagRoleIds());
+                base.enabled(), trapChannelId, base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                base.exemptRoleIds(), base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
+                base.dmUser(), base.dmMessage(), base.reason());
     }
 
     private HackedAccountTrapSettings withExemptRoleIds(HackedAccountTrapSettings base, List<String> exemptRoleIds) {
         return new HackedAccountTrapSettings(
-                base.enabled(), base.trapChannelId(), base.action(), base.timeoutMinutes(),
-                base.deleteTriggerMessage(), base.deleteRecentMessages(), base.cleanupMinutes(),
-                exemptRoleIds, base.ignoreAdministrators(), base.dmUser(), base.dmMessage(), base.reason(),
-                base.incidentChannelEnabled(), base.incidentChannelCategoryId(), base.incidentChannelClosedCategoryId(),
-                base.incidentChannelNameTemplate(), base.incidentChannelIncludeUser(), base.incidentChannelMessage(),
-                base.incidentChannelPostDmStatus(), base.incidentChannelTagRoles(), base.incidentChannelTagRoleIds());
+                base.enabled(), base.trapChannelId(), base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                exemptRoleIds, base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
+                base.dmUser(), base.dmMessage(), base.reason());
     }
 
     private void assertNoTriggerSideEffects() {
-        verify(auditLogService, never()).log(any());
-        verify(moderationService, never()).apply(any(), any(), any(), any());
-        verify(ticketService, never()).postTicketControls(any(), any(), any());
+        Mockito.verify(auditLogService, never()).log(any());
+        Mockito.verify(moderationService, never()).apply(any(), any(), any(), any(), anyInt());
     }
 
     @Test
@@ -121,7 +106,7 @@ class HackedAccountTrapListenerTest {
 
         listener.onMessageReceived(event);
 
-        verify(hackedAccountTrapService, never()).get(any());
+        Mockito.verify(hackedAccountTrapService, never()).get(any());
         assertNoTriggerSideEffects();
     }
 
@@ -131,7 +116,7 @@ class HackedAccountTrapListenerTest {
 
         listener.onMessageReceived(event);
 
-        verify(hackedAccountTrapService, never()).get(any());
+        Mockito.verify(hackedAccountTrapService, never()).get(any());
         assertNoTriggerSideEffects();
     }
 
@@ -141,7 +126,7 @@ class HackedAccountTrapListenerTest {
 
         listener.onMessageReceived(event);
 
-        verify(hackedAccountTrapService, never()).get(any());
+        Mockito.verify(hackedAccountTrapService, never()).get(any());
         assertNoTriggerSideEffects();
     }
 

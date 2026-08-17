@@ -48,38 +48,39 @@ class HackedAccountTrapServiceTest {
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest validRequest() {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                "guild-1", true, "trap-channel", "timeout", 60,
-                true, true, 60, List.of(), true,
-                false, "dm message", "reason",
-                false, null, null, "hacked-{user}", false,
-                "incident message", false, false, List.of());
+                "guild-1", true, "trap-channel", true, true, List.of(),
+                false, 3600, false, "dm message", "reason");
     }
 
     @Test
-    void rejectsInvalidAction() {
-        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withAction(validRequest(), "dance");
+    void rejectsMissingEnabledState() {
+        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withEnabled(validRequest(), null);
 
         assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessageContaining("Invalid module state or action");
+                .hasMessageContaining("Invalid module state");
     }
 
     @Test
-    void rejectsTimeoutMinutesOutOfRange() {
-        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withTimeoutMinutes(validRequest(), 0);
+    void rejectsInvalidDeleteMessageHistoryDuration() {
+        HackedAccountTrapService.HackedAccountTrapSaveRequest request =
+                withDeleteMessageHistory(validRequest(), true, 42);
 
         assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessageContaining("Timeout must be between");
+                .hasMessageContaining("Invalid delete message history duration");
     }
 
     @Test
-    void rejectsCleanupMinutesOutOfRange() {
-        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withCleanupMinutes(validRequest(), 2000);
+    void acceptsEveryDiscordDeleteMessageHistoryOption() {
+        for (Integer seconds : HackedAccountTrapSettings.DELETE_MESSAGE_HISTORY_SECONDS_OPTIONS) {
+            HackedAccountTrapService.HackedAccountTrapSaveRequest request =
+                    withDeleteMessageHistory(validRequest(), true, seconds);
 
-        assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
-                .isInstanceOf(InvalidRequestException.class)
-                .hasMessageContaining("Cleanup period must be between");
+            HackedAccountTrapSettings result = hackedAccountTrapService.save(guild, request);
+
+            assertThat(result.deleteMessageHistorySeconds()).isEqualTo(seconds);
+        }
     }
 
     @Test
@@ -89,15 +90,6 @@ class HackedAccountTrapServiceTest {
         assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("too long");
-    }
-
-    @Test
-    void rejectsBlankIncidentChannelNameTemplate() {
-        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withNameTemplate(validRequest(), "   ");
-
-        assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
-                .isInstanceOf(InvalidRequestException.class)
-                .hasMessageContaining("Incident channel name");
     }
 
     @Test
@@ -129,26 +121,14 @@ class HackedAccountTrapServiceTest {
     }
 
     @Test
-    void rejectsUnknownIncidentCategory() {
-        when(guild.getCategoryById("bad-category")).thenReturn(null);
-        HackedAccountTrapService.HackedAccountTrapSaveRequest request = withIncidentCategory(validRequest(), "bad-category");
-
-        assertThatThrownBy(() -> hackedAccountTrapService.save(guild, request))
-                .isInstanceOf(InvalidRequestException.class)
-                .hasMessageContaining("Invalid incident channel category");
-    }
-
-    @Test
-    void acceptsValidRequestAndPersistsSettingsPlusSyncsLegacyGuildSettingsFields() {
+    void acceptsValidRequestAndPersistsSettingsPlusSyncsLegacyTrapChannelField() {
         HackedAccountTrapSettings result = hackedAccountTrapService.save(guild, validRequest());
 
         assertThat(result.enabled()).isTrue();
         assertThat(result.trapChannelId()).isEqualTo("trap-channel");
-        assertThat(result.action()).isEqualTo("timeout");
 
         verify(adminSettingsService).set(anyString(), any());
         verify(guildSettingsService).updateField("guild-1", "spam_trap_channel_id", "trap-channel");
-        verify(guildSettingsService).updateField("guild-1", "spam_delete_interval", 60);
     }
 
     @Test
@@ -162,83 +142,38 @@ class HackedAccountTrapServiceTest {
         assertThat(result.exemptRoleIds()).containsExactly("role-a");
     }
 
-    private HackedAccountTrapService.HackedAccountTrapSaveRequest withAction(
-            HackedAccountTrapService.HackedAccountTrapSaveRequest r, String action) {
+    private HackedAccountTrapService.HackedAccountTrapSaveRequest withEnabled(
+            HackedAccountTrapService.HackedAccountTrapSaveRequest r, Boolean enabled) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), action, r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
+                r.guildId(), enabled, r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
     }
 
-    private HackedAccountTrapService.HackedAccountTrapSaveRequest withTimeoutMinutes(
-            HackedAccountTrapService.HackedAccountTrapSaveRequest r, Integer timeoutMinutes) {
+    private HackedAccountTrapService.HackedAccountTrapSaveRequest withDeleteMessageHistory(
+            HackedAccountTrapService.HackedAccountTrapSaveRequest r, Boolean deleteMessageHistory, Integer seconds) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), timeoutMinutes,
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
-    }
-
-    private HackedAccountTrapService.HackedAccountTrapSaveRequest withCleanupMinutes(
-            HackedAccountTrapService.HackedAccountTrapSaveRequest r, Integer cleanupMinutes) {
-        return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), cleanupMinutes, r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), deleteMessageHistory, seconds, r.dmUser(), r.dmMessage(), r.reason());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withDmMessage(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, String dmMessage) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), dmMessage, r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
-    }
-
-    private HackedAccountTrapService.HackedAccountTrapSaveRequest withNameTemplate(
-            HackedAccountTrapService.HackedAccountTrapSaveRequest r, String nameTemplate) {
-        return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), nameTemplate, r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), dmMessage, r.reason());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withTrapChannel(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, String trapChannelId) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), trapChannelId, r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
+                r.guildId(), r.enabled(), trapChannelId, r.deleteTriggerMessage(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withExemptRoles(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, List<String> exemptRoleIds) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), exemptRoleIds, r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), r.incidentChannelCategoryId(),
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
-    }
-
-    private HackedAccountTrapService.HackedAccountTrapSaveRequest withIncidentCategory(
-            HackedAccountTrapService.HackedAccountTrapSaveRequest r, String categoryId) {
-        return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.action(), r.timeoutMinutes(),
-                r.deleteTriggerMessage(), r.deleteRecentMessages(), r.cleanupMinutes(), r.exemptRoleIds(), r.ignoreAdministrators(),
-                r.dmUser(), r.dmMessage(), r.reason(), r.incidentChannelEnabled(), categoryId,
-                r.incidentChannelClosedCategoryId(), r.incidentChannelNameTemplate(), r.incidentChannelIncludeUser(),
-                r.incidentChannelMessage(), r.incidentChannelPostDmStatus(), r.incidentChannelTagRoles(), r.incidentChannelTagRoleIds());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
+                exemptRoleIds, r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
     }
 }

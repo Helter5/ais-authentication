@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Wraps JDA's default event dispatch so every guild-scoped event (messages, button clicks,
  * select-menu choices) is dropped in one place for guilds that aren't on the "allowed_guild_ids"
- * allowlist, instead of every automod/ticket/rolemenu listener repeating the same check. Slash
+ * allowlist, instead of every automod/rolemenu listener repeating the same check. Slash
  * commands are deliberately exempt here — CommandInteractionListener does its own allowlist check
  * so it can reply explaining why the command was blocked, which a silent drop at this layer can't do.
  */
