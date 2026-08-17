@@ -4,15 +4,15 @@ services:
     container_name: ais-auth-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-ais_auth}
-      POSTGRES_USER: ${DB_USER:-ais_auth}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ais_auth}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     ports:
       - "127.0.0.1:5432:5432" # loopback only - backend reaches this over the compose network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ais_auth} -d ${DB_NAME:-ais_auth}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER must be set} -d ${DB_NAME:?DB_NAME must be set}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -70,9 +70,9 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-ais_auth}
-      DB_USER: ${DB_USER:-ais_auth}
-      DB_PASSWORD: ${DB_PASSWORD:-ais_auth}
+      DB_NAME: ${DB_NAME:?DB_NAME must be set}
+      DB_USER: ${DB_USER:?DB_USER must be set}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       MAIL_HOST: ${MAIL_HOST:-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
@@ -81,18 +81,18 @@ services:
       MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
       MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
       MAIL_SMTP_SSL: ${MAIL_SMTP_SSL:-false}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-signing-key-at-least-32-bytes-long!!}
-      SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:-}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
-      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:?SUPER_ADMIN_IDS must be set - nobody could reach the admin dashboard otherwise}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID must be set}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?DISCORD_CLIENT_SECRET must be set}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/api/auth/discord/callback}
-      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN must be set}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
       LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
-      LDAP_USERNAME: ${LDAP_USERNAME:-}
-      LDAP_PASSWORD: ${LDAP_PASSWORD:-}
+      LDAP_USERNAME: ${LDAP_USERNAME:?LDAP_USERNAME must be set}
+      LDAP_PASSWORD: ${LDAP_PASSWORD:?LDAP_PASSWORD must be set}
       VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
     # No host port publish - only `frontend`'s nginx proxy (/api/) should reach this, over the
     # internal compose network. Add a port mapping back in a local dev-override file if you need
@@ -107,7 +107,8 @@ services:
     container_name: ais-auth-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "8081:80"
 
