@@ -31,6 +31,7 @@ public class GuildAccessAdminController {
     private final AdminSettingsService adminSettingsService;
     private final DiscordBotService discordBotService;
 
+    @SuperAdminAccess
     @GetMapping("/manager-roles")
     public ManagerRolesResponse getManagerRoles(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertSuperAdmin(claims);
@@ -46,6 +47,7 @@ public class GuildAccessAdminController {
         return new ManagerRolesResponse(roles, settings.managerRoleIds());
     }
 
+    @SuperAdminAccess
     @PostMapping("/manager-roles")
     public Map<String, Object> setManagerRoles(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateManagerRolesRequest request) {
@@ -64,6 +66,7 @@ public class GuildAccessAdminController {
         return Map.of("success", true, "managerRoleIds", unique);
     }
 
+    @SuperAdminAccess
     @GetMapping("/allowed-guilds")
     public Map<String, Object> getAllowedGuilds(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
@@ -75,12 +78,14 @@ public class GuildAccessAdminController {
      * manager needs to know whether the guild they're currently looking at is actually allowed,
      * since that's what silently gates every command and module event for it.
      */
+    @ManagerAccess
     @GetMapping("/guild-allowed")
     public Map<String, Boolean> isGuildAllowed(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return Map.of("allowed", adminSettingsService.isGuildAllowed(guildId));
     }
 
+    @SuperAdminAccess
     @PostMapping("/allowed-guilds")
     public Map<String, Object> setAllowedGuilds(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateAllowedGuildsRequest request) {

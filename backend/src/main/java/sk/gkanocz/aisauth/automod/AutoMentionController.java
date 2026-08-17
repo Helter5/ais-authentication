@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 
 import java.util.List;
@@ -29,12 +30,14 @@ public class AutoMentionController {
     private final GuildAccessService guildAccessService;
     private final AdminSettingsService adminSettingsService;
 
+    @ManagerAccess
     @GetMapping("/enabled")
     public Map<String, Boolean> getEnabled(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return Map.of("enabled", adminSettingsService.get("automentions_enabled_" + guildId, Boolean.class, false));
     }
 
+    @ManagerAccess
     @PostMapping("/enabled")
     public Map<String, Boolean> setEnabled(@AuthenticationPrincipal Claims claims, @RequestBody SetEnabledRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -43,6 +46,7 @@ public class AutoMentionController {
         return Map.of("success", true, "enabled", enabled);
     }
 
+    @ManagerAccess
     @GetMapping
     public List<AutoMentionResponse> getAutoMentions(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -51,6 +55,7 @@ public class AutoMentionController {
                 .toList();
     }
 
+    @ManagerAccess
     @PostMapping
     @Transactional
     public AutoMentionResponse createAutoMention(@AuthenticationPrincipal Claims claims, @RequestBody AutoMentionRequest request) {
@@ -64,6 +69,7 @@ public class AutoMentionController {
         return toResponse(autoMentionRepository.save(mention));
     }
 
+    @ManagerAccess
     @PatchMapping("/{id}")
     @Transactional
     public AutoMentionResponse updateAutoMention(
@@ -80,6 +86,7 @@ public class AutoMentionController {
         return seconds == null ? null : Math.max(3, seconds);
     }
 
+    @ManagerAccess
     @DeleteMapping("/{id}")
     @Transactional
     public Map<String, Boolean> deleteAutoMention(

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.settings.AdminSetting;
 import sk.gkanocz.aisauth.settings.AdminSettingRepository;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
@@ -43,12 +44,14 @@ public class CommandManagementController {
     private final DiscordBotService discordBotService;
     private final ObjectMapper objectMapper;
 
+    @ManagerAccess
     @GetMapping("/command-states")
     public Map<String, Boolean> getCommandStates(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return adminSettingsService.get("cmd_states_" + guildId, new TypeReference<Map<String, Boolean>>() { }, Map.of());
     }
 
+    @ManagerAccess
     @PatchMapping("/command-states")
     public Map<String, Boolean> setCommandState(@AuthenticationPrincipal Claims claims, @RequestBody CommandStateRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -69,6 +72,7 @@ public class CommandManagementController {
      * cmd_states_<guildId> blob, so concurrent requests race and only the last writer's single
      * command survives. This applies every change in one read-modify-write instead.
      */
+    @ManagerAccess
     @PatchMapping("/command-states/bulk")
     public Map<String, Boolean> setCommandStates(@AuthenticationPrincipal Claims claims, @RequestBody BulkCommandStateRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -81,6 +85,7 @@ public class CommandManagementController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @GetMapping("/command-permissions/summary")
     public List<CommandPermissionsSummary> getPermissionsSummary(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -108,6 +113,7 @@ public class CommandManagementController {
                 permissions.allowedChannels(), permissions.ignoredChannels(), permissions.adminOnly());
     }
 
+    @ManagerAccess
     @GetMapping("/command-permissions")
     public CommandPermissions getPermissions(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId, @RequestParam String command) {
@@ -115,6 +121,7 @@ public class CommandManagementController {
         return adminSettingsService.get("cmd_perms_" + guildId + "_" + command, CommandPermissions.class, CommandPermissions.empty());
     }
 
+    @ManagerAccess
     @PostMapping("/command-permissions")
     public Map<String, Boolean> savePermissions(@AuthenticationPrincipal Claims claims, @RequestBody SavePermissionsRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -132,6 +139,7 @@ public class CommandManagementController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @GetMapping("/command-settings")
     public Map<String, Object> getCommandSettings(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId, @RequestParam String command) {
@@ -140,6 +148,7 @@ public class CommandManagementController {
                 "cmd_settings_" + guildId + "_" + command, new TypeReference<Map<String, Object>>() { }, Map.of());
     }
 
+    @ManagerAccess
     @PostMapping("/command-settings")
     public Map<String, Boolean> saveCommandSettings(@AuthenticationPrincipal Claims claims, @RequestBody Map<String, Object> body) {
         String guildId = guildAccessService.requireValidGuildId(body.get("guildId"));
@@ -161,6 +170,7 @@ public class CommandManagementController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @PostMapping("/deploy-commands")
     public Map<String, Object> deployCommands(@AuthenticationPrincipal Claims claims, @RequestBody GuildIdRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());

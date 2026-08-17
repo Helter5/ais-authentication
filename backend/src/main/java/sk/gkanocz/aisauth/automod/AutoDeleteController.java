@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import tools.jackson.databind.ObjectMapper;
 
@@ -31,12 +32,14 @@ public class AutoDeleteController {
     private final AdminSettingsService adminSettingsService;
     private final ObjectMapper objectMapper;
 
+    @ManagerAccess
     @GetMapping("/enabled")
     public Map<String, Boolean> getEnabled(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return Map.of("enabled", adminSettingsService.get("autodelete_enabled_" + guildId, Boolean.class, false));
     }
 
+    @ManagerAccess
     @PostMapping("/enabled")
     public Map<String, Boolean> setEnabled(@AuthenticationPrincipal Claims claims, @RequestBody SetEnabledRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -45,6 +48,7 @@ public class AutoDeleteController {
         return Map.of("success", true, "enabled", enabled);
     }
 
+    @ManagerAccess
     @GetMapping
     public List<AutoDeleteConfigResponse> getConfigs(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -53,6 +57,7 @@ public class AutoDeleteController {
                 .toList();
     }
 
+    @ManagerAccess
     @PostMapping
     @Transactional
     public AutoDeleteConfigResponse createConfig(@AuthenticationPrincipal Claims claims, @RequestBody AutoDeleteConfigRequest request) {
@@ -74,6 +79,7 @@ public class AutoDeleteController {
         return toResponse(autoDeleteConfigRepository.save(config));
     }
 
+    @ManagerAccess
     @PatchMapping("/{id}")
     @Transactional
     public AutoDeleteConfigResponse updateConfig(
@@ -95,6 +101,7 @@ public class AutoDeleteController {
         return toResponse(config);
     }
 
+    @ManagerAccess
     @DeleteMapping("/{id}")
     @Transactional
     public Map<String, Boolean> deleteConfig(

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
+import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
 import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
@@ -37,6 +39,7 @@ public class SemesterController {
     private final DashboardAuditLogger dashboardAuditLogger;
     private final SemesterVisibilityService semesterVisibilityService;
 
+    @ManagerAccess
     @GetMapping("/semester/mappings")
     public Map<Integer, Map<Integer, List<CategoryRef>>> getMappings(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
@@ -52,6 +55,7 @@ public class SemesterController {
         return mappings;
     }
 
+    @ManagerAccess
     @PostMapping("/semester/mappings")
     public Map<String, Boolean> saveMapping(@AuthenticationPrincipal Claims claims, @RequestBody SaveMappingRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -69,6 +73,7 @@ public class SemesterController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @PostMapping("/semester")
     public Map<String, Object> setVisibility(@AuthenticationPrincipal Claims claims, @RequestBody SetVisibilityRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -101,12 +106,14 @@ public class SemesterController {
         return response;
     }
 
+    @ManagerAccess
     @GetMapping("/semester/configs")
     public Map<String, Object> getConfigs(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return adminSettingsService.get(configsKey(guildId), new TypeReference<Map<String, Object>>() { }, Map.of());
     }
 
+    @ManagerAccess
     @PostMapping("/semester/configs")
     public Map<String, Boolean> saveConfigs(@AuthenticationPrincipal Claims claims, @RequestBody Map<String, Object> body) {
         String guildId = guildAccessService.requireValidGuildId(body.get("guildId"));
@@ -119,6 +126,7 @@ public class SemesterController {
         return Map.of("success", true);
     }
 
+    @PublicToAuthenticated
     @GetMapping("/semester/access")
     public Map<String, Object> getAccess(@AuthenticationPrincipal Claims claims, @RequestParam(required = false) String guildId) {
         if (guildId == null) {

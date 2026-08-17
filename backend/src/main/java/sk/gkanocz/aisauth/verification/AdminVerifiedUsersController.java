@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +22,7 @@ public class AdminVerifiedUsersController {
     private final VerifiedUserRepository verifiedUserRepository;
     private final GuildAccessService guildAccessService;
 
+    @ManagerAccess
     @GetMapping("/users")
     public List<VerifiedUserResponse> getUsers(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);

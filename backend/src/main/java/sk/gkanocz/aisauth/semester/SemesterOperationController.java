@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
 import java.util.Map;
@@ -24,12 +25,14 @@ public class SemesterOperationController {
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
 
+    @ManagerAccess
     @GetMapping("/setupsemester/progress")
     public SemesterOperationState getSetupProgress(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return semesterOperationService.status(guildId, "setup");
     }
 
+    @ManagerAccess
     @PostMapping("/setupsemester/run")
     public Map<String, Boolean> runSetup(@AuthenticationPrincipal Claims claims, @RequestBody RunSetupRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -41,12 +44,14 @@ public class SemesterOperationController {
         return Map.of("started", true);
     }
 
+    @ManagerAccess
     @GetMapping("/switchsemester/progress")
     public SemesterOperationState getSwitchProgress(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return semesterOperationService.status(guildId, "switch");
     }
 
+    @ManagerAccess
     @PostMapping("/switchsemester/run")
     public Map<String, Boolean> runSwitch(@AuthenticationPrincipal Claims claims, @RequestBody RunSwitchRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());

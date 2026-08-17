@@ -44,6 +44,7 @@ public class AuthController {
     private final SessionCookieFactory cookieFactory;
     private final AuthEndpointRateLimiter rateLimiter;
 
+    @PublicToAuthenticated
     @PostMapping("/exchange")
     public ResponseEntity<SessionResponse> exchange(
             @RequestBody ExchangeRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
@@ -58,6 +59,7 @@ public class AuthController {
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
+    @PublicToAuthenticated
     @GetMapping("/session")
     public ResponseEntity<SessionResponse> session(@AuthenticationPrincipal Claims claims) {
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
@@ -77,6 +79,7 @@ public class AuthController {
      * as-is, since JDA having zero guilds would otherwise look identical to "revoked from
      * everything" and log out every manager.
      */
+    @PublicToAuthenticated
     @PostMapping("/refresh")
     @Transactional
     public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
@@ -108,6 +111,7 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @PublicToAuthenticated
     @PostMapping("/logout")
     @Transactional
     public ResponseEntity<Void> logout(

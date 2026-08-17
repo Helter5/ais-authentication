@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.util.Map;
 
@@ -23,6 +24,7 @@ public class GuildSettingsController {
     private final GuildAccessService guildAccessService;
     private final VerificationStatusBroadcaster verificationStatusBroadcaster;
 
+    @ManagerAccess
     @GetMapping("/settings")
     public GuildSettingsResponse getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -36,6 +38,7 @@ public class GuildSettingsController {
                 settings.isVerificationEnabled());
     }
 
+    @ManagerAccess
     @PatchMapping("/settings")
     public Map<String, Boolean> updateSetting(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateSettingRequest request) {
@@ -47,6 +50,7 @@ public class GuildSettingsController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @PatchMapping("/settings/bulk")
     public Map<String, Boolean> updateSettings(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateSettingsBulkRequest request) {
@@ -63,6 +67,7 @@ public class GuildSettingsController {
      * manager) - verification_enabled is per-guild data, so this requires the same manage-guild
      * access as the plain GET /settings above.
      */
+    @ManagerAccess
     @GetMapping("/settings/verification-stream")
     public SseEmitter streamVerificationStatus(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);

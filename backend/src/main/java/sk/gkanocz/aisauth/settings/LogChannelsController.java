@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -32,6 +33,7 @@ public class LogChannelsController {
     private final DiscordBotService discordBotService;
     private final DashboardAuditLogger dashboardAuditLogger;
 
+    @ManagerAccess
     @GetMapping
     public LogChannelsResponse getLogChannels(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -46,6 +48,7 @@ public class LogChannelsController {
         return new LogChannelsResponse(entries);
     }
 
+    @ManagerAccess
     @PutMapping
     public Map<String, Boolean> updateLogChannels(
             @AuthenticationPrincipal Claims claims, @RequestBody UpdateLogChannelsRequest request) {

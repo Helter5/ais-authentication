@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.audit.AuditLog;
 import sk.gkanocz.aisauth.audit.AuditLogRepository;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
@@ -38,6 +39,7 @@ public class DashboardController {
     private final AuditLogRepository auditLogRepository;
     private final AdminSettingsService adminSettingsService;
 
+    @ManagerAccess
     @GetMapping("/dashboard")
     public DashboardResponse getDashboard(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);

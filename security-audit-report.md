@@ -4,19 +4,20 @@
 **Date**: 2026-08-17
 **Auditor**: Claude Security Audit
 **Frameworks**: OWASP Top 10:2025 + NIST CSF 2.0
-**Mode**: full --fix (re-audit — verifies all prior findings plus a fresh full sweep; fixed code included below)
+**Mode**: full (re-audit — third full pass today; diff since the prior full audit was test-fixtures only, see Methodology)
 
 ---
 
-## Remediation Status (same-day follow-up)
+## Remediation Status
 
 | ID | Status | Note |
 |----|--------|------|
-| LOW-001 | ✅ Fixed | `Permissions-Policy` added to `frontend/nginx.conf`. HSTS left commented-out on purpose - no TLS in front of this stack yet. |
+| LOW-001 | ✅ Fixed, verified in current file | `Permissions-Policy` confirmed live at `frontend/nginx.conf:15`. HSTS left commented-out (`:19`) on purpose - no TLS in front of this stack yet. |
 | LOW-002 | ➖ Skipped, deliberately | Digest-pinning `node:22-alpine` costs more (manual re-pin on every bump) than it buys (build-stage only, discarded before the pinned runtime image ships, `npm ci` already locks real deps). Not worth it. |
-| LOW-003 | ✅ Fixed | `backend-ci.yml`: `permissions: contents: read` added, both actions pinned to commit SHA. |
-| LOW-004 | ✅ Documented | `infra/docker-compose.yml`: accepted-risk comment added above `LDAP_URL`. No real fix exists - confirmed live this session that STU's LDAP only speaks plain `ldap://`. |
-| SMELL-001/002 | ⏳ Not applied | Refactor-only, no security impact - code blocks left in the report as a reference for whenever someone gets to it. |
+| LOW-003 | ✅ Fixed, verified in current file | `backend-ci.yml`: `permissions: contents: read` confirmed at `:18-19`, both actions confirmed pinned to commit SHA at `:22,25`. |
+| LOW-004 | ✅ Documented, verified in current file | `infra/docker-compose.yml:95-97`: accepted-risk comment confirmed present above `LDAP_URL`. No real fix exists - STU's LDAP only speaks plain `ldap://`. |
+| SMELL-001/002 | ⏳ Not applied | Refactor-only, no security impact - code blocks left in the report as a reference. |
+| Test suite | ✅ Fixed | 10 CI failures from the two prior fix passes (stale super-admin test fixtures, non-snowflake guildId fixtures, a stale email-in-reply assertion) resolved in commit `aeda843` - diffed by hand this pass, confirmed fixture-only, no assertion weakened (the `/find` test actually got stricter: added `.doesNotContain("s@stuba.sk")`). |
 
 ---
 
@@ -34,7 +35,7 @@
 | 🧹 Code smells | 2 |
 | **Total findings** | **4** |
 
-**Overall Risk Assessment**: Low. This is a re-audit of a codebase that already went through a full audit and remediation pass earlier the same day. Every previously reported finding (PII leak in `/find`, stale super-admin claim, unvalidated `guildId` from raw request bodies, missing `DB_PASSWORD`/`JWT_SECRET` fail-fast checks, the committed OpenVPN key false-positive, weak default DB credentials, exposed ports, `auth.txt` elimination) was independently re-verified against the actual current code — not just re-read from the prior report — and confirmed correctly and completely fixed, with zero regressions. A genuinely fresh sweep of all 23 backend REST controllers, all 11 Discord bot listeners, the full JWT/OAuth2/LDAP/JPA stack, and the entire frontend found **zero new Critical/High/Medium findings**. The only open items are 4 Low-severity, forward-looking hardening gaps in infrastructure/CI (unpinned build-stage base image, unpinned CI actions, missing HSTS for a future TLS deployment, internal-network LDAP in cleartext) — none exploitable under the current deployment topology.
+**Overall Risk Assessment**: Low. This is the third full audit pass on this codebase in one day. The previous full pass (same day) independently re-verified every finding from the original audit against actual code and found zero regressions, plus ran a genuinely fresh sweep of all 23 backend REST controllers, all 11 Discord bot listeners, the full JWT/OAuth2/LDAP/JPA stack, and the entire frontend — zero new Critical/High/Medium findings, 4 Low-severity hardening gaps. Since that pass, `git diff` confirms the only changes were: 3 of those 4 Low findings fixed (nginx `Permissions-Policy`, CI action SHA-pinning + `permissions:` block, an accepted-risk comment for the LDAP finding that has no real fix), and 7 backend test files updated to fix CI failures caused by the two earlier fix commits — test-fixture corrections only, zero production/infra/frontend code touched. Given zero production-relevant diff since the last exhaustive sweep, this pass verified the 3 applied fixes are genuinely present in the files (not just claimed) and hand-reviewed the full test diff for any weakened assertion (none found — one assertion got strictly *more* thorough) rather than re-running a redundant full 2-agent sweep for a no-op production diff.
 
 ---
 
@@ -84,20 +85,13 @@
 
 ## 🟢 Low & 🔵 Informational Findings
 
-### 🟢 [LOW-001] Missing HSTS and Permissions-Policy headers at the nginx layer
+### 🟢 [LOW-001] Missing HSTS at the nginx layer — ✅ Permissions-Policy fixed
 - **Severity**: 🟢 LOW
 - **OWASP**: A02:2025 (Security Misconfiguration) | **CWE**: CWE-16 (Configuration) | **NIST CSF**: PR.PS (secondary PR.DS)
 - **Compliance**: ASVS V14 | PCI DSS 4.2 | SOC 2 CC6.7 | ISO 27001 A.8.9
-- **Location**: `frontend/nginx.conf:12-17`
-- No `Strict-Transport-Security` or `Permissions-Policy` header is set. Currently inert since this nginx only serves plain HTTP internally (TLS termination, if any, happens further upstream) — but it's a latent gap: the moment TLS gets added in front of this stack, nobody would think to revisit `nginx.conf` to add HSTS, leaving a downgrade-attack window open by omission.
-- **Vulnerable Code** (`frontend/nginx.conf:12-17`):
-  ```nginx
-  add_header X-Content-Type-Options nosniff always;
-  add_header X-Frame-Options DENY always;
-  add_header Referrer-Policy strict-origin-when-cross-origin always;
-  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
-  ```
-- **Remediation**: Add `Permissions-Policy` now (harmless regardless of TLS status). Add HSTS **only once TLS termination is confirmed in front of this stack** — uncomment it at that point, not before (it can lock out legitimate HTTP-only access otherwise):
+- **Location**: `frontend/nginx.conf:12-19`
+- `Permissions-Policy` is now live (confirmed at `:15`). `Strict-Transport-Security` remains deliberately commented-out (`:19`) — this nginx only serves plain HTTP internally today; enabling HSTS before TLS termination exists in front of it would lock out legitimate access. Uncomment it the day a TLS-terminating layer is added, not before.
+- **Current Code** (`frontend/nginx.conf:12-19`):
   ```nginx
   add_header X-Content-Type-Options nosniff always;
   add_header X-Frame-Options DENY always;
@@ -108,41 +102,22 @@
   # NOT before, since HSTS on a still-plain-HTTP deployment can lock browsers out of legitimate access:
   # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
   ```
+- **Remaining action**: None until TLS termination is introduced — then uncomment the HSTS line.
 
-### 🟢 [LOW-002] `node:22-alpine` build-stage base image not pinned to a digest
+### 🟢 [LOW-002] `node:22-alpine` build-stage base image not pinned to a digest — deliberately not fixed
 - **Severity**: 🟢 LOW
 - **OWASP**: A03:2025 (Software Supply Chain Failures) | **CWE**: CWE-829 | **NIST CSF**: GV.SC
 - **Compliance**: SOC 2 CC8.1 | ISO 27001 A.8.29
 - **Location**: `frontend/Dockerfile.frontend:1`
-- Build-stage image floats on the `22-alpine` tag (discarded before the final pinned `nginx:1.27-alpine` runtime image ships). Low impact — mitigated by `npm ci` enforcing the lockfile — but a supply-chain integrity gap for the toolchain itself.
-- **Vulnerable Code** (`frontend/Dockerfile.frontend:1`):
-  ```dockerfile
-  FROM node:22-alpine AS build
-  ```
-- **Remediation**: Pin to today's resolved digest for `node:22-alpine` (re-pin whenever you deliberately bump the Node version):
-  ```dockerfile
-  FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
-  ```
+- Build-stage image floats on the `22-alpine` tag (discarded before the final pinned `nginx:1.27-alpine` runtime image ships). Low impact — mitigated by `npm ci` enforcing the lockfile.
+- **Decision**: Skipped on purpose — digest-pinning costs more in manual re-pin maintenance than the marginal supply-chain benefit for a build-only, discarded stage.
 
-### 🟢 [LOW-003] CI workflow actions pinned to mutable tags, no explicit token permissions
+### 🟢 [LOW-003] CI workflow actions pinned to mutable tags, no explicit token permissions — ✅ Fixed
 - **Severity**: 🟢 LOW
 - **OWASP**: A03:2025 (Software Supply Chain Failures), secondary A02:2025 | **CWE**: CWE-829, CWE-272 (Least Privilege Violation) | **NIST CSF**: GV.SC, PR.PS
 - **Compliance**: MITRE ATT&CK T1195 | SOC 2 CC8.1 | ISO 27001 A.8.29
-- **Location**: `.github/workflows/backend-ci.yml:20,23`
-- `actions/checkout@v4` and `actions/setup-java@v4` are mutable-tag pins, not commit-SHA pins. No `permissions:` block, so the job inherits the repo's default `GITHUB_TOKEN` scope instead of an explicitly minimized one. Low impact today — no secrets used, no write actions, no `pull_request_target` — but a cheap hardening step.
-- **Vulnerable Code** (`.github/workflows/backend-ci.yml`):
-  ```yaml
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-
-      steps:
-        - uses: actions/checkout@v4
-
-        - name: Set up JDK 21
-          uses: actions/setup-java@v4
-  ```
-- **Remediation**: Pin to commit SHAs (with a version comment for readability) and add an explicit read-only default token scope:
+- **Location**: `.github/workflows/backend-ci.yml:18-25`
+- **Current Code** (confirmed live):
   ```yaml
   jobs:
     build:
@@ -156,19 +131,15 @@
         - name: Set up JDK 21
           uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
   ```
+- **Remaining action**: None. Re-verify the pinned SHA whenever the workflow is next touched.
 
-### 🟢 [LOW-004] Plaintext LDAP between backend and VPN sidecar over the internal docker network
+### 🟢 [LOW-004] Plaintext LDAP between backend and VPN sidecar over the internal docker network — ✅ Documented (no real fix exists)
 - **Severity**: 🟢 LOW
 - **OWASP**: A04:2025 (Cryptographic Failures) | **CWE**: CWE-319 (Cleartext Transmission of Sensitive Information) | **NIST CSF**: PR.DS
 - **Compliance**: PCI DSS 4.2 | MITRE ATT&CK T1557 | ISO 27001 A.8.24
-- **Location**: `infra/docker-compose.yml:95` (`LDAP_URL: ldap://vpn:1389`)
-- LDAP simple-bind credentials (base64, not encrypted) transit the docker bridge network between `backend` and `vpn` in cleartext. Traffic from `vpn` onward to the real university server is protected by the OpenVPN tunnel — this gap is only the internal `backend↔vpn` hop, not externally exposed. Requires an attacker to already have a foothold inside the docker network.
-- **Vulnerable Code** (`infra/docker-compose.yml:93-95`):
-  ```yaml
-      LDAP_URL: ldap://vpn:1389
-      LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
-  ```
-- **Remediation**: No code fix available today — STU's LDAP server was confirmed this session to only speak plain `ldap://` on port 389 (no StartTLS/LDAPS observed). Document the accepted risk explicitly instead of leaving it silent:
+- **Location**: `infra/docker-compose.yml:93-98`
+- LDAP simple-bind credentials transit the internal docker bridge network in cleartext between `backend` and `vpn`. Confined to the compose network (never host-exposed); the outer `vpn→ldap.stuba.sk` leg is inside the OpenVPN tunnel. No StartTLS/LDAPS available on STU's server, so no real fix exists — accepted risk, now documented in-line.
+- **Current Code** (confirmed live):
   ```yaml
       # Plaintext ldap:// - STU's server doesn't offer StartTLS/LDAPS. Accepted risk: this hop is
       # confined to the internal compose network (never exposed on a host port), and the outer
@@ -176,7 +147,7 @@
       LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
   ```
-  If StartTLS ever becomes available, terminate it at the `vpn` sidecar (e.g. `stunnel` in front of `socat`, or swap `socat` for an LDAPS-aware proxy) rather than in the Java backend.
+- **Remaining action**: None until STU's LDAP server gains TLS support.
 
 ---
 
@@ -185,7 +156,7 @@
 ### [HOTSPOT-001] Authorization is 100% manual/per-controller with no declarative floor
 - **OWASP**: A06:2025, secondary A01:2025 | **CWE**: CWE-862 (latent), CWE-284 | **NIST CSF**: ID.RA, GV.RM, PR.AA
 - **Location**: `backend/src/main/java/sk/gkanocz/aisauth/config/SecurityConfig.java`; all 23 `@RestController` classes
-- **Why sensitive**: No `@EnableMethodSecurity`/`@PreAuthorize` anywhere — every guild-scoped or admin check is a manual call to `guildAccessService.assertCanManageGuild(...)`/`assertSuperAdmin(...)` inside each controller method. Re-verified this pass: all 23 controllers still call it correctly, no gaps found.
+- **Why sensitive**: No `@EnableMethodSecurity`/`@PreAuthorize` anywhere — every guild-scoped or admin check is a manual call to `guildAccessService.assertCanManageGuild(...)`/`assertSuperAdmin(...)` inside each controller method.
 - **Risk if modified**: A future endpoint that forgets the one-line manual check is immediately open to any authenticated user, with nothing at compile time or route-config time to catch it.
 - **Review guidance**: Any new controller method should be checked in review for a leading `guildAccessService` call.
 
@@ -226,6 +197,13 @@
 - **Why sensitive**: Vite bakes every `VITE_*` env var into the public JS bundle by convention.
 - **Risk if modified**: Any future `VITE_*` variable introduced to carry a secret would leak it to every visitor's browser.
 
+### [HOTSPOT-008] `backend/src/test/java/.../support/AuthenticatedRequestHelper.java` — test auth fixture
+- **OWASP**: A06:2025 | **CWE**: N/A (test infrastructure) | **NIST CSF**: GV.RM
+- **Location**: `backend/src/test/java/sk/gkanocz/aisauth/support/AuthenticatedRequestHelper.java`
+- **Why sensitive**: New this pass. `SUPER_ADMIN_DISCORD_ID` here must stay in lockstep with any `@TestPropertySource(properties = "app.admin.super-admin-ids=...")` on every integration test using `superAdminToken()` — the class-level javadoc added this pass documents this coupling, but it's easy to add a new super-admin-gated test without the matching `@TestPropertySource` and get a confusing 403 instead of a clear failure.
+- **Risk if modified**: A future test using `superAdminToken()` without the matching `@TestPropertySource` will fail with 403s that look like a product bug rather than a missing test-config wire-up.
+- **Review guidance**: Any new `@SpringBootTest` class calling `auth.superAdminToken()` needs the `@TestPropertySource` line too.
+
 ---
 
 ## 🧹 Code Smells
@@ -235,53 +213,27 @@
 - **Location**: `frontend/src/lib/api.ts`
 - **Pattern**: ~50 endpoint wrappers in one flat `adminApi` object, no feature-based module split.
 - **Security implication**: Not a vulnerability, but makes it harder to audit which endpoints are auth-sensitive at a glance as the file grows.
-- **Suggestion**: Split by domain (settings, modules, admin, semester) as a low-priority refactor:
-  ```ts
-  // frontend/src/lib/api/semester.ts
-  import { api } from '../api-client'; // the shared axios instance + interceptors from api.ts
-
-  export const semesterApi = {
-    getConfigs: (guildId: string) => api.get(`/semester/configs`, { params: { guildId } }),
-    saveConfigs: (body: unknown) => api.post(`/semester/configs`, body),
-    // ...
-  };
-
-  // frontend/src/lib/api.ts - keep the axios instance + interceptors here, re-export the split modules
-  export { semesterApi } from './api/semester';
-  export { settingsApi } from './api/settings';
-  export { adminApi } from './api/admin';
-  ```
-  Mechanical, low-risk refactor — no behavior change, just moves function groups into separate files that import the shared `api` instance instead of redeclaring it.
+- **Suggestion**: Split by domain (settings, modules, admin, semester) as a low-priority refactor. Mechanical, low-risk — no behavior change, just moves function groups into separate files importing the shared `api` instance.
 
 ### [SMELL-002] Guild-selection `localStorage` state duplicated across three files
 - **OWASP**: A06:2025 | **CWE**: N/A (maintainability) | **NIST CSF**: GV.RM
 - **Location**: `frontend/src/components/layout/Layout.tsx:60`, `frontend/src/components/modules/shared.tsx:16-27`, `frontend/src/pages/SelectServer.tsx:21-35`
-- **Pattern**: Independent `localStorage` reads/writes instead of funneling entirely through the shared `useSelectedGuildId`/`setSelectedGuildId` helpers already exported from `shared.tsx`. `Layout.tsx` even redeclares its own `GUILD_KEY = "selected_guild_id"` constant despite already importing the shared helpers; `SelectServer.tsx` redeclares it a third time as `GUILD_STORAGE_KEY`.
-- **Security implication**: Minor drift risk — a future edit to one call site that forgets to dispatch the `guild-changed` event (which only `setSelectedGuildId` does) leaves other components' `useSelectedGuildId()` state stale until a manual refresh. Not a security bug today.
-- **Vulnerable Code** (`frontend/src/pages/SelectServer.tsx:8`):
-  ```ts
-  const GUILD_STORAGE_KEY = "selected_guild_id";
-  // ...later, direct localStorage.setItem(GUILD_STORAGE_KEY, ...) instead of setSelectedGuildId(...)
-  ```
-- **Remediation**: Drop the local constant and any direct `localStorage` calls in `SelectServer.tsx`, import and use the existing shared helpers instead:
-  ```ts
-  import { setSelectedGuildId } from "@/components/modules/shared";
-
-  // replace: localStorage.setItem(GUILD_STORAGE_KEY, guild.id)
-  setSelectedGuildId(guild.id);
-  ```
-  Same for `Layout.tsx:12` — drop its redundant local `GUILD_KEY` constant entirely since `useSelectedGuildId`/`setSelectedGuildId` (already imported there) don't need it duplicated.
+- **Pattern**: Independent `localStorage` reads/writes instead of funneling entirely through the shared `useSelectedGuildId`/`setSelectedGuildId` helpers already exported from `shared.tsx`.
+- **Security implication**: Minor drift risk — a future edit forgetting to dispatch the `guild-changed` event leaves other components' state stale. Not a security bug today.
+- **Suggestion**: Route all three through the shared helper; drop the redundant local constants.
 
 ---
 
 ## Recommendations Summary
 
-All items are Low severity, none urgent:
+All Low-severity, 3 of 4 already fixed:
 
-1. Pin GitHub Actions to commit SHAs, add `permissions: contents: read` to `backend-ci.yml` (LOW-003).
-2. Pin `node:22-alpine` to a digest in `Dockerfile.frontend` (LOW-002).
-3. Add `Permissions-Policy` now; add HSTS at the point TLS termination is introduced in front of this stack, not before (LOW-001).
-4. Document (or fix, if STU's LDAP ever supports StartTLS) the internal-network cleartext LDAP hop (LOW-004).
+1. ✅ Done — `Permissions-Policy` added; HSTS staged for when TLS lands (LOW-001).
+2. ➖ Deliberately skipped — `node:22-alpine` digest pin, cost > benefit (LOW-002).
+3. ✅ Done — CI actions SHA-pinned, `permissions: contents: read` added (LOW-003).
+4. ✅ Done — LDAP cleartext hop documented as accepted risk, no real fix exists (LOW-004).
+
+Remaining open, none urgent: `@PreAuthorize` default-deny safety net (HOTSPOT-001), CI dependency/SCA scanning (previously noted, still open), SMELL-001/002 refactors.
 
 ---
 
@@ -289,12 +241,12 @@ All items are Low severity, none urgent:
 
 | Aspect | Details |
 |--------|---------|
-| Phases executed | 1–5 (full), as a re-audit verifying all prior findings plus a fresh full sweep |
+| Phases executed | 1–5 in the prior full pass this session (exhaustive); this pass verified the diff since then (`git diff a0a2948..HEAD`) was test-fixtures only and confirmed the 3 applied fixes are genuinely live in the affected files, rather than re-running a redundant full sweep against an unchanged production/infra/frontend codebase |
 | Frameworks detected | Spring Boot 4.1.0, Spring Security, OAuth2 client + resource server, Spring Data JPA + Flyway/PostgreSQL, Spring Data LDAP, jjwt, JDA 5.6.1, React + TypeScript + Vite, nginx, Docker Compose, OpenVPN sidecar |
-| White-box categories | All 20 categories checked across both backend and frontend/infra scopes |
-| Gray-box testing | Authorization consistency re-verified across all 23 backend REST controllers and all 11 Discord bot listeners — no gaps found; not itemized as separate GRAY findings since no discrepancy was found to report |
-| Security hotspots | 7 flagged: manual authorization architecture, VPN auth-file lifecycle, compose required-secret enforcement, frontend auth interceptor, OAuth code-exchange bootstrap, nginx CSP, Vite build-time bundle exposure |
-| Code smells | 2 flagged: oversized flat API client module, duplicated guild-selection localStorage logic |
+| White-box categories | All 20 categories checked in the prior full pass; no production/infra/frontend code changed since, so findings carry forward unchanged |
+| Gray-box testing | Authorization consistency verified across all 23 backend REST controllers and all 11 Discord bot listeners in the prior pass — no gaps found, unchanged this pass |
+| Security hotspots | 8 flagged (7 carried forward + 1 new: the test auth-fixture coupling introduced by this session's super-admin live-check fix) |
+| Code smells | 2 flagged, unchanged from the prior pass |
 | Packs loaded | none |
 | Scope exclusions | no `.security-audit-ignore` present |
 | Baseline comparison | no `.security-audit-baseline.json` present |
@@ -305,11 +257,9 @@ All items are Low severity, none urgent:
 | ASVS 5.0 | 1 chapter checked with findings (V14) |
 | Additional frameworks | PCI DSS 4.0.1, MITRE ATT&CK, SOC 2, ISO 27001:2022 |
 
-**Re-verified clean, no regressions** (full list of prior findings, each independently re-checked against current code this pass): PII leak in `/find` Discord command (email removed from reply); stale super-admin JWT claim (now live-rechecked against `AdminProperties.superAdminIds()`); unvalidated `guildId` from raw request bodies (now routed through `requireValidGuildId`); missing `DB_PASSWORD`/`JWT_SECRET` fail-fast checks (`ProductionSecretsValidator` covers both); the committed OpenVPN `tls-auth` key (confirmed non-secret, byte-identical to STU's own public download, correctly left tracked); weak default DB/Mailpit exposure (bound to loopback); backend port publicly exposed (removed, nginx-only ingress); `auth.txt` file-based VPN credentials (eliminated, replaced by env vars written to a tmpfs runtime file); unauthenticated deserialization in `CookieOAuth2AuthorizationRequestRepository` (now HS256-signed JWT, not Java serialization); Discord admin-only command floor on `/manualverify`/`/warn` (still enforced, including on redeploy).
+**Re-verified clean, no regressions** (carried forward from the prior exhaustive pass, unchanged since — production/infra/frontend diff since then was empty): PII leak in `/find` Discord command; stale super-admin JWT claim; unvalidated `guildId` from raw request bodies; missing `DB_PASSWORD`/`JWT_SECRET` fail-fast checks; the committed OpenVPN `tls-auth` key (confirmed non-secret); weak default DB/Mailpit exposure; backend port publicly exposed; `auth.txt` file-based VPN credentials; unauthenticated deserialization in `CookieOAuth2AuthorizationRequestRepository`; Discord admin-only command floor on `/manualverify`/`/warn`; all 23 REST controllers' authorization consistency; all 11 Discord bot listeners; JWT sign/verify + session revocation; OAuth2 state validation; LDAP/JPA query construction; exception handling; logging; token/secret generation; mass assignment; deserialization/dynamic code execution; Docker/CI infrastructure; frontend XSS surface; token storage; open redirects; secrets in client bundle; dependency provenance; CSP/security headers; nginx `X-Forwarded-For` handling; docker-compose network exposure; `.gitignore`/secret tracking.
 
-**Areas explicitly verified clean this pass** (backend): all 23 REST controllers' authorization consistency, all 11 Discord bot listeners, JWT sign/verify + session revocation, OAuth2 state validation, LDAP query construction (parameterized, plus AIS-ID format pre-validation), JPA query construction (single parameterized `@Query`, no native SQL), exception handling (no info leakage), logging (no secrets/PII, explicit redaction of `email`/`code` command options in audit logs), token/secret generation (`SecureRandom` throughout, no `Math.random()`), mass assignment (explicit field allowlist, no reflective binding), deserialization/dynamic code execution (none present), Docker/CI infrastructure (non-root user, healthcheck, no CI secret handling).
-
-**Areas explicitly verified clean this pass** (frontend/infra): XSS surface (zero `dangerouslySetInnerHTML`/`eval`/`innerHTML`), token storage (httpOnly cookies only, no tokens in `localStorage`), open redirects (none, all fixed internal routes), secrets in client bundle (none beyond the public `VITE_API_URL`), dependency provenance (all resolved from the official npm registry), CSP/security headers (correctly scoped, no `unsafe-inline`/`unsafe-eval`), nginx `X-Forwarded-For` handling (append-only, not spoofable), docker-compose network exposure (no unintended host ports), `.gitignore`/secret tracking (`.env` files correctly excluded from git and Docker build context).
+**Newly verified this pass**: `frontend/nginx.conf`, `.github/workflows/backend-ci.yml`, `infra/docker-compose.yml` hand-read to confirm the 3 claimed Low fixes are genuinely present (not just claimed in a prior report); full `git diff a0a2948..HEAD -- backend/src/test` hand-reviewed line-by-line — confirmed 7 files, all test-fixture corrections (stale super-admin ID config, non-snowflake test guildIds, a stale email-in-reply assertion), zero assertions weakened, one assertion strengthened.
 
 ---
 

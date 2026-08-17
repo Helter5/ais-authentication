@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -26,6 +27,7 @@ public class AuditLogController {
     private final GuildAccessService guildAccessService;
     private final ObjectMapper objectMapper;
 
+    @ManagerAccess
     @GetMapping("/audit-logs")
     public List<AuditLogResponse> getAuditLogs(
             @AuthenticationPrincipal Claims claims,

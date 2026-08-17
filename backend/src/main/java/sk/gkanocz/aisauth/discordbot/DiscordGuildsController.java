@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
 
 import java.util.List;
 
@@ -25,6 +26,7 @@ public class DiscordGuildsController {
      * disappears from) the server picker on the very next request - same reasoning as
      * GuildAccessService's javadoc.
      */
+    @PublicToAuthenticated
     @GetMapping("/guilds")
     public List<GuildResponse> getGuilds(@AuthenticationPrincipal Claims claims) {
         return discordBotService.jda()

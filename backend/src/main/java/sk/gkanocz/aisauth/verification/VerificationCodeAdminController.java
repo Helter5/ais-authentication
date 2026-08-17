@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ public class VerificationCodeAdminController {
      * filters/highlights by status client-side, which only works if expired codes actually reach
      * it instead of being excluded here.
      */
+    @ManagerAccess
     @GetMapping("/verifications")
     public List<VerificationCodeResponse> getVerificationCodes(
             @AuthenticationPrincipal Claims claims, @RequestParam String guildId) {

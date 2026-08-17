@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ public class WarnThresholdController {
     private final WarnService warnService;
     private final GuildAccessService guildAccessService;
 
+    @ManagerAccess
     @GetMapping
     public List<ThresholdResponse> getThresholds(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -33,6 +35,7 @@ public class WarnThresholdController {
                 .toList();
     }
 
+    @ManagerAccess
     @PostMapping
     public Map<String, Boolean> addThreshold(@AuthenticationPrincipal Claims claims, @RequestBody UpsertRequest request) {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
@@ -40,6 +43,7 @@ public class WarnThresholdController {
         return Map.of("success", true);
     }
 
+    @ManagerAccess
     @DeleteMapping("/{limit}")
     public Map<String, Boolean> removeThreshold(
             @AuthenticationPrincipal Claims claims, @PathVariable Integer limit, @RequestParam String guildId) {

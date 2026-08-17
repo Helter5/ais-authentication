@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.util.Comparator;
 import java.util.List;
@@ -25,6 +26,7 @@ public class DiscordResourcesController {
     private final DiscordBotService discordBotService;
     private final GuildAccessService guildAccessService;
 
+    @ManagerAccess
     @GetMapping("/roles")
     public List<RoleResponse> getRoles(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -36,6 +38,7 @@ public class DiscordResourcesController {
                 .toList();
     }
 
+    @ManagerAccess
     @GetMapping("/channels")
     public List<ChannelResponse> getChannels(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -46,6 +49,7 @@ public class DiscordResourcesController {
                 .toList();
     }
 
+    @ManagerAccess
     @GetMapping("/categories")
     public List<ChannelResponse> getCategories(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
@@ -56,6 +60,7 @@ public class DiscordResourcesController {
                 .toList();
     }
 
+    @ManagerAccess
     @GetMapping("/emojis")
     public List<EmojiResponse> getEmojis(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 
@@ -26,12 +27,14 @@ public class HackedAccountTrapController {
     private final DiscordBotService discordBotService;
     private final DashboardAuditLogger dashboardAuditLogger;
 
+    @ManagerAccess
     @GetMapping
     public HackedAccountTrapSettings getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return hackedAccountTrapService.get(guildId);
     }
 
+    @ManagerAccess
     @PostMapping
     public HackedAccountTrapSettings saveSettings(
             @AuthenticationPrincipal Claims claims,

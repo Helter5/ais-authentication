@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +23,7 @@ public class AccessLogController {
     private final AccessLogRepository accessLogRepository;
     private final GuildAccessService guildAccessService;
 
+    @ManagerAccess
     @GetMapping("/access-logs")
     public List<AccessLogResponse> getAccessLogs(
             @AuthenticationPrincipal Claims claims,

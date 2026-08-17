@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.discordbot.DiscordNames;
 
@@ -25,6 +26,7 @@ public class WarnAdminController {
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
 
+    @ManagerAccess
     @GetMapping("/warnings")
     public List<WarningResponse> getWarnings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);

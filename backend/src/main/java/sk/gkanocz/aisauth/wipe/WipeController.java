@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.ManagerAccess;
+import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
+import sk.gkanocz.aisauth.auth.SuperAdminAccess;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
@@ -28,12 +31,14 @@ public class WipeController {
     private final DiscordBotService discordBotService;
     private final LogRoutingService logRoutingService;
 
+    @ManagerAccess
     @GetMapping("/settings")
     public WipeSettings getSettings(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return wipeService.getSettings(guildId);
     }
 
+    @PublicToAuthenticated
     @GetMapping("/access")
     public Map<String, Object> getAccess(@AuthenticationPrincipal Claims claims, @RequestParam(required = false) String guildId) {
         if (guildId == null) {
@@ -48,12 +53,14 @@ public class WipeController {
         return Map.of("allowed", true);
     }
 
+    @ManagerAccess
     @GetMapping("/status")
     public WipeService.WipeStatusResponse getStatus(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
         guildAccessService.assertCanManageGuild(claims, guildId);
         return wipeService.status(guildId);
     }
 
+    @SuperAdminAccess
     @PostMapping
     public Map<String, Object> startWipe(@AuthenticationPrincipal Claims claims, @RequestBody StartWipeRequest request) {
         // Old app stacked requireSuperAdmin + requireGuildManager on this route - since super

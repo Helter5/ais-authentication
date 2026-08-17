@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sk.gkanocz.aisauth.auth.AdminProperties;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
+import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
+import sk.gkanocz.aisauth.auth.SuperAdminAccess;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -38,17 +40,20 @@ public class AdminController {
     private final VerificationCodeRepository verificationCodeRepository;
     private final MaintenanceModeBroadcaster maintenanceModeBroadcaster;
 
+    @SuperAdminAccess
     @GetMapping("/settings")
     public Map<String, String> getSettings(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
         return Map.of("super_admin_users", String.join(",", adminProperties.superAdminIds()));
     }
 
+    @PublicToAuthenticated
     @GetMapping("/access")
     public Map<String, Boolean> getAccess(@AuthenticationPrincipal Claims claims) {
         return Map.of("allowed", guildAccessService.isSuperAdmin(claims));
     }
 
+    @SuperAdminAccess
     @GetMapping("/status")
     public StatusResponse getStatus(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
@@ -65,12 +70,14 @@ public class AdminController {
                 System.getProperty("java.version"), memoryMB);
     }
 
+    @SuperAdminAccess
     @GetMapping("/maintenance")
     public Map<String, Boolean> getMaintenance(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
         return Map.of("enabled", currentMaintenanceState());
     }
 
+    @SuperAdminAccess
     @PostMapping("/maintenance")
     public Map<String, Boolean> setMaintenance(
             @AuthenticationPrincipal Claims claims, @RequestBody SetMaintenanceRequest request) {
@@ -87,6 +94,7 @@ public class AdminController {
      * Not super-admin-gated on purpose - the maintenance banner is shown to every logged-in
      * manager, not just super admins, so every dashboard tab needs to be able to subscribe.
      */
+    @PublicToAuthenticated
     @GetMapping("/maintenance/stream")
     public SseEmitter streamMaintenance() {
         return maintenanceModeBroadcaster.subscribe(currentMaintenanceState());
@@ -96,6 +104,7 @@ public class AdminController {
         return adminSettingsService.get(MAINTENANCE_KEY, Boolean.class, false);
     }
 
+    @SuperAdminAccess
     @GetMapping("/bot-guilds")
     public List<BotGuildResponse> getBotGuilds(@AuthenticationPrincipal Claims claims) {
         guildAccessService.assertSuperAdmin(claims);
