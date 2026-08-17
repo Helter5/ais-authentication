@@ -87,7 +87,7 @@ class CommandManagementControllerIntegrationTest {
 
     @Test
     void managerCanSaveAndReadCommandSettingsForTheirOwnGuild() throws Exception {
-        String guildId = "guild-cmd-settings-1";
+        String guildId = "10000000000000001";
         String token = auth.managerTokenFor(guildId);
 
         mockMvc.perform(post("/api/command-settings")

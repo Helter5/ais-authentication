@@ -6,6 +6,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import sk.gkanocz.aisauth.TestcontainersConfiguration;
 import sk.gkanocz.aisauth.support.AuthenticatedRequestHelper;
@@ -17,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
+@TestPropertySource(properties = "app.admin.super-admin-ids=" + AuthenticatedRequestHelper.SUPER_ADMIN_DISCORD_ID)
 class AdminControllerIntegrationTest {
 
     @Autowired

@@ -35,6 +35,15 @@ public class AuthenticatedRequestHelper {
     private static final String TEST_MANAGER_ROLE_ID = "test-manager-role";
     private static final String TEST_MANAGER_DISCORD_ID = "manager-1";
 
+    /**
+     * GuildAccessService.isSuperAdmin now re-checks this ID against the live
+     * app.admin.super-admin-ids config on every call (not just the JWT claim - see its javadoc),
+     * so any test using superAdminToken() must also seed this ID into that config via
+     * {@code @TestPropertySource(properties = "app.admin.super-admin-ids=" + SUPER_ADMIN_DISCORD_ID)}
+     * on the test class, or every super-admin-gated assertion will 403.
+     */
+    public static final String SUPER_ADMIN_DISCORD_ID = "super-admin-1";
+
     @Autowired
     private AdminSessionRepository adminSessionRepository;
     @Autowired
@@ -57,7 +66,7 @@ public class AuthenticatedRequestHelper {
     }
 
     public String superAdminToken() {
-        return tokenFor("super-admin-1", true, List.of());
+        return tokenFor(SUPER_ADMIN_DISCORD_ID, true, List.of());
     }
 
     public String managerTokenFor(String guildId) {

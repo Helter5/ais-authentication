@@ -75,7 +75,7 @@ class SemesterControllerIntegrationTest {
         mockMvc.perform(post("/api/semester/configs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"some-other-guild\"}"))
+                        .content("{\"guildId\":\"10000000000000009\"}"))
                 .andExpect(status().isForbidden());
     }
 

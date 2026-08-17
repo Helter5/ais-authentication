@@ -485,7 +485,9 @@ class VerificationSlashCommandListenerTest {
 
         ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
         verify(hook).sendMessage(captor.capture());
-        assertThat(captor.getValue()).contains("12345").contains("s@stuba.sk").contains("discord-1");
+        // Email intentionally excluded from /find's reply (MEDIUM-001, security audit 2026-08-17) -
+        // it's reachable by any guild member, unlike /manualverify/warn which are admin-only.
+        assertThat(captor.getValue()).contains("12345").contains("discord-1").doesNotContain("s@stuba.sk");
     }
 
     // ---- /manualverify ----
