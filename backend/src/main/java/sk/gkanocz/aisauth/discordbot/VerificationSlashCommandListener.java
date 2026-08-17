@@ -72,6 +72,17 @@ class VerificationSlashCommandListener {
             event.getHook().sendMessage("Verifikácia momentálne nie je dostupná: " + e.getMessage()).queue();
             return;
         }
+        String aisId = event.getOption("ais_id").getAsString();
+
+        // Cheap, LDAP-free checks (AIS ID format, already verified) first - none of these should
+        // burn a rate-limit attempt, since the request was never going to reach LDAP anyway.
+        try {
+            verificationService.assertValidAndNotAlreadyVerified(discordId, guildId, aisId);
+        } catch (DomainException e) {
+            event.getHook().sendMessage(e.getMessage()).queue();
+            return;
+        }
+
         if (!verificationProperties.testingMode()) {
             Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
             if (waitMinutes.isPresent()) {
@@ -80,8 +91,6 @@ class VerificationSlashCommandListener {
                 return;
             }
         }
-
-        String aisId = event.getOption("ais_id").getAsString();
 
         try {
             // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only

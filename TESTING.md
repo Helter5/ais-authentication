@@ -181,7 +181,7 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] "Enable All"/"Disable All" pre aktívny tab.
 - [X] "Sync Visibility" — spinner → "Synced!" na 3s.
 - [X] Prepnutie servera resetne všetky stavy a znova načíta.
-- [ ] "Log Channel" modal (na karte príkazu, čo loguje) — výber kanála sa NEuloží hneď; treba kliknúť "Save" (predtým bola len "Close", žiadne Save). "Save" je disabled kým sa nič nezmenilo. Zavretie bez uloženia zahodí výber.
+- [X] "Log Channel" modal (na karte príkazu, čo loguje) — výber kanála sa NEuloží hneď; treba kliknúť "Save" (predtým bola len "Close", žiadne Save). "Save" je disabled kým sa nič nezmenilo. Zavretie bez uloženia zahodí výber.
 
 ---
 
@@ -198,37 +198,37 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 ## 🔒 Wipe (`/wipe`)
 - [X] Bez servera: "No server selected. Go to the dashboard..."
 - [X] "Checking access…" počas kontroly.
-- [ ] Chýba wipe log kanál → jantárová hláška + link na Settings.
-- [ ] Log Channel picker (aj v jantárovej hláške, aj hore v ľavom paneli po povolení) — výber kanála treba potvrdiť "Save" tlačidlom, NEukladá sa hneď pri výbere.
-- [ ] Bug fix over: vyber log kanál a ulož (Save), over že Wipe stránka sa sprístupní. Potom v Settings kanál odober/zmaž a skús spustiť Wipe znova (aj priamym volaním, ak sa dá) — Wipe sa MUSÍ odmietnuť so správou o chýbajúcom log kanáli, nesmie prebehnúť len preto, že prístup bol povolený pri predchádzajúcom načítaní stránky.
-- [ ] Iný dôvod zamietnutia → červená hláška.
-- [ ] Varovanie o deštruktívnej operácii je vždy viditeľné.
-- [ ] Progress panel (Total/Checked/Inactive/Errors) + percento.
-- [ ] "Remove all roles" checkbox — pri zaškrtnutí sa objaví "Keep roles" multi-picker.
-- [ ] Potvrdzovací checkbox ("I understand...") — **"Start Wipe" je disabled, kým nie je zaškrtnutý**.
-- [ ] Počas behu sa ovládacie prvky skryjú a zobrazí sa "Wipe in progress... do not close this page."
-- [ ] Live konzola so stavom, farby podľa úrovne (error/warn/success/info), Clear tlačidlo.
-- [ ] Odíď zo stránky počas behu a vráť sa — beh a konzola sa správne dotiahnu.
-- [ ] Prepnutie servera resetne celý stav Wipe stránky (aj zaškrtnutý confirm checkbox).
+- [X] Chýba wipe log kanál → jantárová hláška + link na Settings.
+- [X] Log Channel picker (aj v jantárovej hláške, aj hore v ľavom paneli po povolení) — výber kanála treba potvrdiť "Save" tlačidlom, NEukladá sa hneď pri výbere.
+- [X] Bug fix over: vyber log kanál a ulož (Save), over že Wipe stránka sa sprístupní. Potom v Settings kanál odober/zmaž a skús spustiť Wipe znova (aj priamym volaním, ak sa dá) — Wipe sa MUSÍ odmietnuť so správou o chýbajúcom log kanáli, nesmie prebehnúť len preto, že prístup bol povolený pri predchádzajúcom načítaní stránky.
+- [X] Iný dôvod zamietnutia → červená hláška.
+- [X] Varovanie o deštruktívnej operácii je vždy viditeľné.
+- [X] Progress panel (Total/Checked/Inactive/Errors) + percento.
+- [X] "Remove all roles" checkbox — pri zaškrtnutí sa objaví "Keep roles" multi-picker.
+- [X] Potvrdzovací checkbox ("I understand...") — **"Start Wipe" je disabled, kým nie je zaškrtnutý**.
+- [X] Počas behu sa ovládacie prvky skryjú a zobrazí sa "Wipe in progress... do not close this page."
+- [X] Live konzola so stavom, farby podľa úrovne (error/warn/success/info), Clear tlačidlo.
+- [X] Odíď zo stránky počas behu a vráť sa — beh a konzola sa správne dotiahnu.
+- [X] Prepnutie servera resetne celý stav Wipe stránky (aj zaškrtnutý confirm checkbox).
 
 ---
 
 ## 🔒 Admin (`/admin`)
-- [ ] Metriky: Uptime, Servers, Verified, Active Codes, Warnings, Memory.
-- [ ] Allowed Servers — pridanie ID: neplatný formát (nie 17-20 číslic) → chyba; duplicitné ID → chyba; platné nové ID sa pridá a uloží.
-- [ ] Zoznam pripojených guildov s "Allow"/"Allowed" tlačidlom.
-- [ ] Pokus odstrániť POSLEDNÝ povolený server → chyba "Keep at least one server allowed..." (needá sa odstrániť).
-- [ ] Guildy povolené, ale bot v nich nie je pripojený → samostatný riadok "Bot is not connected" s možnosťou zmazať.
-- [ ] Maintenance Mode — vypnutie je okamžité; **zapnutie vyžaduje potvrdzovací dialóg** (Cancel/Enable Maintenance).
-- [ ] Zrušenie dialógu (Cancel) → maintenance ostane vypnutý.
-- [ ] Super Admin panel je čisto na čítanie (žiadne pridávanie/mazanie z UI).
+- [X] Metriky: Uptime, Servers, Verified, Active Codes, Warnings, Memory.
+- [X] Allowed Servers — pridanie ID: neplatný formát (nie 17-20 číslic) → chyba; duplicitné ID → chyba; platné nové ID sa pridá a uloží.
+- [X] Zoznam pripojených guildov s "Allow"/"Allowed" tlačidlom.
+- [X] Pokus odstrániť POSLEDNÝ povolený server → chyba "Keep at least one server allowed..." (needá sa odstrániť).
+- [X] Guildy povolené, ale bot v nich nie je pripojený → samostatný riadok "Bot is not connected" s možnosťou zmazať.
+- [X] Maintenance Mode — vypnutie je okamžité; **zapnutie vyžaduje potvrdzovací dialóg** (Cancel/Enable Maintenance).
+- [X] Zrušenie dialógu (Cancel) → maintenance ostane vypnutý.
+- [X] Super Admin panel je čisto na čítanie (žiadne pridávanie/mazanie z UI).
 
 ---
 
 ## NotFound (neznáma URL)
-- [ ] Návšteva neexistujúcej cesty (napr. `/toto-neexistuje`) → "404 — Page not found" s tlačidlami "Go to Dashboard" a "Go back".
-- [ ] "Go back" ide na skutočne predchádzajúcu stránku (histórie), nie vždy na `/`.
-- [ ] Ako bežný manažér skús ručne zadať do URL 🔒 stránku (`/admin`, `/settings`, `/modules`, `/commands`, `/wipe`) → ticho ťa to prehodí na `/` (Dashboard), NEukáže sa 404 ani obsah stránky.
+- [X] Návšteva neexistujúcej cesty (napr. `/toto-neexistuje`) → "404 — Page not found" s tlačidlami "Go to Dashboard" a "Go back".
+- [X] "Go back" ide na skutočne predchádzajúcu stránku (histórie), nie vždy na `/`.
+- [X] Ako bežný manažér skús ručne zadať do URL 🔒 stránku (`/admin`, `/settings`, `/modules`, `/commands`, `/wipe`) → ticho ťa to prehodí na `/` (Dashboard), NEukáže sa 404 ani obsah stránky.
 
 ---
 
@@ -259,51 +259,51 @@ LDAP server, SMTP), alebo reálny servlet request/AsyncListener lifecycle (SSE),
 `@Scheduled` na reálnom čase. Tieto over ručne, ideálne na testovacom (nie produkčnom) guilde.
 
 ## 1. Integračné testy (`*IntegrationTest.java`)
-- [ ] V sandboxe (Docker-in-Docker) sa nedajú spustiť — Testcontainers nevie nadviazať na Ryuk/Postgres. Over, že v GitHub Actions CI prebehnú zelené.
-- [ ] Ak CI nie je nastavené alebo nebeží, spusti `./mvnw test` lokálne mimo sandboxu, na stroji s funkčným Dockerom pre Testcontainers.
+- [X] V sandboxe (Docker-in-Docker) sa nedajú spustiť — Testcontainers nevie nadviazať na Ryuk/Postgres. Over, že v GitHub Actions CI prebehnú zelené.
+- [X] Ak CI nie je nastavené alebo nebeží, spusti `./mvnw test` lokálne mimo sandboxu, na stroji s funkčným Dockerom pre Testcontainers.
 
 ## 2. SSE live-push (Maintenance mode banner, Verification status)
-- [ ] Otvor dashboard v dvoch rôznych prehliadačoch/tabov naraz, prihlásený ako manažér na tom istom guilde.
-- [ ] V jednom tabe zapni Maintenance Mode cez `/admin` (🔒) → v druhom tabe sa banner objaví bez refreshu.
-- [ ] Vypni Maintenance Mode → banner v druhom tabe zmizne bez refreshu.
-- [ ] Na Settings → Verification toggle prepni enabled/disabled → v druhom otvorenom tabe sa stav prekreslí bez refreshu.
-- [ ] Zavri jeden tab (spadni SSE spojenie) → over, že server si neudržiava mŕtve spojenie donekonečna.
+- [X] Otvor dashboard v dvoch rôznych prehliadačoch/tabov naraz, prihlásený ako manažér na tom istom guilde.
+- [X] V jednom tabe zapni Maintenance Mode cez `/admin` (🔒) → v druhom tabe sa banner objaví bez refreshu.
+- [X] Vypni Maintenance Mode → banner v druhom tabe zmizne bez refreshu.
+- [X] Na Settings → Verification toggle prepni enabled/disabled → v druhom otvorenom tabe sa stav prekreslí bez refreshu.
+- [X] Zavri jeden tab (spadni SSE spojenie) → over, že server si neudržiava mŕtve spojenie donekonečna.
 
 ## 3. Reálne Discord slash príkazy (end-to-end cez skutočný bot)
-- [ ] `/info` — embed sa vykreslí správne v Discorde (farby, polia, thumbnail, footer s časom vytvorenia servera).
-- [ ] `/user @niekto` — embed s account info, roles, verified status, warns; skús aj na niekom, kto už nie je na serveri.
-- [ ] `/warn add`, `/warn list`, `/warn remove`, `/mywarns`, `/warn clearall` — celý flow, Discord embed/reply formátovanie.
-- [ ] `/verify` flow — AIS ID, doručenie emailu s kódom (bod 5), `/code` na potvrdenie, pridelenie Verified role.
-- [ ] Po úspešnom `/code` — log embed v Verification log kanáli má titulok "User Verified" a polia User, Channel, AIS ID (nielen User ako predtým).
+- [X] `/info` — embed sa vykreslí správne v Discorde (farby, polia, thumbnail, footer s časom vytvorenia servera).
+- [X] `/user @niekto` — embed s account info, roles, verified status, warns; skús aj na niekom, kto už nie je na serveri.
+- [X] `/warn add`, `/warn list`, `/warn remove`, `/mywarns`, `/warn clearall` — celý flow, Discord embed/reply formátovanie.
+- [X] `/verify` flow — AIS ID, doručenie emailu s kódom (bod 5), `/code` na potvrdenie, pridelenie Verified role.
+- [X] Po úspešnom `/code` — log embed v Verification log kanáli má titulok "User Verified" a polia User, Channel, AIS ID (nielen User ako predtým).
 - [ ] Role menu interakcie (klik na tlačidlo/select v role menu správe) — pridelenie/odobratie role.
-- [ ] Moderation auto-action z `/warn` (timeout/kick/ban pri dosiahnutí limitu) — bot má reálne oprávnenia, akcia prebehne v Discorde.
+- [X] Moderation auto-action z `/warn` (timeout/kick/ban pri dosiahnutí limitu) — bot má reálne oprávnenia, akcia prebehne v Discorde.
 
 ## 4. LDAP (reálny univerzitný server)
-- [ ] `/verify` s reálnym AIS ID — `LdapStudentDirectoryService` sa pripojí a spáruje študenta (meno, email, fakulta, account status) zo skutočného LDAP servera.
-- [ ] Rate-limit (`LdapRequestThrottle`) pri viacerých rýchlo za sebou idúcich `/verify` — mimo testing mode oddelené min. 1 sekundou.
+- [X] `/verify` s reálnym AIS ID — `LdapStudentDirectoryService` sa pripojí a spáruje študenta (meno, email, fakulta, account status) zo skutočného LDAP servera.
+- [X] Rate-limit (`LdapRequestThrottle`) pri viacerých rýchlo za sebou idúcich `/verify` — mimo testing mode oddelené min. 1 sekundou.
 
 ## 5. Reálne odoslanie emailu
 - [ ] `/verify` doručí email s kódom na skutočnú adresu (skontroluj inbox, nie len logy) — predmet "Discord - Overovací kód", formátovanie tela.
 
 ## 6. Auto Delete / Auto Mention — plný pipeline
-- [ ] Auto Delete s delay > 0 — správa sa naozaj zmaže po uplynutí nastaveného času.
-- [ ] Auto Delete "Notify User" (In Channel aj DM) — správa/DM sa reálne odošle, placeholdery `{channel}`/`{server}`/`{user}` nahradené správne.
-- [ ] Auto Delete "Delete bot message after" — bot správa sa naozaj zmaže po nastavenom čase.
-- [ ] Auto Mention — rola sa naozaj mentionne v správnom kanáli; pri auto-zmazaní mention message zmizne po nastavenom čase.
+- [X] Auto Delete s delay > 0 — správa sa naozaj zmaže po uplynutí nastaveného času.
+- [X] Auto Delete "Notify User" (In Channel aj DM) — správa/DM sa reálne odošle, placeholdery `{channel}`/`{server}`/`{user}` nahradené správne.
+- [X] Auto Delete "Delete bot message after" — bot správa sa naozaj zmaže po nastavenom čase.
+- [X] Auto Mention — rola sa naozaj mentionne v správnom kanáli; pri auto-zmazaní mention message zmizne po nastavenom čase.
 
 ## 7. Hacked Account Trap — plný trigger flow
-- [ ] Skutočné triggernutie pasce → autor sa permanentne banuje, DM sa odošle (ak zapnuté), trigger správa sa zmaže (ak zapnuté).
-- [ ] S Delete message history zapnutým → over v Discorde, že sa naozaj zmazala história správ na zvolenú dĺžku (Discord to robí sám ako súčasť banu, dashboard nevracia počet).
-- [ ] Keďže ban je permanentný, autor sa po prvom triggeri už nemôže vrátiť a spustiť trigger znova (žiadna "repeat trigger" logika už neexistuje — bola viazaná na incident kanál/ticket, ktoré sú preč).
+- [X] Skutočné triggernutie pasce → autor sa permanentne banuje, DM sa odošle (ak zapnuté), trigger správa sa zmaže (ak zapnuté).
+- [X] S Delete message history zapnutým → over v Discorde, že sa naozaj zmazala história správ na zvolenú dĺžku (Discord to robí sám ako súčasť banu, dashboard nevracia počet).
+- [X] Keďže ban je permanentný, autor sa po prvom triggeri už nemôže vrátiť a spustiť trigger znova (žiadna "repeat trigger" logika už neexistuje — bola viazaná na incident kanál/ticket, ktoré sú preč).
 
 ## 8. Scheduled joby (reálny čas)
 - [ ] `DatabaseSyncService` — reštart bota → v logoch vidno, že sync prebehol a vo `verified_users` zmizli riadky pre ľudí bez Verified role.
 - [ ] `ExpiredDataCleanupJob` — mazanie expirovaných verification codes/sessions po reálnom čase.
 
 ## 9. Wipe — celý beh (🔒, deštruktívne — len testovací guild!)
-- [ ] Reálny Wipe beh na testovacom guilde — progress panel, live konzola, finálny recap post do wipe log kanála.
-- [ ] "Remove all roles" + "Keep roles" kombinácia — vybrané roly naozaj ostanú.
+- [X] Reálny Wipe beh na testovacom guilde — progress panel, live konzola, finálny recap post do wipe log kanála.
+- [X] "Remove all roles" + "Keep roles" kombinácia — vybrané roly naozaj ostanú.
 
 ## 10. Semester Setup/Switch — celý beh (🔒, testovací guild)
-- [ ] Reálny Setup aj Switch beh — vytvorenie/premenovanie kategórií a kanálov v Discorde, priradenie rolí podľa mapovania, recap post do semester log kanála.
-- [ ] Zavri stránku počas behu a vráť sa — beh pokračoval na serveri, UI sa správne dotiahne.
+- [X] Reálny Setup aj Switch beh — vytvorenie/premenovanie kategórií a kanálov v Discorde, priradenie rolí podľa mapovania, recap post do semester log kanála.
+- [X] Zavri stránku počas behu a vráť sa — beh pokračoval na serveri, UI sa správne dotiahne.

@@ -117,7 +117,13 @@ public class VerificationService {
         verifiedUserRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
     }
 
-    private void assertValidAndNotAlreadyVerified(String discordId, String guildId, String aisId) {
+    /**
+     * The cheap, LDAP-free portion of eligibility (AIS ID format + already-verified checks against
+     * the local DB) - callers that gate something expensive on eligibility (e.g. VerifyRateLimiter,
+     * which shouldn't burn a rate-limit attempt on a request that was never going to reach LDAP)
+     * should call this first and only proceed to {@link #checkEligibility} if it passes.
+     */
+    public void assertValidAndNotAlreadyVerified(String discordId, String guildId, String aisId) {
         if (!aisId.matches("\\d+")) {
             throw InvalidAisIdException.withValue(aisId);
         }

@@ -184,10 +184,28 @@ class VerificationSlashCommandListenerTest {
     }
 
     @Test
+    void verifyDoesNotConsumeRateLimitWhenAlreadyVerifiedLocally() {
+        enableVerification();
+        configureLogChannel();
+        when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(mock(Role.class));
+        stubStringOption("ais_id", "12345");
+        Mockito.doThrow(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1"))
+                .when(verificationService).assertValidAndNotAlreadyVerified("discord-1", "guild-1", "12345");
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1").getMessage());
+        verify(verifyRateLimiter, never()).checkAndRecordAttempt(any(), any());
+        verify(verificationService, never()).checkEligibility(any(), any(), any());
+    }
+
+    @Test
     void verifyRepliesWhenRateLimited() {
         enableVerification();
         configureLogChannel();
         when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(mock(Role.class));
+        stubStringOption("ais_id", "12345");
         when(verifyRateLimiter.checkAndRecordAttempt("discord-1", "guild-1")).thenReturn(Optional.of(5L));
         stubTextReply();
 
