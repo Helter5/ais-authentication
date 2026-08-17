@@ -14,12 +14,14 @@ import sk.gkanocz.aisauth.discordbot.RecapChannelPoster;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
+import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -99,6 +101,21 @@ class WipeServiceTest {
     }
 
     @Test
+    void startRejectsWhenWipeLogChannelIsNotConfigured() {
+        GuildSettings settings = new GuildSettings("guild-1");
+        settings.setVerifiedRoleId("verified-role");
+        settings.setInactiveRoleId("inactive-role");
+        when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settings);
+        when(verifiedUserRepository.findByGuildId("guild-1"))
+                .thenReturn(List.of(new VerifiedUser("ais-1", "discord-1", "guild-1", "user@stuba.sk")));
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> wipeService.start(guild, false, List.of(), "actor-1", "actor"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Wipe log channel not set. Configure it in Settings first.");
+    }
+
+    @Test
     void startRejectsWhenAWipeIsAlreadyRunningForTheGuild() throws InterruptedException {
         GuildSettings settings = new GuildSettings("guild-1");
         settings.setVerifiedRoleId("verified-role");
@@ -106,6 +123,7 @@ class WipeServiceTest {
         when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settings);
         when(verifiedUserRepository.findByGuildId("guild-1"))
                 .thenReturn(List.of(new VerifiedUser("ais-1", "discord-1", "guild-1", "user@stuba.sk")));
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WIPE_RECAP)).thenReturn(Optional.of("channel-1"));
 
         // Blocks the background wipe worker so "running" stays true until this test releases it,
         // instead of racing the async completion of runWipe(). reachedRoleLookup additionally

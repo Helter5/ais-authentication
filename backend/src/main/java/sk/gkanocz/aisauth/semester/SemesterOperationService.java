@@ -211,6 +211,13 @@ public class SemesterOperationService {
 
     public void startSwitch(Guild guild, String oldName, String newName, boolean resume, String actorId, String actorName) {
         String guildId = guild.getId();
+        // Re-checked here, not just at the page-load access gate the frontend reads before showing
+        // this page - that GET only reflects state at load time, so it can't catch the channel
+        // being unset afterward without this also being enforced server-side at run time. Mirrors
+        // the same guard startSetup already has above.
+        if (logRoutingService.channelIdFor(guildId, LogEventType.SEMESTER_RECAP).isEmpty()) {
+            throw InvalidRequestException.withMessage("Semester log channel not configured.");
+        }
 
         String progressKey = "switchsemester_log_" + guildId;
         SemesterOperationState previous = adminSettingsService.get(progressKey, SemesterOperationState.class, null);

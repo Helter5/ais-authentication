@@ -94,7 +94,7 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] **Warnings tab** — Time/Warning ID/User/Moderator/Reason; opakovaný priestupca dostane "{N}×" odznak.
 - [X] **Automod tab** — status pill (success/failed/other), info "i" tlačidlo vysvetľuje čo presne sa loguje; funguje status filter.
 - [X] **Verification tab** — rovnaká tabuľka ako Automod, len iné dáta.
-- [ ] Log embed "Removed From Users Directory" (kick/ban/leave aj Verified rola odobraná) obsahuje AIS ID; pri odobratí roly je namiesto poľa "Role" pole "AIS ID".
+- [x] Log embed "Removed From Users Directory" (kick/ban/leave aj Verified rola odobraná) obsahuje AIS ID; pri odobratí roly je namiesto poľa "Role" pole "AIS ID".
 - [X] **Commands tab** — Time/User/Channel/Command/Status/Duration, dôvod blokovania/chyba viditeľné, status filter má viac možností.
 - [X] Search je na každom tabe (okrem loading/error stavu).
 - [X] "Show all" / "Paginate" prepínač, pri väčšom počte strán sa čísla strán skracujú na "…".
@@ -182,18 +182,18 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 ---
 
 ## 🔒 Settings (`/settings`)
-- [ ] Bez servera: "No server selected. Go back and pick one."
-- [ ] Verification & Roles: toggle Verification, Verified Role picker, Inactive Role picker — každé auto-save s vlastným Saving/Saved/Error indikátorom.
-- [ ] Warn Thresholds — zoznam "{N} warns → {Action}" s farbami podľa akcie, X na zmazanie (bez potvrdenia); pridanie (stepper + dropdown + Add); duplicitný limit → chyba.
-- [ ] Auto-Mentions — zoznam kanál→rola, toggle ON/OFF, X na zmazanie; pridanie (kanál + rola + Add, disabled kým oboje nevybrané).
-- [ ] Manager Roles — multi-select s vyhľadávaním, chipy; **explicitné "Save Manager Roles" tlačidlo** (NEukladá sa automaticky) — zmena bez uloženia zmizne pri opustení stránky.
-- [ ] Log Channels — varovania pri rozbitej existujúcej konfigurácii; prepnutie kanála v slote migruje priradenia; checkbox na typ udalosti v jednom kanáli automaticky odškrtne rovnaký typ v inom slote (jedna udalosť = jeden kanál); pridanie nového slotu (len nepoužité kanály); explicitné "Save Log Channels".
+- [X] Bez servera: "No server selected. Go back and pick one."
+- [X] Verification & Roles: toggle Verification, Verified Role picker, Inactive Role picker — každé auto-save s vlastným Saving/Saved/Error indikátorom.
+- [X] Warn Thresholds — zoznam "{N} warns → {Action}" s farbami podľa akcie, X na zmazanie (bez potvrdenia); pridanie (stepper + dropdown + Add); duplicitný limit → chyba.
+- [X] Auto-Mentions — zoznam kanál→rola, toggle ON/OFF, X na zmazanie; pridanie (kanál + rola + Add, disabled kým oboje nevybrané).
+- [X] Manager Roles — multi-select s vyhľadávaním, chipy; **explicitné "Save Manager Roles" tlačidlo** (NEukladá sa automaticky) — zmena bez uloženia zmizne pri opustení stránky.
+- [X] Log Channels — varovania pri rozbitej existujúcej konfigurácii; prepnutie kanála v slote migruje priradenia; checkbox na typ udalosti v jednom kanáli automaticky odškrtne rovnaký typ v inom slote (jedna udalosť = jeden kanál); pridanie nového slotu (len nepoužité kanály); explicitné "Save Log Channels".
 
 ---
 
 ## 🔒 Wipe (`/wipe`)
-- [ ] Bez servera: "No server selected. Go to the dashboard..."
-- [ ] "Checking access…" počas kontroly.
+- [X] Bez servera: "No server selected. Go to the dashboard..."
+- [X] "Checking access…" počas kontroly.
 - [ ] Chýba wipe log kanál → jantárová hláška + link na Settings.
 - [ ] Iný dôvod zamietnutia → červená hláška.
 - [ ] Varovanie o deštruktívnej operácii je vždy viditeľné.

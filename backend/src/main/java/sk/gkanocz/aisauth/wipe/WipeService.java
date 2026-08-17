@@ -99,6 +99,13 @@ public class WipeService {
         if (verifiedUsers.isEmpty()) {
             throw InvalidRequestException.withMessage("No verified users in database.");
         }
+        // Re-checked here, not just at the /api/wipe/access gate the frontend reads before showing
+        // this page - that GET only reflects state at page load, so it can't catch the channel
+        // being unset afterward (another tab, another admin) without this also being enforced
+        // server-side at the moment a wipe actually starts.
+        if (logRoutingService.channelIdFor(guildId, LogEventType.WIPE_RECAP).isEmpty()) {
+            throw InvalidRequestException.withMessage("Wipe log channel not set. Configure it in Settings first.");
+        }
 
         Set<String> keepRoleIdSet = removeAllRoles ? new LinkedHashSet<>(keepRoleIds) : Set.of();
         adminSettingsService.set("wipe_settings_" + guildId, new WipeSettings(removeAllRoles, List.copyOf(keepRoleIdSet)));

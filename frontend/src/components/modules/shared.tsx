@@ -427,8 +427,12 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
   combined?: boolean;
 }) {
   const [entries, setEntries] = useState<{ eventType: string; label: string; description: string; channelId: string | null }[]>([]);
+  // Picking a channel only edits this - nothing is persisted until "Save" is clicked, so a stale
+  // pick (e.g. selecting a channel and then leaving it unset again) never silently takes effect.
+  const [draft, setDraft] = useState<Record<string, string | null>>({});
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const eventTypesKey = eventTypes.join(",");
 
@@ -440,6 +444,7 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
         if (cancelled) return;
         const filtered = lc.eventTypes.filter(e => eventTypesKey.split(",").includes(e.eventType));
         setEntries(filtered);
+        setDraft(Object.fromEntries(filtered.map(e => [e.eventType, e.channelId])));
         setChannels(c);
 
         // Self-heal: if this is a combined picker and a new event type was added to the code
@@ -452,7 +457,11 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
           const needsBackfill = target !== null && filtered.some(e => e.channelId !== target);
           if (needsBackfill) {
             adminApi.updateLogChannels(guildId, Object.fromEntries(filtered.map(e => [e.eventType, target])))
-              .then(() => { if (!cancelled) setEntries(prev => prev.map(e => ({ ...e, channelId: target }))); })
+              .then(() => {
+                if (cancelled) return;
+                setEntries(prev => prev.map(e => ({ ...e, channelId: target })));
+                setDraft(prev => Object.fromEntries(Object.keys(prev).map(k => [k, target])));
+              })
               .catch(() => { /* best-effort - the picker still shows/lets you fix it manually */ });
           }
         }
@@ -462,29 +471,19 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
     return () => { cancelled = true; };
   }, [guildId, eventTypesKey, combined]);
 
-  const setChannel = async (eventType: string, channelId: string | null) => {
-    const previous = entries;
-    setEntries(prev => prev.map(e => e.eventType === eventType ? { ...e, channelId } : e));
-    try {
-      await adminApi.updateLogChannels(guildId, { [eventType]: channelId });
-      toast("Log channel saved.");
-      onSaved?.();
-    } catch (e: unknown) {
-      setEntries(previous);
-      toast(apiErrorMessage(e, "Failed to save log channel."), "error");
-    }
-  };
+  const dirty = entries.some(e => draft[e.eventType] !== e.channelId);
 
-  const setAllChannels = async (channelId: string | null) => {
-    const previous = entries;
-    setEntries(prev => prev.map(e => ({ ...e, channelId })));
+  const save = async () => {
+    setSaving(true);
     try {
-      await adminApi.updateLogChannels(guildId, Object.fromEntries(eventTypes.map(et => [et, channelId])));
+      await adminApi.updateLogChannels(guildId, draft);
+      setEntries(prev => prev.map(e => ({ ...e, channelId: draft[e.eventType] ?? null })));
       toast("Log channel saved.");
       onSaved?.();
     } catch (e: unknown) {
-      setEntries(previous);
       toast(apiErrorMessage(e, "Failed to save log channel."), "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -492,11 +491,26 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
     return <p className="text-xs text-zinc-600 flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Loading log channels…</p>;
   }
 
+  const SaveButton = (
+    <button onClick={save} disabled={!dirty || saving}
+      className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border transition-all",
+        dirty && !saving
+          ? "border-indigo-500/60 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+          : "border-zinc-700 bg-zinc-800 text-zinc-600 cursor-not-allowed")}>
+      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+      Save
+    </button>
+  );
+
   if (combined) {
+    const value = entries[0] ? (draft[entries[0].eventType] ?? null) : null;
+    const setAll = (channelId: string | null) =>
+      setDraft(Object.fromEntries(eventTypes.map(et => [et, channelId])));
     return (
       <div className="space-y-2">
         {title && <p className="text-xs font-semibold text-zinc-400">{title}</p>}
-        <ChannelPicker channels={channels} value={entries[0]?.channelId ?? null} onChange={setAllChannels} placeholder="Not logged" />
+        <ChannelPicker channels={channels} value={value} onChange={setAll} placeholder="Not logged" />
+        {SaveButton}
       </div>
     );
   }
@@ -511,10 +525,12 @@ export function LogChannelPicker({ guildId, eventTypes, title = "Log Channel", o
             <p className="text-xs text-zinc-500 mt-0.5">{e.description}</p>
           </div>
           <div className="w-48 flex-shrink-0">
-            <ChannelPicker channels={channels} value={e.channelId} onChange={id => setChannel(e.eventType, id)} placeholder="Not logged" />
+            <ChannelPicker channels={channels} value={draft[e.eventType] ?? null}
+              onChange={id => setDraft(prev => ({ ...prev, [e.eventType]: id }))} placeholder="Not logged" />
           </div>
         </div>
       ))}
+      {SaveButton}
     </div>
   );
 }

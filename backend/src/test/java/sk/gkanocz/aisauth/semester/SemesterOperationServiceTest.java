@@ -137,6 +137,15 @@ class SemesterOperationServiceTest {
     // ---- startSwitch ----
 
     @Test
+    void startSwitchRejectsWhenNoRecapChannelConfigured() {
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.SEMESTER_RECAP)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.startSwitch(guild, "ZS2026", "LS2027", false, "actor-1", "actorname"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("log channel");
+    }
+
+    @Test
     void startSwitchRejectsWhenASwitchIsAlreadyRunning() {
         SemesterOperationState running = new SemesterOperationState(true, 50, List.of(), "now", "running", "switch", null, List.of());
         when(adminSettingsService.get(eq("switchsemester_log_guild-1"), eq(SemesterOperationState.class), any()))
