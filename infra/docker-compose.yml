@@ -37,8 +37,11 @@ services:
       - /dev/net/tun:/dev/net/tun
     volumes:
       - ./vpn/client.ovpn:/vpn/client.ovpn:ro
-      - ./vpn/auth.txt:/run/secrets/vpn_auth:ro
+    tmpfs:
+      - /run # VPN_AUTH_FILE (entrypoint.sh) lives here - memory-only, never touches disk
     environment:
+      VPN_USERNAME: ${VPN_USERNAME:?VPN_USERNAME must be set}
+      VPN_PASSWORD: ${VPN_PASSWORD:?VPN_PASSWORD must be set}
       LDAP_PROXY_PORT: 1389
       LDAP_UPSTREAM_HOST: ldap.stuba.sk
       LDAP_UPSTREAM_PORT: 389

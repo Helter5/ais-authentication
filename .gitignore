@@ -3,12 +3,9 @@
 *.env
 !.env.example
 
-# VPN credentials/profile (obsahujú univerzitné heslo + client cert, nikdy necommitovať)
-infra/vpn/auth.txt
-!infra/vpn/auth.txt.example
-
 # client.ovpn: verified 2026-08-17 to be byte-identical (SHA-256) to STU's own public download
 # (stuba.sk/buxus/docs/stu/pracoviska/cvt/navody/client.ovpn) - not a secret, tracked normally.
+# VPN credentials now come from infra/.env (VPN_USERNAME/VPN_PASSWORD), no more auth.txt file.
 
 # OS
 .DS_Store
