@@ -111,20 +111,20 @@ class DiscordBotServiceTest {
     }
 
     /**
-     * /manualverify bypasses the LDAP eligibility check entirely and /warn clearall/remove erase
-     * moderation history - both must be locked to administrators at Discord command-definition time,
-     * not left open-by-default pending a super-admin manually configuring CommandPermissions.
+     * /manualverify bypasses the LDAP eligibility check entirely, /warn clearall/remove erase
+     * moderation history, and /info + /user surface server configuration and another member's AIS
+     * ID/email/warning history - all four must be locked to administrators at Discord
+     * command-definition time, not left open-by-default pending a super-admin manually configuring
+     * CommandPermissions.
      */
     @Test
-    void manualVerifyAndWarnAreAdminOnlyByDefault() {
+    void manualVerifyWarnInfoAndUserAreAdminOnlyByDefault() {
         List<SlashCommandData> commands = service.baseCommands();
 
-        assertThat(commands.stream().filter(c -> c.getName().equals("manualverify")).findFirst().orElseThrow()
-                .getDefaultPermissions().getPermissionsRaw())
-                .isEqualTo(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR).getPermissionsRaw());
-        assertThat(commands.stream().filter(c -> c.getName().equals("warn")).findFirst().orElseThrow()
-                .getDefaultPermissions().getPermissionsRaw())
-                .isEqualTo(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR).getPermissionsRaw());
+        assertThat(commands.stream()
+                        .filter(c -> List.of("manualverify", "warn", "info", "user").contains(c.getName())))
+                .allSatisfy(c -> assertThat(c.getDefaultPermissions().getPermissionsRaw())
+                        .isEqualTo(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR).getPermissionsRaw()));
     }
 
     @Test
@@ -132,7 +132,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands.stream()
-                        .filter(c -> List.of("verify", "code", "find", "mywarns", "info", "user").contains(c.getName())))
+                        .filter(c -> List.of("verify", "code", "find", "mywarns").contains(c.getName())))
                 .allSatisfy(c -> assertThat(c.getDefaultPermissions().getPermissionsRaw())
                         .isEqualTo(DefaultMemberPermissions.ENABLED.getPermissionsRaw()));
     }

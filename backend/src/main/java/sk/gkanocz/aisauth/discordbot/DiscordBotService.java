@@ -39,13 +39,14 @@ import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 public class DiscordBotService implements ApplicationRunner {
 
     /**
-     * Discord-level floor for moderation-only commands (/manualverify, /warn) - locked to
-     * administrators by default at command-DEFINITION time, not just via the runtime
-     * CommandPermissions blob (which defaults to CommandPermissions.empty(), i.e. wide open, until a
-     * super-admin visits the Commands dashboard page and explicitly restricts + redeploys it). Without
-     * this, every freshly-added guild lets any member run /manualverify to self-grant the verified
-     * role (manuallyVerify() skips the LDAP eligibility check entirely) or /warn clearall to erase
-     * another member's warning history.
+     * Discord-level floor for moderation/PII-bearing commands (/manualverify, /warn, /info,
+     * /user) - locked to administrators by default at command-DEFINITION time, not just via the
+     * runtime CommandPermissions blob (which defaults to CommandPermissions.empty(), i.e. wide
+     * open, until a super-admin visits the Commands dashboard page and explicitly restricts +
+     * redeploys it). Without this, every freshly-added guild lets any member run /manualverify to
+     * self-grant the verified role (manuallyVerify() skips the LDAP eligibility check entirely),
+     * /warn clearall to erase another member's warning history, or /user to read another member's
+     * AIS ID, email and warning history straight out of the box.
      */
     private static final DefaultMemberPermissions ADMIN_ONLY = DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR);
 
@@ -144,9 +145,11 @@ public class DiscordBotService implements ApplicationRunner {
                                         .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false))
                         .setDefaultPermissions(ADMIN_ONLY),
                 slash("mywarns", "Show your own warnings on this server"),
-                slash("info", "Show bot configuration and server information"),
+                slash("info", "Show bot configuration and server information")
+                        .setDefaultPermissions(ADMIN_ONLY),
                 slash("user", "Show detailed info about a server member")
                         .addOption(OptionType.USER, "user", "Member to inspect", true)
+                        .setDefaultPermissions(ADMIN_ONLY)
         );
     }
 
