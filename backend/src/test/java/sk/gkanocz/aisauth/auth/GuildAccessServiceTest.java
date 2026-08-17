@@ -48,12 +48,15 @@ class GuildAccessServiceTest {
     private Member member;
     @Mock
     private Role managerRole;
+    @Mock
+    private AdminProperties adminProperties;
 
     private GuildAccessService guildAccessService;
 
     @BeforeEach
     void setUp() {
-        guildAccessService = new GuildAccessService(discordBotService, adminSettingsService);
+        lenient().when(adminProperties.superAdminIds()).thenReturn(List.of("discord-1"));
+        guildAccessService = new GuildAccessService(discordBotService, adminSettingsService, adminProperties);
     }
 
     private Claims claimsOf(boolean superAdmin, String discordId) {
@@ -75,6 +78,14 @@ class GuildAccessServiceTest {
     void isSuperAdminTrueOnlyWhenClaimIsExactlyTrue() {
         assertThat(guildAccessService.isSuperAdmin(claimsOf(true, "discord-1"))).isTrue();
         assertThat(guildAccessService.isSuperAdmin(claimsOf(false, "discord-1"))).isFalse();
+    }
+
+    @Test
+    void isSuperAdminFalseWhenIdRemovedFromConfigEvenIfClaimStillTrue() {
+        // Old, still-unexpired token claims superAdmin - but the ID was since removed from
+        // SUPER_ADMIN_IDS and the app redeployed. Must lose access on this exact next call, not
+        // only at the token's next refresh.
+        assertThat(guildAccessService.isSuperAdmin(claimsOf(true, "discord-revoked"))).isFalse();
     }
 
     @Test
