@@ -6,6 +6,9 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ais_auth}
     username: ${DB_USER:ais_auth}
     password: ${DB_PASSWORD:ais_auth}
+    hikari:
+      maximum-pool-size: 20 # default 10 was too thin - a burst of page navigation firing several DB-backed calls at once queued up past it
+      connection-timeout: 10000 # default 30000 - fail fast instead of a request silently hanging ~30s waiting for a free connection
 
   jpa:
     open-in-view: false # inak SSE endpointy (napr. maintenance/stream) drzia Hikari connection po celu dobu spojenia
