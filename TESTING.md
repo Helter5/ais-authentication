@@ -114,7 +114,9 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] **Switch mód** — editor: Allowed Transitions (zoznam From→To, pridávanie/mazanie), Name, Categories, "@everyone View Channel" prepínač, Role Mappings (pridanie/edit/mazanie, zmazaná Discord rola sa zobrazí ako preškrtnutá "deleted role").
 - [X] **Setup mód** — center panel s editorom sa skryje, len run panel.
 - [X] Info tlačidlo "How it works" otvorí modal s krokmi.
+- [ ] Log Channel picker (ľavý panel) — výber kanála treba potvrdiť "Save" tlačidlom, NEukladá sa hneď pri výbere (rovnako ako pri Wipe/Commands).
 - [X] Run panel — Switch: From/To dropdown, "Run Switch" disabled kým nie sú vybrané rôzne hodnoty; potvrdzovací modal pred spustením.
+- [ ] Bug fix over (Switch): rovnaký test ako pri Wipe — nastav semester log kanál, over že Switch beží; potom kanál v Settings odober a skús spustiť Switch znova → musí byť odmietnutý so správou o chýbajúcom log kanáli (predtým bežalo aj bez kanála, len ticho bez recap správy na konci).
 - [X] Run panel — Setup: výber semestra, Show/Hide prepínač, checkbox na vyčistenie cleanup rolí, potvrdzovací modal.
 - [X] Progress bar a live konzola so streamovanými logmi (farby podľa úrovne) počas behu.
 - [X] "Resume unfinished steps" sa objaví len keď posledný run zlyhal/je nedokončený.
@@ -178,6 +180,7 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] "Enable All"/"Disable All" pre aktívny tab.
 - [X] "Sync Visibility" — spinner → "Synced!" na 3s.
 - [X] Prepnutie servera resetne všetky stavy a znova načíta.
+- [ ] "Log Channel" modal (na karte príkazu, čo loguje) — výber kanála sa NEuloží hneď; treba kliknúť "Save" (predtým bola len "Close", žiadne Save). "Save" je disabled kým sa nič nezmenilo. Zavretie bez uloženia zahodí výber.
 
 ---
 
@@ -195,6 +198,8 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] Bez servera: "No server selected. Go to the dashboard..."
 - [X] "Checking access…" počas kontroly.
 - [ ] Chýba wipe log kanál → jantárová hláška + link na Settings.
+- [ ] Log Channel picker (aj v jantárovej hláške, aj hore v ľavom paneli po povolení) — výber kanála treba potvrdiť "Save" tlačidlom, NEukladá sa hneď pri výbere.
+- [ ] Bug fix over: vyber log kanál a ulož (Save), over že Wipe stránka sa sprístupní. Potom v Settings kanál odober/zmaž a skús spustiť Wipe znova (aj priamym volaním, ak sa dá) — Wipe sa MUSÍ odmietnuť so správou o chýbajúcom log kanáli, nesmie prebehnúť len preto, že prístup bol povolený pri predchádzajúcom načítaní stránky.
 - [ ] Iný dôvod zamietnutia → červená hláška.
 - [ ] Varovanie o deštruktívnej operácii je vždy viditeľné.
 - [ ] Progress panel (Total/Checked/Inactive/Errors) + percento.
