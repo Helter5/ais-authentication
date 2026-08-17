@@ -43,7 +43,6 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/verification/**",
                                 "/error",
                                 "/api/auth/discord",
                                 "/api/auth/discord/callback",
