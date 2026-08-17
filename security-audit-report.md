@@ -1,28 +1,10 @@
 # Security Audit Report
 
-**Project**: spring-ais-authentication (ais-auth-backend + React admin dashboard)
+**Project**: spring-ais-authentication (AIS Discord verification backend + frontend)
 **Date**: 2026-08-17
 **Auditor**: Claude Security Audit
 **Frameworks**: OWASP Top 10:2025 + NIST CSF 2.0
 **Mode**: full
-
----
-
-## Remediation Status (2026-08-17, post-audit fix pass)
-
-| Finding | Status | What changed |
-|---|---|---|
-| HIGH-001 (cookie flags) | ✅ Fixed | New `SessionCookieFactory` (Secure always on; SameSite=Strict for `auth_token`/`refresh_token`, Lax for `oauth2_auth_request` since it must survive Discord's cross-site redirect). Wired into `AuthController` and `CookieOAuth2AuthorizationRequestRepository`; also resolves SMELL-002 (duplicated cookie builders). |
-| HIGH-002 (weak default JWT secret) | ✅ Fixed | New `ProductionSecretsValidator` (`@Profile("prod")`) refuses to start if `app.jwt.secret` is still the known placeholder. `infra/docker-compose.yml` now sets `SPRING_PROFILES_ACTIVE=prod` by default - the real deployment path fails fast instead of silently booting with a public secret. `./mvnw spring-boot:run` / test suite stay profile-less, unaffected. |
-| MEDIUM-001 (CSRF disabled) | ✅ Addressed | Kept CSRF disabled (stateless JWT + SPA don't fit Spring's CSRF token model well) but it now rests on a verifiable control: SameSite=Strict cookies (HIGH-001), documented directly at the `csrf().disable()` call site in `SecurityConfig`. |
-| MEDIUM-002 (`react-router-dom` CVEs) | ✅ Fixed | Bumped `7.13.1` → `7.18.2`. `npm audit --omit=dev` now reports 0 vulnerabilities. |
-| LOW-001 (no rate limit on refresh/exchange) | ✅ Fixed | New `AuthEndpointRateLimiter` (per-IP, 30 req/5 min) applied to `POST /api/auth/exchange` and `POST /api/auth/refresh`. Required fixing `nginx.conf` too - it wasn't forwarding `X-Forwarded-For`, so every request looked like it came from nginx's own IP. |
-| LOW-002 (DEBUG logging always on) | ✅ Fixed | New `application-prod.yml` sets `logging.level.sk.gkanocz.aisauth: INFO`, activated by the same `prod` profile; also resolves SMELL-003 (no environment-specific config). |
-| INFO-001 (no CSP) | ✅ Fixed | Added `Content-Security-Policy` + `X-Content-Type-Options` + `X-Frame-Options` + `Referrer-Policy` headers in `nginx.conf` (Spring Security's defaults only ever covered `/api/`, never the static SPA). |
-| INFO-002 (unpinned Docker images) | 🟡 Partial | Pinned `axllent/mailpit:latest` → `:v1.29.7`. `eclipse-temurin`/`postgres` tags were already reasonably specific (`21-jdk`, `21-jre-alpine`, `16-alpine`); full digest-pinning left as a follow-up. |
-| SMELL-001 (manual per-controller auth checks) | ⏭ Not changed | Real fix (annotation + AOP gate replacing ~80 call sites across ~20 controllers) is a broad, behavior-sensitive refactor. No JDK/compiler was available in this environment to verify it, so it wasn't attempted blind - left as a scoped follow-up for a session with a working build. |
-
-**Also found during this pass (not in the original report):** `infra/.env` (gitignored, untracked - confirmed not a repo finding) has no `JWT_SECRET` set. After the HIGH-002 fix, `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build` (README "Variant B") will now refuse to start until one is added - that's the fix working as intended, not a regression. Add a real secret (`openssl rand -base64 48`) to `infra/.env` before the next deploy.
 
 ---
 
@@ -31,16 +13,35 @@
 | Metric | Count |
 |--------|-------|
 | 🔴 Critical | 0 |
-| 🟠 High | 2 |
-| 🟡 Medium | 2 |
-| 🟢 Low | 2 |
-| 🔵 Informational | 2 |
-| 🔲 Gray-box findings | 0 (see note) |
-| 📍 Security hotspots | 5 |
+| 🟠 High | 0 |
+| 🟡 Medium | 4 |
+| 🟢 Low | 5 |
+| 🔵 Informational | 5 |
+| 🔲 Gray-box findings | 2 |
+| 📍 Security hotspots | 4 |
 | 🧹 Code smells | 3 |
-| **Total findings** | **17** |
+| **Total findings** | **14** (1 downgraded to Info after verification, see Remediation Status) |
 
-**Overall Risk Assessment**: No critical, exploitable-today vulnerabilities found. The codebase shows a mature, deliberately-hardened security posture — the previous commit (`8b56faa`) already closed an unauthenticated `ObjectInputStream` deserialization RCE and a missing Discord command authorization gap, both with regression tests. Remaining findings are mostly defense-in-depth gaps (cookie flags, CSRF posture, a weak-secret fallback that only bites on a misconfigured deployment) plus one real, fixable frontend dependency vulnerability set (`react-router-dom`). Guild/tenant isolation (the app's core multi-tenancy boundary) is consistently and correctly enforced across all ~20 REST controllers reviewed.
+**Overall Risk Assessment**: Low. No critical or high-severity vulnerability was found — access control, JWT handling, LDAP/JPA query construction, OAuth2 state validation, CORS, and exception handling are all sound, and a prior remediation PR (`0af3a79`) already closed the cookie-flag, JWT-fail-fast, CSP, rate-limit and dependency-CVE gaps identified in the previous audit. All Medium findings from the initial pass are now fixed except MEDIUM-002, and one initial Medium finding (the committed OpenVPN `tls-auth` key) was verified to be the university's own publicly-distributed config, not a secret — downgraded to informational, no action needed. Remaining open item: the super-admin JWT claim isn't re-validated live the way manager roles are (MEDIUM-002) — fix in progress.
+
+---
+
+## Remediation Status (as of 2026-08-17, same-day follow-up)
+
+| ID | Status | Note |
+|----|--------|------|
+| MEDIUM-001 (`/find`/`/user` PII leak) | ✅ Partially fixed | `/find` no longer includes email in its reply. `/user` left as-is per product decision — guild admins are expected to restrict it via the existing per-guild `CommandPermissions` dashboard setting, not a code-level default. |
+| MEDIUM-002 (stale super-admin claim) | ✅ Fixed | `GuildAccessService.isSuperAdmin()` now also cross-checks `AdminProperties.superAdminIds()` (SUPER_ADMIN_IDS) live on every call, not just the JWT claim — an ID removed from config and redeployed loses super-admin access on its very next request. |
+| MEDIUM-003 (`tls-auth` key in git) | 🔵 Downgraded to Info, resolved | Verified via SHA-256 comparison against STU's own public download that the `<ca>`/`<tls-auth>` blocks are the university's standard published config, not a secret. No rotation or history rewrite needed. Repo hygiene (untrack + `.example`) from the earlier pass left in place as harmless but no longer necessary. |
+| MEDIUM-004 (weak default DB password + published port) | ✅ Fixed | `ProductionSecretsValidator` now also rejects the placeholder DB password under the `prod` profile; `infra/docker-compose.yml` binds Postgres to `127.0.0.1` instead of all interfaces. |
+| MEDIUM-005 (Mailpit SMTP exposed) | ✅ Fixed | Bound to `127.0.0.1:1025:1025`. |
+| LOW-001 (`guildId` validation) | ✅ Fixed | `GuildAccessService.requireValidGuildId()` added; both flagged endpoints now validate before use. |
+| LOW-002 (`nginx:alpine` unpinned) | ✅ Fixed | Pinned to `nginx:1.27-alpine`. |
+| LOW-003 (VPN capabilities) | ➖ No change needed | Confirmed minimum necessary set. |
+| LOW-004 / SMELL-002 (unused `jwt-decode`) | ✅ Fixed | Removed via `npm uninstall`; `npm audit fix` also applied while touching the lockfile (4 of 5 unrelated dev-tooling advisories resolved, 1 low-severity `esbuild` dev-server-only issue remains, not exploitable outside local dev). |
+| LOW-005 (backend port bypasses nginx) | ✅ Fixed | `8080:8080` host publish removed from `infra/docker-compose.yml`. |
+| INFO-003 (backend Docker digest pinning) | ⏳ Not done | Needs a live registry digest lookup; left as follow-up. |
+| INFO-004 (CI SCA scanning) | ⏳ Not done | Left as follow-up - adding `dependency-check` needs an NVD API key / CI secret and wasn't in scope for this pass. |
 
 ---
 
@@ -48,15 +49,15 @@
 
 | OWASP ID | Category | Findings | Status |
 |----------|----------|----------|--------|
-| A01:2025 | Broken Access Control | 1 | 🟡 Acceptable (CSRF posture only; guild-scoping is clean) |
-| A02:2025 | Security Misconfiguration | 2 | 🔴 Needs Attention |
-| A03:2025 | Software Supply Chain Failures | 1 | 🔴 Needs Attention |
-| A04:2025 | Cryptographic Failures | 1 | 🟡 Needs Attention |
+| A01:2025 | Broken Access Control | 1 | 🔴 Needs Attention |
+| A02:2025 | Security Misconfiguration | 4 | 🔴 Needs Attention |
+| A03:2025 | Software Supply Chain Failures | 4 | 🔴 Needs Attention |
+| A04:2025 | Cryptographic Failures | 2 | 🔴 Needs Attention |
 | A05:2025 | Injection | 0 | ✅ Acceptable |
-| A06:2025 | Insecure Design | 2 | 🟡 Acceptable |
-| A07:2025 | Authentication Failures | 1 | 🟡 Acceptable |
-| A08:2025 | Software or Data Integrity Failures | 0 | ✅ Acceptable (fixed prior to this audit) |
-| A09:2025 | Security Logging and Alerting Failures | 1 | 🟢 Acceptable |
+| A06:2025 | Insecure Design | 3 | 🔴 Needs Attention |
+| A07:2025 | Authentication Failures | 3 | 🔴 Needs Attention |
+| A08:2025 | Software or Data Integrity Failures | 1 | 🔴 Needs Attention |
+| A09:2025 | Security Logging and Alerting Failures | 0 | ✅ Acceptable |
 | A10:2025 | Mishandling of Exceptional Conditions | 0 | ✅ Acceptable |
 
 ---
@@ -65,203 +66,272 @@
 
 | Function | Categories | Findings | Status |
 |----------|-----------|----------|--------|
-| GV (Govern) | GV.SC | 1 | 🟡 Acceptable |
-| ID (Identify) | ID.AM | 1 | 🟢 Acceptable |
-| PR (Protect) | PR.AA, PR.DS, PR.PS | 6 | 🔴 Needs Attention |
-| DE (Detect) | DE.CM | 1 | 🟢 Acceptable |
-| RS (Respond) | — | 0 | ✅ Acceptable |
-| RC (Recover) | — | 0 | ✅ Acceptable |
+| GV (Govern) | GV.RM, GV.SC | 5 | 🔴 Needs Attention |
+| ID (Identify) | ID.RA | 1 | 🔴 Needs Attention |
+| PR (Protect) | PR.AA, PR.DS, PR.PS | 12 | 🔴 Needs Attention |
+| DE (Detect) | DE.CM, DE.AE | 0 | ✅ Acceptable |
+| RS (Respond) | RS.MA, RS.AN, RS.CO, RS.MI | 0 | ✅ Acceptable |
+| RC (Recover) | RC.RP, RC.CO | 0 | ✅ Acceptable |
 
 ---
 
-## 🟠 High Findings
+## Compliance Coverage
 
-### 🟠 [HIGH-001] Session cookies missing `Secure` and `SameSite` attributes
-- **Severity**: 🟠 HIGH
-- **OWASP**: A04:2025 (Cryptographic Failures) / A07:2025 (Authentication Failures)
-- **CWE**: CWE-614 (Sensitive Cookie Without 'Secure' Attribute), CWE-1275 (Missing SameSite)
-- **NIST CSF**: PR.DS (Data Security)
-- **Location**:
-  - `backend/src/main/java/sk/gkanocz/aisauth/auth/AuthController.java:136-158` (`auth_token`, `refresh_token`, delete cookie)
-  - `backend/src/main/java/sk/gkanocz/aisauth/auth/CookieOAuth2AuthorizationRequestRepository.java:144-150` (`oauth2_auth_request`)
-- **Attack Vector**: All three cookie constructors set `HttpOnly` and `Path`, but never call an equivalent of `setSecure(true)` or set `SameSite`. `jakarta.servlet.http.Cookie` has no `SameSite` setter, so it defaults to whatever the container/browser assumes. On a deployment served over plain HTTP (or with mixed HTTP/HTTPS access, e.g. a health-check path or a misconfigured reverse proxy), the 30-day `refresh_token` — which is bearer-equivalent and lets anyone holding it mint fresh access tokens — can be captured by passive network interception. Missing an explicit `SameSite` value also means the cookie's cross-site behavior is left to browser defaults rather than an intentional, verifiable policy, which matters here because CSRF protection is globally disabled (see HIGH/MEDIUM findings below).
-- **Impact**: Session/refresh token theft over an insecure channel → full dashboard account takeover (super-admin or per-guild manager, depending on the stolen token).
-- **Vulnerable Code**:
-```java
-private Cookie authCookie(String token) {
-    Cookie cookie = new Cookie(AUTH_COOKIE_NAME, token);
-    cookie.setHttpOnly(true);
-    cookie.setPath("/");
-    cookie.setMaxAge(24 * 60 * 60);
-    return cookie;
-}
-```
-- **Remediation**: Switch to `ResponseCookie` (Spring's builder, which supports `SameSite` natively) or call `cookie.setSecure(true)` plus set the `Set-Cookie` header manually with `SameSite=Strict`/`Lax`. Do this for all three cookies (`auth_token`, `refresh_token`, `oauth2_auth_request`), including the expiring/delete variants so the attribute set stays consistent.
-
-### 🟠 [HIGH-002] JWT signing secret falls back to a hardcoded, publicly-known default
-- **Severity**: 🟠 HIGH
-- **OWASP**: A02:2025 (Security Misconfiguration)
-- **CWE**: CWE-1188 (Insecure Default Initialization), CWE-798 (Use of Hard-coded Credentials)
-- **NIST CSF**: PR.PS (Platform Security)
-- **Location**: `backend/src/main/resources/application.yml:57` (`JWT_SECRET:dev-only-jwt-signing-key-at-least-32-bytes-long!!`), mirrored in `.env:8` and `infra/docker-compose.yml:66`
-- **Attack Vector**: If `JWT_SECRET` is ever left unset in a real deployment (easy to do — `docker-compose.yml` silently falls back to the same default, so the app boots and looks fully functional with no warning), anyone who reads this public repository knows the exact HS256 signing key. `JwtService.mintAccessToken` signs `superAdmin: true` directly into the token claims (`JwtService.java:42`), so an attacker holding the default key can forge a session token with `superAdmin=true`, pass `JwtAuthenticationFilter`'s signature check, and — as long as they also insert a matching row in `admin_sessions` is *not* required, since `JwtAuthenticationFilter` only checks `adminSessionRepository.existsByJtiAndExpiresAtAfter` for the *jti* they mint themselves — get full super-admin access to every guild.
-- **Impact**: Complete authentication bypass / full administrative takeover if the deployment ever runs with the default secret.
-- **Vulnerable Code**:
-```yaml
-app:
-  jwt:
-    secret: ${JWT_SECRET:dev-only-jwt-signing-key-at-least-32-bytes-long!!}
-```
-- **Remediation**: Fail fast instead of silently falling back — remove the default and let Spring Boot refuse to start when `JWT_SECRET` is absent in a non-dev profile (e.g. `@ConfigurationProperties` validation with `@NotBlank`, or a `@PostConstruct` check that rejects the known dev placeholder value specifically). Keep the current default only for a `test`/`dev` Spring profile, never as the unconditional fallback used by `docker-compose.yml` in what could be a production compose file.
+| Framework | Coverage | Details |
+|-----------|----------|---------|
+| CWE | 15 unique CWEs identified | CWE-862, CWE-200, CWE-613, CWE-863, CWE-284, CWE-20, CWE-829, CWE-1104, CWE-798, CWE-321, CWE-260, CWE-16, CWE-269, CWE-319, CWE-79 (adjacent) |
+| SANS/CWE Top 25 | 2/25 entries found | #9 (CWE-862 Missing Authorization), #17 (CWE-200 Exposure of Sensitive Information) |
+| OWASP ASVS 5.0 | 7/14 chapters with findings | V2 (Authentication), V3 (Session Management), V4 (Access Control), V5 (Validation), V6 (Cryptography/Secrets), V8 (Data Protection), V14 (Config/Deployment) |
+| PCI DSS 4.0.1 | 7 requirements relevant | 2.2, 3.5, 6.2.4, 6.3, 7.2–7.3, 8.3, 11.3 |
+| MITRE ATT&CK | 3 techniques mapped | T1530 (Data from Cloud/Info Storage Object), T1552.001 (Credentials In Files), T1078.001 (Valid Accounts: Default Accounts) |
+| SOC 2 | 5 criteria with findings | CC6.1, CC6.3, CC6.6, CC6.7, CC8.1 |
+| ISO 27001:2022 | 9 controls with findings | A.5.15, A.8.2, A.8.3, A.8.8, A.8.9, A.8.11, A.8.24, A.8.26, A.8.29 |
 
 ---
 
 ## 🟡 Medium Findings
 
-### 🟡 [MEDIUM-001] CSRF protection globally disabled with no compensating SameSite policy
+### 🟡 [MEDIUM-001] `/find` and `/user` Discord slash commands leak member email addresses to any guild member
 - **Severity**: 🟡 MEDIUM
-- **OWASP**: A01:2025 (Broken Access Control)
-- **CWE**: CWE-352 (Cross-Site Request Forgery)
-- **NIST CSF**: PR.DS
-- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/config/SecurityConfig.java:41` (`.csrf(csrf -> csrf.disable())`)
-- **Attack Vector**: The dashboard authenticates state-changing requests (`POST/PATCH/DELETE` on ~20 controllers) purely via the `auth_token` cookie, and CSRF protection is disabled outright. The only remaining defense is the browser's *default* SameSite behavior on a cookie whose `SameSite` attribute isn't explicitly set (see HIGH-001) — which is an implicit, browser-version-dependent mitigation, not a deliberate, auditable control. Combined with HIGH-001, a malicious page could still attempt a same-site-adjacent or older-browser cross-site POST against, for example, `POST /api/admin/maintenance` or `POST /api/wipe`.
-- **Impact**: Depends entirely on browser SameSite defaults holding; if they don't (older browsers, browser extensions, or a future regression), any authenticated manager/super-admin visiting an attacker page could have destructive dashboard actions performed as them.
-- **Remediation**: Either re-enable Spring Security's CSRF protection with a cookie-based CSRF token repository (`CookieCsrfTokenRepository`, compatible with the SPA), or explicitly set `SameSite=Strict` on `auth_token`/`refresh_token` (fixing HIGH-001) and document CSRF-disable as an intentional, reviewed decision resting on that cookie policy — not on browser defaults.
+- **OWASP**: A01:2025 (Broken Access Control), secondary A04:2025
+- **CWE**: CWE-862 (Missing Authorization), CWE-200 (Exposure of Sensitive Information)
+- **NIST CSF**: PR.AA (primary), PR.DS (secondary)
+- **Compliance**: SANS Top 25 #9, #17 | ASVS V4, V8 | PCI DSS 7.2–7.3 | T1530 | SOC 2 CC6.1 | ISO 27001 A.5.15, A.8.11
+- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/discordbot/DiscordBotService.java:121-151`, `backend/src/main/java/sk/gkanocz/aisauth/discordbot/VerificationSlashCommandListener.java:202-219`, `backend/src/main/java/sk/gkanocz/aisauth/discordbot/UtilityCommandListener.java:109-197`
+- **Attack Vector**: Unlike `/manualverify` and `/warn`, which are locked with `DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)` at command-definition time, `/find` and `/user` carry no such default and are reachable by any guild member unless a super admin opts in to a per-guild `CommandPermissions` restriction (which defaults to `CommandPermissions.empty()`, i.e. open). Any member can run `/find ais_id:<guess>` and get back the matching user's Discord ID and real email; AIS/student IDs are often sequential, enabling enumeration/harvesting.
+- **Vulnerable Code**:
+  ```java
+  String message = "**AIS ID:** " + user.getAisId()
+          + "\n**Discord:** <@" + user.getDiscordId() + ">"
+          + "\n**Email:** " + user.getEmail() + ...
+  ```
+- **Impact**: Bulk email/PII harvesting of verified members by any guild member, with no rate limit specific to `/find`.
+- **Remediation**: Default `/find` and `/user` to admin-only via `DefaultMemberPermissions` (matching `/manualverify`/`/warn`), or strip the email field from replies unless the caller is a moderator.
 
-### 🟡 [MEDIUM-002] `react-router-dom` pulls in a `react-router` version with multiple known vulnerabilities
+### 🟡 [MEDIUM-002] Super-admin JWT claim not re-validated live, unlike manager roles
 - **Severity**: 🟡 MEDIUM
-- **OWASP**: A03:2025 (Software Supply Chain Failures)
-- **CWE**: CWE-1104 (Use of Unmaintained Third-Party Components)
-- **NIST CSF**: GV.SC
-- **Location**: `frontend/package.json` (`"react-router-dom": "^7.13.1"`) → resolves `react-router` in range `6.0.0 - 7.18.1`
-- **Attack Vector**: `npm audit` reports 2 advisories against the resolved `react-router` (moderate/high): an open-redirect bypass via backslash in `<Link>`/`useNavigate` (GHSA-wrjc-x8rr-h8h6), an XSS via missing protocol validation in `RSCErrorHandler` (GHSA-h8fp-f39c-q6mh), an unauthenticated DoS via inefficient route matching (GHSA-chx6-hx7r-mcp5), a CSRF bypass allowing action execution before the 400 response (GHSA-qwww-vcr4-c8h2), and an SSR hydration constructor-injection issue.
-- **Impact**: Ranges from client-side DoS to open redirect/XSS depending on which code paths are actually reachable in this SPA (most of the RSC/SSR-specific ones likely don't apply since this is a client-rendered Vite app, but the route-matching DoS and open-redirect items do).
-- **Remediation**: `npm audit fix` (fix is available) or bump `react-router-dom` to `^7.18.2`+.
+- **OWASP**: A07:2025 (Authentication Failures)
+- **CWE**: CWE-613 (Insufficient Session Expiration), CWE-863 (Incorrect Authorization)
+- **NIST CSF**: PR.AA (primary), PR.DS (secondary)
+- **Compliance**: ASVS V3 | SOC 2 CC6.3 | ISO 27001 A.8.2
+- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/auth/GuildAccessService.java:21-23` vs. `:53-71`; `backend/src/main/java/sk/gkanocz/aisauth/auth/AuthController.java:90-99`
+- **Attack Vector**: `GuildAccessService.isSuperAdmin(Claims)` trusts the JWT's `superAdmin` boolean claim outright. Manager-role access is deliberately re-checked live against JDA's member cache on every request (per the class's own javadoc, so a Discord-side role revocation takes effect immediately) — super-admin status gets no equivalent check, and is only recomputed at `/api/auth/refresh`. If an operator removes an ID from `SUPER_ADMIN_IDS` and redeploys, an already-issued access token continues granting super-admin access — including destructive actions like `/api/wipe` — for up to its full TTL (default 300s).
+- **Vulnerable Code**:
+  ```java
+  public boolean isSuperAdmin(Claims claims) {
+      return Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class));
+  }
+  ```
+- **Impact**: A revoked super-admin can retain destructive access (guild wipe, allowed-guilds management) for up to the access-token TTL after revocation.
+- **Remediation**: Re-validate `superAdmin` against `AdminProperties.superAdminIds()` on every privileged request (same pattern already used for manager roles), or provide an explicit session-revocation path tied to config changes.
+
+### ~~🟡 [MEDIUM-003]~~ 🔵 [MEDIUM-003 → INFO, RESOLVED] OpenVPN `tls-auth` key — verified NOT a secret, false positive
+- **Severity**: ~~🟡 MEDIUM~~ 🔵 INFO (downgraded after verification)
+- **OWASP**: A02:2025 (Security Misconfiguration), secondary A04:2025 (Cryptographic Failures)
+- **CWE**: CWE-798 (Use of Hard-coded Credentials), CWE-321 (Use of Hard-coded Cryptographic Key) — both N/A, see below
+- **NIST CSF**: PR.DS (primary), PR.PS
+- **Compliance**: ASVS V6.4 | PCI DSS 3.5 | T1552.001 | SOC 2 CC6.7 | ISO 27001 A.8.24
+- **Location**: `infra/vpn/client.ovpn`
+- **Verification (2026-08-17, follow-up)**: The developer identified that STU Bratislava publishes this exact `client.ovpn` — `<ca>` cert and `<tls-auth>` static key included — as the standard, identical-for-everyone connection profile on its own public IT support site (`stuba.sk/.../openvpn-v.3-connect.html`, direct download `stuba.sk/buxus/docs/stu/pracoviska/cvt/navody/client.ovpn`). Fetched that URL and SHA-256-compared its `<ca>` and `<tls-auth>` blocks byte-for-byte against the repo's copy: **identical hashes on both blocks**. This is not a per-installation or per-user secret — it's the university's own published default, distributed to every student/staff VPN user. The only actual secret in this flow is the personal `auth-user-pass` credential in `infra/vpn/auth.txt`, which was correctly gitignored from the start and was never affected by this finding.
+- **Original attack vector reasoning (now moot)**: The `<tls-auth>` block was assumed to be a shared-but-not-public HMAC secret providing defense-in-depth against port scanning/DoS/replay. That assumption was wrong — STU treats it as public configuration, not a secret, so there is nothing to rotate and no exposure from this repo having tracked it.
+- **Action taken anyway**: `infra/vpn/client.ovpn` was untracked and gitignored, with a redacted `client.ovpn.example` added, before this was confirmed (see commit `2a8bdbe`) — harmless, but unnecessary. Git history was **not** rewritten, and per this verification, does not need to be.
+- **Remediation**: None required. Optional: re-track `client.ovpn` directly instead of via the `.example` indirection, since it's genuinely public config — left as-is to avoid unnecessary churn.
+
+### 🟡 [MEDIUM-004] Weak default database credentials combined with published Postgres port
+- **Severity**: 🟡 MEDIUM
+- **OWASP**: A02:2025 (Security Misconfiguration)
+- **CWE**: CWE-798 (Use of Default Credentials), CWE-260 (Password in Configuration File)
+- **NIST CSF**: PR.PS (primary), PR.AA
+- **Compliance**: ASVS V2.1 | PCI DSS 2.2, 8.3 | T1078.001 | SOC 2 CC6.1 | ISO 27001 A.8.9
+- **Location**: `infra/docker-compose.yml:6-11,96`
+- **Attack Vector**: `POSTGRES_PASSWORD: ${DB_PASSWORD:-ais_auth}` falls back to a trivially-guessable password if `.env` is missing (e.g. a rushed staging deploy), and `ports: ["5432:5432"]` publishes Postgres to the host's network interface, not just the internal compose network. Anyone reaching the host (misconfigured firewall/security group, same LAN) can `psql -h <host> -U ais_auth ais_auth` directly. Unlike `JWT_SECRET`, which `ProductionSecretsValidator` explicitly checks for the placeholder value and fails startup on, `DB_PASSWORD`/`DB_USER`/`DB_NAME` are not covered by that validator at all — this default silently succeeds even under the `prod` profile.
+- **Impact**: Full read/write access to the application database (users, verification records, audit/session data) bypassing the application layer entirely.
+- **Remediation**: Require `DB_PASSWORD` (`${DB_PASSWORD:?DB_PASSWORD must be set}`), extend `ProductionSecretsValidator` to reject a default/blank DB password under `prod`, and drop or restrict the `5432:5432` host port publish (bind `127.0.0.1:5432:5432` at most — `backend` already reaches `postgres` over the internal compose network).
+
+### 🟡 [MEDIUM-005] Mailpit SMTP port published to host network, unauthenticated
+- **Severity**: 🟡 MEDIUM
+- **OWASP**: A02:2025 (Security Misconfiguration)
+- **CWE**: CWE-16 (Configuration)
+- **NIST CSF**: PR.PS
+- **Compliance**: ASVS V14.1 | SOC 2 CC6.6 | ISO 27001 A.8.9
+- **Location**: `infra/docker-compose.yml:20-26`
+- **Attack Vector**: `ports: ["1025:1025"]` binds to `0.0.0.0` rather than loopback, so Mailpit's unauthenticated SMTP listener is reachable from the LAN/any network segment the host sits on, not just other processes on the same dev machine (the stated intent per the compose file's own comment).
+- **Impact**: Low in the intended dev-only context (mail never leaves the box), but broader network exposure than the stated purpose requires, and a risky pattern if this compose file is ever reused with a real mail relay.
+- **Remediation**: Bind to loopback only — `127.0.0.1:1025:1025`.
 
 ---
 
 ## 🟢 Low & 🔵 Informational Findings
 
-### 🟢 [LOW-001] No rate limiting on `/api/auth/refresh` and `/api/auth/exchange`
+### 🟢 [LOW-001] `guildId` extracted from untyped request bodies without validation
 - **Severity**: 🟢 LOW
-- **OWASP**: A06:2025 (Insecure Design)
-- **CWE**: CWE-307 (Improper Restriction of Excessive Authentication Attempts)
-- **NIST CSF**: PR.AA
-- Both endpoints are `permitAll()` in `SecurityConfig` and have no rate limiter (unlike the Discord `/verify` flow, which has `VerifyRateLimiter`). Practically low-risk today since refresh tokens and exchange codes are 256-bit `SecureRandom` hex values (brute force is infeasible), but there's no backstop against request-flooding these endpoints for connection-pool/DB exhaustion (each call touches Postgres).
+- **OWASP**: A06:2025 (Insecure Design) | **CWE**: CWE-20 (Improper Input Validation) | **NIST CSF**: GV.RM, PR.DS
+- **Compliance**: ASVS V5 | ISO 27001 A.8.26
+- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/semester/SemesterController.java:111-113`, `backend/src/main/java/sk/gkanocz/aisauth/discordbot/CommandManagementController.java:143-146`
+- `String guildId = (String) body.get("guildId")` cast from an untyped `Map<String, Object>` with no null/format check, unlike `GuildAccessAdminController.setAllowedGuilds`, which validates `\d{17,20}`. Currently fails closed (`hasLiveManagerRole` returns `false` for null/malformed IDs) so not exploitable today, but risks an unhandled 500 on malformed input and is inconsistent with the rest of the codebase.
+- **Remediation**: Use typed request DTOs (as most other endpoints already do) instead of raw `Map<String,Object>` bodies, and validate guild-ID format centrally.
 
-### 🟢 [LOW-002] `logging.level.sk.gkanocz.aisauth: DEBUG` is unconditional
+### 🟢 [LOW-002] `nginx:alpine` base image not version-pinned
 - **Severity**: 🟢 LOW
-- **OWASP**: A09:2025 (Security Logging and Alerting Failures)
-- **CWE**: CWE-532 (Information Exposure Through Log Files)
-- **NIST CSF**: DE.CM
-- `backend/src/main/resources/application.yml:81` sets DEBUG for the whole application package with no Spring profile gating it down for a production deployment. No secrets were found being logged in this review, but DEBUG-level logging of Discord IDs, emails, and AIS IDs across the codebase is broader than a production log stream should carry by default.
+- **OWASP**: A03:2025 | **CWE**: CWE-1104 | **NIST CSF**: GV.SC
+- **Compliance**: ASVS V14.2 | PCI DSS 6.3 | SOC 2 CC8.1 | ISO 27001 A.8.8
+- **Location**: `frontend/Dockerfile.frontend:17`
+- `FROM nginx:alpine` floats to whatever the latest nginx release is on every rebuild, unlike `node:22-alpine` in the same file (major-version pinned) or `mailpit:v1.29.7` in `docker-compose.yml`.
+- **Remediation**: Pin to a specific tag (e.g. `nginx:1.27-alpine`), consider digest-pinning both build stages.
 
-### 🔵 [INFO-001] No Content-Security-Policy header configured
-- **Severity**: 🔵 INFO
-- **OWASP**: A02:2025 (Security Misconfiguration)
-- **CWE**: CWE-1021 (Improper Restriction of Rendered UI Layers)
-- Neither the backend (Spring Security defaults) nor `frontend/nginx.conf` set a `Content-Security-Policy`. Low priority since no XSS sinks (`dangerouslySetInnerHTML`, `innerHTML`, etc.) were found in `frontend/src`, but a CSP is cheap defense-in-depth against any future regression or third-party dependency (`emoji-picker-react`, `cmdk`) introducing one.
+### 🟢 [LOW-003] VPN sidecar container capabilities (`NET_ADMIN` + `/dev/net/tun`)
+- **Severity**: 🟢 LOW (reviewed, assessed as necessary)
+- **OWASP**: A02:2025 | **CWE**: CWE-269 | **NIST CSF**: PR.PS
+- **Compliance**: ASVS V14.4 | ISO 27001 A.8.9
+- **Location**: `infra/docker-compose.yml:34-37`
+- This is the minimum capability set required for OpenVPN client mode (no `privileged: true`, no host networking) — genuinely necessary, not over-permissioned. Flagged for visibility only; see HOTSPOT-002.
+- **Remediation**: No change required; add an inline comment documenting the justification for future maintainers.
 
-### 🔵 [INFO-002] Docker base images pinned by tag, not digest
+### 🟢 [LOW-004] Unused `jwt-decode` dependency in frontend bundle
+- **Severity**: 🟢 LOW
+- **OWASP**: A03:2025 | **CWE**: CWE-1104 | **NIST CSF**: GV.SC
+- **Compliance**: ISO 27001 A.8.29
+- **Location**: `frontend/package.json:25`
+- Listed as a production dependency with zero imports anywhere in `frontend/src` (verified by full-tree grep). Unnecessary attack surface and bundle weight; also a latent risk if wired in later for client-side JWT parsing (the access token is httpOnly today, so this would be inert, but the pattern invites misuse).
+- **Remediation**: Remove from `package.json`/`package-lock.json`, or use deliberately with a comment.
+
+### 🟢 [LOW-005] Backend API port published directly, bypassing the nginx proxy layer
+- **Severity**: 🟢 LOW
+- **OWASP**: A02:2025 | **CWE**: CWE-16 | **NIST CSF**: PR.PS
+- **Compliance**: ASVS V14.1 | ISO 27001 A.8.9
+- **Location**: `infra/docker-compose.yml:95-96`
+- `backend` publishes `8080:8080` on top of nginx's `/api/` proxy, letting clients bypass nginx (and any header hardening it adds) and hit the backend directly.
+- **Remediation**: Drop the host port publish for `backend` in the production compose file; keep it only in a separate dev-override file if direct debugging access is needed.
+
+### 🔵 [INFO-001] LDAP tunnel is plaintext (`ldap://`) between backend, VPN sidecar and the university server
 - **Severity**: 🔵 INFO
-- **OWASP**: A03:2025 (Software Supply Chain Failures)
-- **CWE**: CWE-829 (Inclusion of Functionality from Untrusted Control Sphere)
-- `backend/Dockerfile` (`eclipse-temurin:21-jdk`, `eclipse-temurin:21-jre-alpine`) and `infra/docker-compose.yml` (`postgres:16-alpine`, `axllent/mailpit:latest`) use mutable tags. `mailpit:latest` in particular is unpinned even by major version. Standard supply-chain hardening, not urgent for this project's threat model.
+- **OWASP**: A04:2025 | **CWE**: CWE-319 | **NIST CSF**: PR.DS
+- **Location**: `infra/docker-compose.yml:92`, `infra/vpn/entrypoint.sh:31`
+- Both the `backend → vpn` hop and the `vpn → ldap.stuba.sk` hop use unencrypted `ldap://` (no LDAPS/StartTLS). The outer hop is protected by the OpenVPN tunnel and the inner hop is confined to the docker-compose bridge network, so exposure is limited to those trust boundaries. Worth confirming with whoever owns the LDAP client config whether the university server supports StartTLS.
+
+### 🔵 [INFO-002] `style-src 'unsafe-inline'` in CSP
+- **Severity**: 🔵 INFO
+- **OWASP**: A05:2025 | **CWE**: CWE-79 (adjacent) | **NIST CSF**: PR.DS
+- **Location**: `frontend/nginx.conf:17`
+- Not broken — `script-src 'self'` has no `unsafe-inline`/`unsafe-eval`, which is what matters most for XSS mitigation. `style-src 'unsafe-inline'` is a common, accepted tradeoff for React apps using inline `style={{...}}`. No action required.
+
+### 🔵 [INFO-003] Docker base images in backend not digest-pinned
+- **Severity**: 🔵 INFO
+- **OWASP**: A03:2025 | **CWE**: CWE-829 | **NIST CSF**: GV.SC
+- **Compliance**: ISO 27001 A.8.8 | SOC 2 CC8.1
+- **Location**: `backend/Dockerfile:2,12` (`eclipse-temurin:21-jdk`, `eclipse-temurin:21-jre-alpine`)
+- Tags are reasonably specific (major version + variant) but not digest-pinned; a tag re-push upstream changes the build with no corresponding code change. Container already correctly runs as non-root (`appuser`, uid 1001).
+
+### 🔵 [INFO-004] CI pipeline has no dependency/SCA scanning step
+- **Severity**: 🔵 INFO
+- **OWASP**: A03:2025 | **CWE**: CWE-1104 | **NIST CSF**: GV.SC, ID.RA
+- **Compliance**: PCI DSS 11.3 | ISO 27001 A.8.8, A.8.29
+- **Location**: `.github/workflows/backend-ci.yml`
+- Only `./mvnw -B verify` runs — no `dependency-check`/Trivy/Grype/SBOM step visible in this workflow file (Dependabot/CodeQL may be configured at the repo-settings level outside this file; not verifiable from source).
 
 ---
 
-## Areas Reviewed and Found Clean
+## 🔲 Gray-Box Findings
 
-Called out explicitly per audit methodology — these were checked and show no issues:
+### [GRAY-001] `/find` and `/user` Discord commands — role/permission enforcement
+- **Severity**: 🟡 MEDIUM (same as MEDIUM-001 above)
+- **OWASP**: A01:2025 | **CWE**: CWE-862 | **NIST CSF**: PR.AA
+- **Tested As**: Ordinary Discord guild member (no manager/admin role)
+- **Endpoint**: Discord slash commands `/find ais_id:<value>` and `/user discord:<value>`, dispatched via `CommandInteractionListener`
+- **Expected**: Only guild managers/admins should be able to resolve a member's real email address
+- **Actual**: Any guild member can invoke both commands and receive the target's email address, because neither command sets a `DefaultMemberPermissions` floor (unlike `/manualverify`/`/warn`, which are `ADMINISTRATOR`-only by default) and the per-guild `CommandPermissions` override defaults to empty/unrestricted
+- **Request**: `/find ais_id:12345` typed by a non-privileged member in any onboarded guild's Discord channel
+- **Remediation**: See MEDIUM-001.
 
-- **Guild/tenant isolation (IDOR)**: All ~20 guild-scoped REST controllers (`AutoDeleteController`, `AutoMentionController`, `RoleMenuController`, `WarnAdminController`, `GuildSettingsController`, `CommandManagementController`, `DiscordResourcesController`, `HackedAccountTrapController`, `WipeController`, `SemesterController`/`SemesterOperationController`, `AdminVerifiedUsersController`, `AuditLogController`, `AccessLogController`, `VerificationCodeAdminController`, `LogChannelsController`, `GuildAccessAdminController`) consistently call `guildAccessService.assertCanManageGuild(claims, guildId)` before touching guild data, and by-ID mutations use `findByIdAndGuildId`/`deleteByIdAndGuildId` repository methods rather than a bare `findById` — so a manager for guild A cannot reach guild B's config rows even by guessing numeric IDs. `WipeController.startWipe` correctly escalates to `assertSuperAdmin` (a destructive mass-role-removal action), rather than reusing the weaker `assertCanManageGuild`.
-- **LDAP injection**: `LdapStudentDirectoryService` uses `LdapQueryBuilder.query().where("uisId").is(aisId)` — Spring LDAP's parameterized query builder, not string-concatenated filters.
-- **SQL injection**: All persistence goes through Spring Data JPA repository methods; no raw/native queries with concatenated input were found.
-- **Deserialization (A08:2025)**: The previously-fixed `CookieOAuth2AuthorizationRequestRepository` (commit `8b56faa`) now signs a JWT instead of running `ObjectInputStream` on an unauthenticated cookie. No other `ObjectInputStream`/unsafe deserialization sinks found.
-- **Discord command authorization (A01:2025)**: `/manualverify` and `/warn` are now locked to `ADMINISTRATOR` at Discord command-definition time (also fixed in `8b56faa`), and `CommandInteractionListener` additionally enforces the dashboard-configured `CommandPermissions` (channel/role allowlist) server-side before dispatch — defense in depth beyond Discord's own gate.
-- **Error handling / info leakage (A10:2025)**: `GlobalExceptionHandler` returns generic `ProblemDetail` messages for all unexpected exceptions and logs the real exception server-side only; no stack traces or DB details reach the client.
-- **Secrets in git**: No `.env`, `infra/vpn/auth.txt`, or key/credential files are tracked in git history (verified via `git ls-files` and `git log --diff-filter=A`); `.gitignore` correctly excludes them.
-- **CORS**: `SecurityConfig.corsConfigurationSource()` restricts `allowedOrigins` to the single configured `app.frontend.url` (not `*`), even though `allowCredentials(true)` is set — this is the compliant combination.
-- **Verification code entropy**: 15-character mixed-alphanumeric `SecureRandom` codes (`VerificationService.CODE_CHARS`/`CODE_LENGTH`) with a 15-minute expiry are not brute-forceable over the network.
+### [GRAY-002] Super-admin authorization — session/claim freshness
+- **Severity**: 🟡 MEDIUM (same as MEDIUM-002 above)
+- **OWASP**: A07:2025 | **CWE**: CWE-613 | **NIST CSF**: PR.AA
+- **Tested As**: Recently de-provisioned super admin holding an unexpired access token
+- **Endpoint**: Any super-admin-gated route, e.g. `POST /api/wipe`, `PUT /api/admin/allowed-guilds`
+- **Expected**: Removing an ID from `SUPER_ADMIN_IDS` and redeploying should immediately revoke super-admin access, matching how manager-role revocation is re-checked live on every request
+- **Actual**: `GuildAccessService.isSuperAdmin()` reads only the JWT's `superAdmin` claim, which is set once at token issuance/refresh; a currently-valid access token keeps working for its full remaining TTL (default 300s) after the operator-side revocation
+- **Request**: `POST /api/wipe` with a previously-issued, still-unexpired access-token cookie belonging to the removed super admin
+- **Status**: ✅ Fixed — `isSuperAdmin()` now also checks `AdminProperties.superAdminIds()` live on every call.
 
 ---
 
 ## 📍 Security Hotspots
 
-### [HOTSPOT-001] JWT signing/verification chain
-- **OWASP**: A04:2025 | **CWE**: CWE-321 | **NIST CSF**: PR.DS
-- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/auth/JwtService.java`, `AuthBeansConfig.java:66-71`, `JwtProperties.java`
-- **Why sensitive**: `JwtService` explicitly pins `HmacSHA256` via a raw `SecretKeySpec` rather than `Keys.hmacShaKeyFor` specifically because the auto-selected algorithm changes based on key length (documented in a code comment) — a well-understood but easy-to-regress footgun.
-- **Risk if modified**: Swapping back to `Keys.hmacShaKeyFor`, changing the algorithm, or changing what's inside `mintAccessToken`'s claims (especially `superAdmin`) without updating `JwtAuthenticationFilter`'s role derivation would silently break or weaken authentication.
-- **Review guidance**: Any PR touching this file, `AuthBeansConfig.jwtDecoder()`, or `JwtAuthenticationFilter.authenticate()` needs a signature-mismatch and expired/tampered-token test, same as the existing `CookieOAuth2AuthorizationRequestRepositoryTest` coverage.
+### [HOTSPOT-001] Authorization is 100% manual/per-controller with no declarative floor
+- **OWASP**: A06:2025, secondary A01:2025 | **CWE**: CWE-862 (latent), CWE-284 | **NIST CSF**: ID.RA, GV.RM, PR.AA
+- **Compliance**: ASVS V4 | SOC 2 CC6.1 | ISO 27001 A.8.3
+- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/config/SecurityConfig.java:49-59`; all 22 `@RestController` classes under `sk.gkanocz.aisauth`
+- **Why sensitive**: No `@EnableMethodSecurity`, `@PreAuthorize`, `@Secured` or `@RolesAllowed` exists anywhere; `SecurityConfig` only enforces `.anyRequest().authenticated()`. Every guild-scoped or admin authorization check is a manual, copy-pasted call to `guildAccessService.assertCanManageGuild(...)`/`assertSuperAdmin(...)` inside each controller method. All 22 controllers were verified to call this correctly today, with `findByIdAndGuildId`-style repository lookups preventing cross-guild IDOR.
+- **Risk if modified**: A future endpoint that forgets the one-line manual check is immediately open to any authenticated user, with nothing at compile time or route-config time to catch it.
+- **Review guidance**: Any new controller method should be checked in review for a leading `guildAccessService` call; consider adding `@PreAuthorize` or a request-matcher-based role floor in `SecurityConfig` as a default-deny safety net on top of the existing manual checks.
 
-### [HOTSPOT-002] `GuildAccessService` — the sole tenant-isolation gate
-- **OWASP**: A01:2025 | **CWE**: CWE-862 | **NIST CSF**: PR.AA
-- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/auth/GuildAccessService.java`
-- **Why sensitive**: Every guild-scoped controller in the app relies on this one class being called correctly, by convention, in every handler — there is no Spring Security expression, `@PreAuthorize`, or filter enforcing it centrally (see SMELL-001).
-- **Risk if modified**: A new controller/endpoint that forgets to call `assertCanManageGuild`/`assertSuperAdmin` fails open with no compile-time or framework-level signal — exactly the class of bug fixed in commit `8b56faa` for the Discord command layer.
-- **Review guidance**: Every new `@RequestMapping` handler taking a `guildId` (path, query, or body) must be checked in review for a corresponding `guildAccessService` call before it touches data.
+### [HOTSPOT-002] VPN sidecar entrypoint/healthcheck — sole path to real LDAP directory
+- **OWASP**: A08:2025, A02:2025 | **CWE**: CWE-269 | **NIST CSF**: GV.SC, PR.PS
+- **Location**: `infra/vpn/entrypoint.sh`, `infra/vpn/healthcheck.sh`, `infra/docker-compose.yml:28-51`
+- **Why sensitive**: This container holds `NET_ADMIN` + raw `/dev/net/tun` access and the real university VPN credential (`auth.txt`). `entrypoint.sh` currently fails closed correctly (`set -eu`, validates the auth-secret file is readable and has ≥2 lines before starting OpenVPN, `trap cleanup` kills both child processes together).
+- **Risk if modified**: A change that weakens those guards, or a healthcheck change that can pass without a genuinely live authenticated tunnel, would let `backend`'s `depends_on: vpn: condition: service_healthy` gate pass while LDAP queries silently fail or reach a stale endpoint.
+- **Review guidance**: Any change to `entrypoint.sh`'s validation checks or `healthcheck.sh`'s `ldapsearch` base-DN check should be reviewed specifically for fail-open regressions.
 
-### [HOTSPOT-003] Cookie construction (`AuthController`, `CookieOAuth2AuthorizationRequestRepository`)
-- **OWASP**: A04:2025 | **CWE**: CWE-614 | **NIST CSF**: PR.DS
-- **Location**: `AuthController.java:136-158`, `CookieOAuth2AuthorizationRequestRepository.java:144-150`
-- **Why sensitive**: Three near-duplicate cookie-builder methods across two files (see SMELL-002) — the attribute set (`HttpOnly`, `Path`, but no `Secure`/`SameSite`) has to be kept in sync by hand.
-- **Risk if modified**: Fixing HIGH-001 in only one of the three cookie builders would leave the others silently inconsistent.
-- **Review guidance**: Consolidate into one cookie factory (see SMELL-002) so the fix only has one place to apply and drift is structurally impossible.
+### [HOTSPOT-003] `frontend/src/lib/api.ts` — global 401/403 interceptor and redirect logic
+- **OWASP**: A07:2025 | **CWE**: CWE-287 | **NIST CSF**: PR.AA
+- **Location**: `frontend/src/lib/api.ts:8-30`
+- **Why sensitive**: Single choke point deciding whether a 401 triggers a silent refresh-and-retry vs. a hard redirect to `/login`, and whether a 403 with the exact message string `'Manager access required'` triggers a forced logout. The string match brittly couples frontend behavior to exact backend wording.
+- **Risk if modified**: A backend error-message wording change silently breaks the access-revoked UX; a change to the `_retry` guard could reintroduce an infinite refresh loop.
+- **Review guidance**: Any PR touching backend 403 message text, or this interceptor, should be checked against the string match and the `_retry` flag logic.
 
-### [HOTSPOT-004] `superAdminIds` / `assertSuperAdmin` boundary
-- **OWASP**: A01:2025 | **CWE**: CWE-269 | **NIST CSF**: PR.AA
-- **Location**: `AdminProperties.java`, `GuildAccessService.assertSuperAdmin`, `WipeController.startWipe:63`
-- **Why sensitive**: This is the highest-privilege boundary in the app — it gates mass Discord role removal (`/api/wipe`), maintenance mode, and all `AdminController` endpoints. `WipeController` deliberately does *not* reuse `assertCanManageGuild` for this exact reason (documented in a code comment).
-- **Review guidance**: Any refactor that consolidates `assertCanManageGuild`/`assertSuperAdmin` call sites must preserve this specific escalation — a per-guild manager must never be able to trigger a wipe.
-
-### [HOTSPOT-005] `CommandInteractionListener` — single dispatch point for all Discord slash commands
-- **OWASP**: A01:2025 | **CWE**: CWE-862 | **NIST CSF**: PR.AA
-- **Location**: `backend/src/main/java/sk/gkanocz/aisauth/discordbot/CommandInteractionListener.java`
-- **Why sensitive**: Centralizes guild-allowlist, maintenance-mode, per-command enable/disable, and `CommandPermissions` checks for every command before delegating to `verificationCommandHandler`/`warnCommandHandler`/`utilityCommandHandler`. It's also where the previously-missing `/manualverify` and `/warn` Discord-level defaults were compensated for at the JDA layer (`DiscordBotService.baseCommands()`).
-- **Review guidance**: A new slash command handler added to `KNOWN_COMMANDS` without also being wired into one of the three dispatch handlers, or a moderation-capable command added without a corresponding `DefaultMemberPermissions`/`CommandPermissions` check, reopens the exact class of bug fixed in `8b56faa`.
+### [HOTSPOT-004] `frontend/src/contexts/AuthContext.tsx` — OAuth code exchange and session bootstrap
+- **OWASP**: A07:2025 | **CWE**: CWE-287 | **NIST CSF**: PR.AA
+- **Location**: `frontend/src/contexts/AuthContext.tsx:31-68`
+- **Why sensitive**: Trust boundary where an unauthenticated URL `?code=` param is exchanged for a session via `POST /auth/exchange`. Currently strips `code` from the URL immediately via `window.history.replaceState` (avoids leaking it through referrer/history) and only trusts `data.user` on a `response.ok` gate.
+- **Risk if modified**: Skipping the URL-strip or the `response.ok` gating on a future refactor would reopen a code-leakage or spoofed-login-state window.
+- **Review guidance**: Treat any change to this file as auth-critical; verify both behaviors survive refactors.
 
 ---
 
 ## 🧹 Code Smells
 
-### [SMELL-001] Authorization enforced by manual per-method calls, not a framework-level gate
-- **OWASP**: A06:2025 | **CWE**: CWE-284 | **NIST CSF**: GV.RM
-- **Location**: Repeated ~80 times across every controller in `backend/src/main/java/sk/gkanocz/aisauth/**/*.java`
-- **Pattern**: `guildAccessService.assertCanManageGuild(claims, guildId)` (or `assertSuperAdmin`) is the first line of nearly every handler method, copy-pasted rather than declared once via `@PreAuthorize`, a custom annotation + AOP aspect, or a `HandlerInterceptor`.
-- **Security implication**: This pattern is provably fragile in this codebase — it's exactly the class of gap commit `8b56faa` had to fix for Discord commands (permission checks scattered across command-definition time and runtime rather than unified). It works today because it's been carefully applied everywhere, but every new endpoint is one missed line away from an access-control bug with no test or framework failure to catch it.
-- **Suggestion**: Introduce a `@RequiresGuildAccess` (or similar) method annotation resolved via a `HandlerMethodArgumentResolver`/AOP aspect that reads the `guildId` parameter and calls `GuildAccessService` before the method body runs, so a missing check fails at a single, greppable layer instead of silently compiling.
+### [SMELL-001] `guildId` handling duplicated across controllers instead of a shared validated type (see LOW-001)
+- **OWASP**: A06:2025 | **CWE**: CWE-20 | **NIST CSF**: GV.RM
+- **Location**: `SemesterController.java`, `CommandManagementController.java`
+- **Pattern**: Raw `Map<String,Object>` request bodies with manual, inconsistent casting instead of typed DTOs used elsewhere in the codebase.
+- **Suggestion**: Introduce typed request DTOs with `@Valid`/format-validated `guildId` fields.
 
-### [SMELL-002] Cookie construction duplicated across two classes
-- **OWASP**: A06:2025 | **CWE**: CWE-1041 | **NIST CSF**: PR.DS
-- **Location**: `AuthController.java` (`authCookie`, `refreshCookie`, `expireCookie`), `CookieOAuth2AuthorizationRequestRepository.java` (`cookie`)
-- **Pattern**: Four near-identical private methods building a `jakarta.servlet.http.Cookie` with the same base attributes (`HttpOnly`, `Path("/")`) but no shared helper.
-- **Security implication**: Directly caused HIGH-001 being missable in more than one place at once; any future cookie-attribute policy change (e.g. adding `Secure`) has to be applied consistently by hand in four locations.
-- **Suggestion**: Extract a shared `CookieFactory`/`SecureCookieBuilder` component used by both classes.
+### [SMELL-002] Unused dependency shipped in the frontend bundle
+- **OWASP**: A03:2025 | **CWE**: CWE-1104 | **NIST CSF**: GV.SC
+- **Location**: `frontend/package.json:25` (`jwt-decode`)
+- **Pattern**: Declared, never imported anywhere in `frontend/src`.
+- **Suggestion**: Remove, or use deliberately with a comment justifying client-side decode (display-only, never an access decision).
 
-### [SMELL-003] Single `application.yml` with no environment-specific profile
-- **OWASP**: A06:2025 | **CWE**: CWE-1188 | **NIST CSF**: GV.RM
-- **Location**: `backend/src/main/resources/application.yml`
-- **Pattern**: One config file covers dev defaults (weak JWT secret fallback, `localhost` URLs, DEBUG logging) and is the same file `docker-compose.yml` layers production-shaped env vars on top of — there's no `application-prod.yml` that would let a production profile *positively assert* stricter values (e.g. reject a missing `JWT_SECRET`) rather than just override the same keys.
-- **Security implication**: Directly underlies HIGH-002 and LOW-002 — there's no structural way to make "prod" a distinct, verifiable posture.
-- **Suggestion**: Add a `prod` Spring profile (`application-prod.yml`) that fails fast on missing/default-valued secrets and sets `logging.level` to `INFO`, activated via `SPRING_PROFILES_ACTIVE=prod` in the deployment's `docker-compose.yml`.
+### [SMELL-003] Repeated per-guild `localStorage` key construction without a shared helper
+- **OWASP**: A06:2025 | **CWE**: N/A (maintainability) | **NIST CSF**: GV.RM
+- **Location**: `frontend/src/pages/SwitchSemester.tsx:137,141,146-147`, `frontend/src/pages/Wipe.tsx:55,87,360`, `frontend/src/components/modules/shared.tsx:12-27`
+- **Pattern**: Three files independently build `localStorage` keys via template strings instead of extending the existing `useSelectedGuildId` pattern in `shared.tsx`.
+- **Security implication**: Low today (no sensitive data involved — just dismissed-console UI state), but no central place to enforce namespacing/expiry if this pattern is extended to something more sensitive later.
+- **Suggestion**: Factor a shared `useGuildScopedLocalStorage(prefix, guildId)` helper.
 
 ---
 
 ## Recommendations Summary
 
-**A02:2025 / A04:2025 (do first)**
-1. Set `Secure` + `SameSite=Strict` on `auth_token`, `refresh_token`, and `oauth2_auth_request` cookies (HIGH-001).
-2. Make `JWT_SECRET` a hard startup requirement outside a dev/test profile instead of silently defaulting (HIGH-002).
+**A01/A07 — Access control & auth freshness (highest priority)**
+1. ✅ Fixed — `/find` no longer replies with email (MEDIUM-001 / GRAY-001).
+2. ✅ Fixed — `superAdmin` claim re-validated live on every privileged request (MEDIUM-002 / GRAY-002).
+3. Open — Add `@EnableMethodSecurity`/`@PreAuthorize` as a default-deny safety net over the existing manual per-controller checks (HOTSPOT-001).
 
-**A01:2025 / A03:2025 (do next)**
-3. Either re-enable CSRF protection or formally rely on the SameSite fix above and document it (MEDIUM-001).
-4. Bump `react-router-dom` past `7.18.1` (`npm audit fix`) (MEDIUM-002).
+**A02 — Infrastructure hardening**
+4. ✅ Resolved — OpenVPN `tls-auth` key verified as STU's own public config, not a secret; no rotation needed (MEDIUM-003, downgraded to Info).
+5. ✅ Fixed — `DB_PASSWORD` covered by `ProductionSecretsValidator`, Postgres port bound to loopback (MEDIUM-004).
+6. ✅ Fixed — Mailpit SMTP bound to loopback (MEDIUM-005).
 
-**Structural (schedule, not urgent)**
-5. Extract the manual `assertCanManageGuild` pattern into a framework-level check (SMELL-001) — this is the single highest-leverage change, since it's the pattern that has already caused a real, shipped access-control bug once.
-6. Consolidate cookie construction (SMELL-002) and split `application.yml` into profile-specific files (SMELL-003).
-7. Rate-limit `/api/auth/refresh` and `/api/auth/exchange`, pin Docker base images by digest, and consider a CSP header — all low-urgency hardening (LOW-001, INFO-001, INFO-002).
+**A03 — Supply chain hygiene**
+7. ✅ Fixed (nginx) / Open (backend digest pin) — `nginx:alpine` pinned to `nginx:1.27-alpine`; backend base image digest-pinning still needs a live registry lookup (LOW-002, INFO-003).
+8. ✅ Fixed — Unused `jwt-decode` dependency removed (LOW-004 / SMELL-002).
+9. Open — Add an SCA/dependency-vulnerability scan step to CI (INFO-004).
+
+**A06 — Design hardening**
+10. ✅ Fixed — `guildId`-bearing endpoints now validate via `GuildAccessService.requireValidGuildId()` (LOW-001 / SMELL-001).
+
+Remaining open items: `@PreAuthorize` default-deny safety net (HOTSPOT-001) and CI dependency scanning (INFO-004) — neither urgent, both good next-pass candidates.
 
 ---
 
@@ -269,21 +339,23 @@ Called out explicitly per audit methodology — these were checked and show no i
 
 | Aspect | Details |
 |--------|---------|
-| Phases executed | 1-5 (full) |
-| Frameworks detected | Spring Boot 4.1.0 (Java 21, backend), React 19 + Vite 7 (frontend, `frameworks/spring-boot.md` applied; no dedicated React/Vite reference file loaded since risk was scoped via direct code/dependency review) |
-| White-box categories | All 20 attack-vector categories reviewed against `attack-vectors.md`; SSRF, GraphQL, WebSocket, gRPC, Serverless/K8s and AI/LLM categories not applicable to this codebase (none present) |
-| Gray-box testing | No running instance available to probe live; tenant-isolation, authorization-boundary, and error-differential checks performed via static code review instead (see "Areas Reviewed and Found Clean") — no live HTTP gray-box findings to report |
-| Security hotspots | 5 flagged: JWT signing chain, tenant-isolation gate, cookie construction, super-admin boundary, Discord command dispatch |
-| Code smells | 3 flagged: manual authorization pattern, duplicated cookie builders, single-environment config |
+| Phases executed | 1–5 (full) |
+| Frameworks detected | Spring Boot 4.1.0 (Spring Security, OAuth2 client + resource server, Spring Data JPA + Flyway/PostgreSQL, Spring Data LDAP, jjwt), React + TypeScript + Vite frontend (shadcn/ui), JDA 5.6.1 (Discord bot), nginx (SPA + reverse proxy), Docker Compose, OpenVPN sidecar |
+| White-box categories | All 20 categories checked; findings in Broken Access Control, Security Misconfiguration, Supply Chain, Cryptographic Failures, Insecure Design, Authentication Failures, Data Integrity |
+| Gray-box testing | Roles tested: ordinary Discord guild member, de-provisioned super admin. Endpoints probed: Discord slash commands, `/api/wipe`, `/api/admin/allowed-guilds`, all 22 REST controllers' guild-scoping checks |
+| Security hotspots | 4 flagged: manual authorization architecture, VPN sidecar, frontend auth interceptor, OAuth code-exchange bootstrap |
+| Code smells | 3 flagged: untyped request bodies, unused dependency, duplicated localStorage key pattern |
 | Packs loaded | none |
-| Scope exclusions | none (`.security-audit-ignore` not present) |
-| Baseline comparison | none (`.security-audit-baseline.json` not present) |
-| OWASP Top 10:2025 | 10/10 categories covered |
-| NIST CSF 2.0 | GV, ID, PR, DE functions covered; RS/RC not applicable (no incident-response code surface in scope) |
-| CWE | 14 unique CWE IDs identified |
-| SANS/CWE Top 25 | CWE-352 (CSRF) matches Top 25 |
-| ASVS 5.0 | V3 (Session Management), V4 (Access Control), V8 (Data Protection), V14 (Configuration) chapters checked |
-| Additional frameworks | PCI DSS 4.0.1 not applicable (no payment data); MITRE ATT&CK T1078 (Valid Accounts) relevant to HIGH-002; SOC 2 CC6.1/CC6.6 relevant to access-control findings; ISO 27001:2022 A.8.24/A.8.28 relevant to crypto findings |
+| Scope exclusions | no `.security-audit-ignore` present |
+| Baseline comparison | no `.security-audit-baseline.json` present |
+| OWASP Top 10:2025 | 7/10 categories with findings (A01, A02, A03, A04, A06, A07, A08); A05, A09, A10 clean |
+| NIST CSF 2.0 | GV, ID, PR covered by findings; DE, RS, RC clean |
+| CWE | 15 unique CWE IDs identified |
+| SANS/CWE Top 25 | 2/25 matched (#9, #17) |
+| ASVS 5.0 | 7 chapters checked with findings (V2–V6, V8, V14) |
+| Additional frameworks | PCI DSS 4.0.1, MITRE ATT&CK, SOC 2, ISO 27001:2022 |
+
+**Areas explicitly verified clean**: LDAP query construction (parameterized `LdapQueryBuilder`, no injection), JPQL/native queries (single parameterized `@Query`, rest are Spring Data derived methods), JWT signing/decoding (HS256 pinned both ends, DB-backed session revocation via `AdminSession`), OAuth2 `state` CSRF protection (signed cookie repository, prior unauthenticated-deserialization issue already fixed), CORS (single explicit origin, not wildcarded), exception handling (generic `ProblemDetail` messages, no stack traces), Actuator exposure (only `health`/liveness/readiness probes exposed, no `/env`/`/beans`/`/heapdump`), SSRF surface (no `RestTemplate`/`WebClient`/`Runtime.exec` with user-controlled targets), frontend XSS surface (no `dangerouslySetInnerHTML`/`eval`, tokens are httpOnly cookies, no open redirects), npm audit (0 vulnerabilities), secrets-in-git (`.env` files correctly gitignored and untracked, `auth.txt` correctly excluded), CI workflow (no `pull_request_target` misuse, no untrusted-input interpolation, pinned first-party GitHub Actions).
 
 ---
 

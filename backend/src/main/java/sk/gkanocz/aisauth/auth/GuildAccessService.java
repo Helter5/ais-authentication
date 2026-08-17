@@ -8,18 +8,42 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
+import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
 public class GuildAccessService {
 
+    private static final Pattern GUILD_ID_PATTERN = Pattern.compile("\\d{17,20}");
+
     private final DiscordBotService discordBotService;
     private final AdminSettingsService adminSettingsService;
+    private final AdminProperties adminProperties;
 
+    /**
+     * Endpoints that pull guildId out of a raw request Map (instead of a typed DTO) should route it
+     * through here first, so a null/malformed/non-string value fails as a clean 400 instead of an
+     * unhandled ClassCastException or falling through to the access check with a bogus ID.
+     */
+    public String requireValidGuildId(Object rawGuildId) {
+        if (!(rawGuildId instanceof String guildId) || !GUILD_ID_PATTERN.matcher(guildId).matches()) {
+            throw InvalidRequestException.withMessage("A valid Discord guild ID is required");
+        }
+        return guildId;
+    }
+
+    /**
+     * Re-checks the claim against the current SUPER_ADMIN_IDS config on every call instead of just
+     * trusting the JWT - same reasoning as hasLiveManagerRole below: an ID removed from config and
+     * redeployed must lose super-admin access immediately, not only once its current access token
+     * (up to app.jwt.access-token-ttl-seconds) happens to expire or gets refreshed.
+     */
     public boolean isSuperAdmin(Claims claims) {
-        return Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class));
+        return Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class))
+                && adminProperties.superAdminIds().contains(claims.getSubject());
     }
 
     @SuppressWarnings("unchecked")

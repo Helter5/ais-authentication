@@ -7,6 +7,10 @@
 infra/vpn/auth.txt
 !infra/vpn/auth.txt.example
 
+# client.ovpn embeds the tls-auth static key (shared HMAC secret) - not just the CA cert
+infra/vpn/client.ovpn
+!infra/vpn/client.ovpn.example
+
 # OS
 .DS_Store
 

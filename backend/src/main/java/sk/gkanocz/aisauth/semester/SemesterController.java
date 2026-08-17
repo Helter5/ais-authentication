@@ -109,7 +109,7 @@ public class SemesterController {
 
     @PostMapping("/semester/configs")
     public Map<String, Boolean> saveConfigs(@AuthenticationPrincipal Claims claims, @RequestBody Map<String, Object> body) {
-        String guildId = (String) body.get("guildId");
+        String guildId = guildAccessService.requireValidGuildId(body.get("guildId"));
         guildAccessService.assertCanManageGuild(claims, guildId);
         Map<String, Object> settings = new HashMap<>(body);
         settings.remove("guildId");
