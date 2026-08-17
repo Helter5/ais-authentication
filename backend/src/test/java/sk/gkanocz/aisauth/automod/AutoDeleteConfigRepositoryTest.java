@@ -28,7 +28,7 @@ class AutoDeleteConfigRepositoryTest {
     void jsonRoleAndUserIdListsRoundTripThroughThePostgresJsonbColumns() {
         AutoDeleteConfig config = new AutoDeleteConfig(
                 "guild-1", "chan-1", 60, "[\"role-a\",\"role-b\"]", "[\"user-a\"]",
-                true, true, false, "channel", "msg", true, 5);
+                true, false, "channel", "msg", true, 5);
 
         Long id = autoDeleteConfigRepository.save(config).getId();
         autoDeleteConfigRepository.flush();
@@ -43,12 +43,12 @@ class AutoDeleteConfigRepositoryTest {
     @Test
     void guildIdAndChannelIdCombinationIsUnique() {
         autoDeleteConfigRepository.save(new AutoDeleteConfig(
-                "guild-2", "chan-dup", 60, "[]", "[]", true, true, false, "channel", "msg", true, 5));
+                "guild-2", "chan-dup", 60, "[]", "[]", true, false, "channel", "msg", true, 5));
         autoDeleteConfigRepository.flush();
 
         assertThatThrownBy(() -> {
             autoDeleteConfigRepository.save(new AutoDeleteConfig(
-                    "guild-2", "chan-dup", 60, "[]", "[]", true, true, false, "channel", "msg", true, 5));
+                    "guild-2", "chan-dup", 60, "[]", "[]", true, false, "channel", "msg", true, 5));
             autoDeleteConfigRepository.flush();
         }).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -56,9 +56,9 @@ class AutoDeleteConfigRepositoryTest {
     @Test
     void findByGuildIdOrderByCreatedAtAscReturnsOnlyThatGuildsConfigs() {
         autoDeleteConfigRepository.save(new AutoDeleteConfig(
-                "guild-3", "chan-a", 60, "[]", "[]", true, true, false, "channel", "msg", true, 5));
+                "guild-3", "chan-a", 60, "[]", "[]", true, false, "channel", "msg", true, 5));
         autoDeleteConfigRepository.save(new AutoDeleteConfig(
-                "guild-4", "chan-b", 60, "[]", "[]", true, true, false, "channel", "msg", true, 5));
+                "guild-4", "chan-b", 60, "[]", "[]", true, false, "channel", "msg", true, 5));
 
         List<AutoDeleteConfig> result = autoDeleteConfigRepository.findByGuildIdOrderByCreatedAtAsc("guild-3");
 

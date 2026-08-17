@@ -107,9 +107,9 @@ class AutoDeleteListenerTest {
         Mockito.verifyNoMoreInteractions(channelUnion);
     }
 
-    private AutoDeleteConfig config(boolean ignoreBots, String ignoreRoleIds, String ignoreUserIds) {
+    private AutoDeleteConfig config(String ignoreRoleIds, String ignoreUserIds) {
         return new AutoDeleteConfig("guild-1", "channel-1", 0, ignoreRoleIds, ignoreUserIds,
-                ignoreBots, false, false, "channel", "msg", false, 0);
+                false, false, "channel", "msg", false, 0);
     }
 
     private void stubConfigLookup(AutoDeleteConfig config) {
@@ -120,8 +120,8 @@ class AutoDeleteListenerTest {
     }
 
     @Test
-    void skipsWhenIgnoreBotsAndAuthorIsBot() {
-        stubConfigLookup(config(true, "[]", "[]"));
+    void skipsWhenAuthorIsBot() {
+        stubConfigLookup(config("[]", "[]"));
         when(event.getAuthor()).thenReturn(author);
         when(author.isBot()).thenReturn(true);
 
@@ -132,7 +132,7 @@ class AutoDeleteListenerTest {
 
     @Test
     void skipsWhenAuthorIsInIgnoreUserIdsList() {
-        stubConfigLookup(config(false, "[]", "[\"user-1\"]"));
+        stubConfigLookup(config("[]", "[\"user-1\"]"));
         when(event.getAuthor()).thenReturn(author);
         when(author.getId()).thenReturn("user-1");
 
@@ -143,7 +143,7 @@ class AutoDeleteListenerTest {
 
     @Test
     void skipsWhenMemberHoldsAnIgnoredRole() {
-        stubConfigLookup(config(false, "[\"role-9\"]", "[]"));
+        stubConfigLookup(config("[\"role-9\"]", "[]"));
         when(event.getAuthor()).thenReturn(author);
         when(author.getId()).thenReturn("user-1");
         Member member = mock(Member.class);
@@ -160,7 +160,7 @@ class AutoDeleteListenerTest {
     @SuppressWarnings("unchecked")
     @Test
     void immediatelyRetrievesTheMessageWhenNoGuardBlocksAndDelayIsZero() {
-        stubConfigLookup(config(false, "[]", "[]"));
+        stubConfigLookup(config("[]", "[]"));
         when(event.getAuthor()).thenReturn(author);
         when(author.getId()).thenReturn("user-1");
         when(event.getMember()).thenReturn(null);

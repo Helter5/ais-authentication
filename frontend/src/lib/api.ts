@@ -147,7 +147,6 @@ export interface AutoDeleteConfig {
   delay_seconds: number;
   ignore_role_ids: string[];
   ignore_user_ids: string[];
-  ignore_bots: boolean;
   ignore_pinned: boolean;
   notify_user: boolean;
   notify_via: 'channel' | 'dm';

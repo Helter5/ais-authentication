@@ -64,7 +64,6 @@ public class AutoDeleteController {
                 request.guildId(), request.channelId(),
                 request.delaySeconds() == null ? 60 : request.delaySeconds(),
                 writeJson(request.ignoreRoleIds()), writeJson(request.ignoreUserIds()),
-                request.ignoreBots() == null || request.ignoreBots(),
                 request.ignorePinned() == null || request.ignorePinned(),
                 Boolean.TRUE.equals(request.notifyUser()),
                 request.notifyVia() == null ? "channel" : request.notifyVia(),
@@ -86,7 +85,6 @@ public class AutoDeleteController {
                 request.channelId(),
                 request.delaySeconds() == null ? 60 : request.delaySeconds(),
                 writeJson(request.ignoreRoleIds()), writeJson(request.ignoreUserIds()),
-                request.ignoreBots() == null || request.ignoreBots(),
                 request.ignorePinned() == null || request.ignorePinned(),
                 Boolean.TRUE.equals(request.notifyUser()),
                 request.notifyVia() == null ? "channel" : request.notifyVia(),
@@ -118,7 +116,7 @@ public class AutoDeleteController {
         return new AutoDeleteConfigResponse(
                 config.getId(), config.getGuildId(), config.getChannelId(), config.getDelaySeconds(),
                 readJson(config.getIgnoreRoleIds()), readJson(config.getIgnoreUserIds()),
-                config.isIgnoreBots(), config.isIgnorePinned(), config.isNotifyUser(), config.getNotifyVia(),
+                config.isIgnorePinned(), config.isNotifyUser(), config.getNotifyVia(),
                 config.getNotifyMessage(), config.isNotifyDeleteBotMsg(), config.getNotifyDeleteDelay());
     }
 
@@ -131,7 +129,6 @@ public class AutoDeleteController {
             @JsonProperty("delay_seconds") Integer delaySeconds,
             @JsonProperty("ignore_role_ids") List<String> ignoreRoleIds,
             @JsonProperty("ignore_user_ids") List<String> ignoreUserIds,
-            @JsonProperty("ignore_bots") Boolean ignoreBots,
             @JsonProperty("ignore_pinned") Boolean ignorePinned,
             @JsonProperty("notify_user") Boolean notifyUser,
             @JsonProperty("notify_via") String notifyVia,
@@ -147,7 +144,6 @@ public class AutoDeleteController {
             @JsonProperty("delay_seconds") int delaySeconds,
             @JsonProperty("ignore_role_ids") List<String> ignoreRoleIds,
             @JsonProperty("ignore_user_ids") List<String> ignoreUserIds,
-            @JsonProperty("ignore_bots") boolean ignoreBots,
             @JsonProperty("ignore_pinned") boolean ignorePinned,
             @JsonProperty("notify_user") boolean notifyUser,
             @JsonProperty("notify_via") String notifyVia,

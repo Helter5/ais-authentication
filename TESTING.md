@@ -131,22 +131,22 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 ### 🔒 Modules → Hacked Account Trap (`/modules/hacked-account-trap`)
 Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), incident kanál/ticket systém je preč, cleanup sekcia nahradená Discord-natívnym "delete message history" pri bane, moderation reason už nie je editovateľný (vždy natvrdo "Hacked account trap triggered"), trigger message sa už nemaže.
-- [ ] Breadcrumb späť na Modules.
-- [ ] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako na Modules stránke).
-- [ ] Trap channel picker (povinný).
-- [ ] Uloženie settings bez vybraného kanála → jasná notifikácia "vyber aspoň jeden kanál" (NIE generické "Failed to save settings").
-- [ ] V sekcii Trigger je "bans the author permanently" vizuálne zvýraznené (bold/farba), nie len v obyčajnom texte.
-- [ ] Žiadny výber moderation akcie v UI — trigger vždy permanentne banuje.
-- [ ] Ignore administrators toggle.
-- [ ] Delete message history toggle → po zapnutí sa objaví dropdown s presne týmito možnosťami: Previous Hour, Previous 6 Hours, Previous 12 Hours, Previous 24 Hours, Previous 3 Days, Previous 7 Days.
-- [ ] Vyskúšaj trigger s Delete message history zapnutým aj vypnutým — over v Discorde (audit log / mazané správy v iných kanáloch), že Discord skutočne zmazal históriu na zvolenú dĺžku, keď je zapnuté, a nezmazal nič navyše, keď je vypnuté.
-- [ ] Exempt roles multi-select.
-- [ ] Trigger Message sekcia (Delete triggering message toggle) už neexistuje — over, že sa nikde nezobrazuje; trigger správa v trap kanáli ostáva nezmazaná.
-- [ ] Message Cleanup sekcia (cleanup perióda v minútach) už neexistuje — over, že sa nikde nezobrazuje.
-- [ ] DM affected user toggle → textarea so správou (placeholder `{user}, {server}`).
-- [ ] Incident Channel sekcia už neexistuje — over, že sa nikde nezobrazuje (žiadny incident kanál sa nevytvára, žiadne ticket ovládacie tlačidlá/príkazy).
-- [ ] Audit Log sekcia (Moderation reason input) už neexistuje — over, že sa nikde nezobrazuje; ban v Discord audit logu má vždy dôvod "Hacked account trap triggered".
-- [ ] "Save Module" — spinner → "Saved!" na 2s.
+- [X] Breadcrumb späť na Modules.
+- [X] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako na Modules stránke).
+- [X] Trap channel picker (povinný).
+- [X] Uloženie settings bez vybraného kanála → jasná notifikácia "vyber aspoň jeden kanál" (NIE generické "Failed to save settings").
+- [X] V sekcii Trigger je "bans the author permanently" vizuálne zvýraznené (bold/farba), nie len v obyčajnom texte.
+- [X] Žiadny výber moderation akcie v UI — trigger vždy permanentne banuje.
+- [X] Ignore administrators toggle.
+- [X] Delete message history toggle → po zapnutí sa objaví dropdown s presne týmito možnosťami: Previous Hour, Previous 6 Hours, Previous 12 Hours, Previous 24 Hours, Previous 3 Days, Previous 7 Days.
+- [X] Vyskúšaj trigger s Delete message history zapnutým aj vypnutým — over v Discorde (audit log / mazané správy v iných kanáloch), že Discord skutočne zmazal históriu na zvolenú dĺžku, keď je zapnuté, a nezmazal nič navyše, keď je vypnuté.
+- [X] Exempt roles multi-select.
+- [X] Trigger Message sekcia (Delete triggering message toggle) už neexistuje — over, že sa nikde nezobrazuje; trigger správa v trap kanáli ostáva nezmazaná.
+- [X] Message Cleanup sekcia (cleanup perióda v minútach) už neexistuje — over, že sa nikde nezobrazuje.
+- [X] DM affected user toggle → textarea so správou (placeholder `{user}, {server}`).
+- [X] Incident Channel sekcia už neexistuje — over, že sa nikde nezobrazuje (žiadny incident kanál sa nevytvára, žiadne ticket ovládacie tlačidlá/príkazy).
+- [X] Audit Log sekcia (Moderation reason input) už neexistuje — over, že sa nikde nezobrazuje; ban v Discord audit logu má vždy dôvod "Hacked account trap triggered".
+- [X] "Save Module" — spinner → "Saved!" na 2s.
 
 ### 🔒 Modules → Auto Delete (`/modules/autodelete`)
 - [X] Breadcrumb späť na Modules.

@@ -52,7 +52,7 @@ public class AutoDeleteListener extends ListenerAdapter {
         }
         AutoDeleteConfig config = configs.get(0);
 
-        if (config.isIgnoreBots() && event.getAuthor().isBot()) {
+        if (event.getAuthor().isBot()) {
             return;
         }
         if (readJson(config.getIgnoreUserIds()).contains(event.getAuthor().getId())) {

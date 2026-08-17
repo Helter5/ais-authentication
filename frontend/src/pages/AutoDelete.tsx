@@ -18,7 +18,6 @@ const DEFAULT_DRAFT: Draft = {
   delay_seconds: 60,
   ignore_role_ids: [],
   ignore_user_ids: [],
-  ignore_bots: true,
   ignore_pinned: true,
   notify_user: false,
   notify_via: "channel",
@@ -224,7 +223,6 @@ export function AutoDeleteModule() {
       delay_seconds: cfg.delay_seconds,
       ignore_role_ids: cfg.ignore_role_ids,
       ignore_user_ids: cfg.ignore_user_ids,
-      ignore_bots: cfg.ignore_bots,
       ignore_pinned: cfg.ignore_pinned,
       notify_user: cfg.notify_user,
       notify_via: cfg.notify_via,
@@ -358,13 +356,6 @@ export function AutoDeleteModule() {
                   <h2 className="text-sm font-bold text-zinc-100">Ignore Rules</h2>
                 </div>
                 <div className="px-4 py-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-200">Ignore bots</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Bot messages are never deleted</p>
-                    </div>
-                    <Toggle enabled={draft.ignore_bots} onChange={v => upd("ignore_bots", v)} />
-                  </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-zinc-200">Ignore pinned</p>

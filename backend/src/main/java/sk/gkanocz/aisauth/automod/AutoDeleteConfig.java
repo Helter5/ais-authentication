@@ -39,9 +39,6 @@ public class AutoDeleteConfig {
     @Column(name = "ignore_user_ids", nullable = false)
     private String ignoreUserIds;
 
-    @Column(name = "ignore_bots", nullable = false)
-    private boolean ignoreBots;
-
     @Column(name = "ignore_pinned", nullable = false)
     private boolean ignorePinned;
 
@@ -69,14 +66,13 @@ public class AutoDeleteConfig {
 
     public AutoDeleteConfig(
             String guildId, String channelId, int delaySeconds, String ignoreRoleIds, String ignoreUserIds,
-            boolean ignoreBots, boolean ignorePinned, boolean notifyUser, String notifyVia, String notifyMessage,
+            boolean ignorePinned, boolean notifyUser, String notifyVia, String notifyMessage,
             boolean notifyDeleteBotMsg, int notifyDeleteDelay) {
         this.guildId = guildId;
         this.channelId = channelId;
         this.delaySeconds = delaySeconds;
         this.ignoreRoleIds = ignoreRoleIds;
         this.ignoreUserIds = ignoreUserIds;
-        this.ignoreBots = ignoreBots;
         this.ignorePinned = ignorePinned;
         this.notifyUser = notifyUser;
         this.notifyVia = notifyVia;
@@ -88,13 +84,12 @@ public class AutoDeleteConfig {
 
     public void update(
             String channelId, int delaySeconds, String ignoreRoleIds, String ignoreUserIds,
-            boolean ignoreBots, boolean ignorePinned, boolean notifyUser, String notifyVia, String notifyMessage,
+            boolean ignorePinned, boolean notifyUser, String notifyVia, String notifyMessage,
             boolean notifyDeleteBotMsg, int notifyDeleteDelay) {
         this.channelId = channelId;
         this.delaySeconds = delaySeconds;
         this.ignoreRoleIds = ignoreRoleIds;
         this.ignoreUserIds = ignoreUserIds;
-        this.ignoreBots = ignoreBots;
         this.ignorePinned = ignorePinned;
         this.notifyUser = notifyUser;
         this.notifyVia = notifyVia;

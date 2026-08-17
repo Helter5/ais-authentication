@@ -115,7 +115,6 @@ class AutoDeleteControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.channel_id").value("chan-1"))
                 .andExpect(jsonPath("$.delay_seconds").value(60))
-                .andExpect(jsonPath("$.ignore_bots").value(true))
                 .andExpect(jsonPath("$.notify_via").value("channel"));
     }
 
