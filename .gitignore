@@ -7,9 +7,8 @@
 infra/vpn/auth.txt
 !infra/vpn/auth.txt.example
 
-# client.ovpn embeds the tls-auth static key (shared HMAC secret) - not just the CA cert
-infra/vpn/client.ovpn
-!infra/vpn/client.ovpn.example
+# client.ovpn: verified 2026-08-17 to be byte-identical (SHA-256) to STU's own public download
+# (stuba.sk/buxus/docs/stu/pracoviska/cvt/navody/client.ovpn) - not a secret, tracked normally.
 
 # OS
 .DS_Store
