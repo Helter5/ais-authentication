@@ -72,6 +72,18 @@ class WipeControllerIntegrationTest {
     }
 
     @Test
+    void startWipeForbiddenForManagerEvenOnTheirOwnGuild() throws Exception {
+        String guildId = "guild-wipe-manager-owned";
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(post("/api/wipe")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"" + guildId + "\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void accessDeniedWithoutGuildId() throws Exception {
         String token = auth.managerTokenFor("guild-wipe-access-1");
 
@@ -97,7 +109,7 @@ class WipeControllerIntegrationTest {
     @Test
     void accessDeniedWhenNoRecapChannelConfigured() throws Exception {
         String guildId = "guild-wipe-access-2";
-        String token = auth.managerTokenFor(guildId);
+        String token = auth.superAdminToken();
 
         mockMvc.perform(get("/api/wipe/access")
                         .param("guildId", guildId)
@@ -111,12 +123,26 @@ class WipeControllerIntegrationTest {
     void accessAllowedWhenRecapChannelIsConfigured() throws Exception {
         String guildId = "guild-wipe-access-3";
         logChannelSubscriptionRepository.save(new LogChannelSubscription(guildId, "channel-1", LogEventType.WIPE_RECAP));
-        String token = auth.managerTokenFor(guildId);
+        String token = auth.superAdminToken();
 
         mockMvc.perform(get("/api/wipe/access")
                         .param("guildId", guildId)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allowed").value(true));
+    }
+
+    @Test
+    void accessDeniedForManagerEvenWithRecapChannelConfigured() throws Exception {
+        String guildId = "guild-wipe-access-4";
+        logChannelSubscriptionRepository.save(new LogChannelSubscription(guildId, "channel-1", LogEventType.WIPE_RECAP));
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(get("/api/wipe/access")
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.reason").value("no_permission"));
     }
 }
