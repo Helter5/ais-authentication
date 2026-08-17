@@ -38,6 +38,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Deliberate, not an oversight: auth_token/refresh_token are SameSite=Strict (see
+                // SessionCookieFactory), which the browser itself refuses to attach to any
+                // cross-site request - the exact class of request Spring Security's CSRF filter
+                // would otherwise need a token to reject. That's a real, verifiable control (unlike
+                // resting on unset-cookie SameSite defaults), so the filter itself is redundant here.
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

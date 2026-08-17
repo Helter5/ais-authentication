@@ -1,0 +1,7 @@
+# Activated by SPRING_PROFILES_ACTIVE=prod (see infra/docker-compose.yml). Overrides only what
+# needs to be stricter than application.yml's dev-friendly defaults for a real deployment; nothing
+# here is needed for `./mvnw spring-boot:run` or the test suite, which stay profile-less on purpose
+# (see README / ProductionSecretsValidator).
+logging:
+  level:
+    sk.gkanocz.aisauth: INFO
