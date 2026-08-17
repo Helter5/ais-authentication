@@ -18,9 +18,11 @@ import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.verification.VerificationService;
+import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -69,11 +71,15 @@ class GuildLifecycleListenerTest {
         return settings;
     }
 
+    private VerifiedUser verifiedUser() {
+        return new VerifiedUser("ais-1", "user-1", "guild-1", "user1@stuba.sk");
+    }
+
     // ---- onGuildMemberRemove ----
 
     @Test
     void memberRemoveAlwaysCleansUpAndAuditLogsRegardlessOfVerificationStatus() {
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(false);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.empty());
         GuildMemberRemoveEvent event = mock(GuildMemberRemoveEvent.class);
         when(event.getGuild()).thenReturn(guild);
         when(event.getUser()).thenReturn(user);
@@ -87,7 +93,7 @@ class GuildLifecycleListenerTest {
 
     @Test
     void memberRemoveSendsAnEventLogWhenTheMemberWasVerified() {
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(true);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.of(verifiedUser()));
         GuildMemberRemoveEvent event = mock(GuildMemberRemoveEvent.class);
         when(event.getGuild()).thenReturn(guild);
         when(event.getUser()).thenReturn(user);
@@ -99,7 +105,7 @@ class GuildLifecycleListenerTest {
 
     @Test
     void memberRemoveSwallowsCleanupFailureAndSkipsTheAuditLog() {
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(false);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.empty());
         doThrow(new RuntimeException("db down")).when(verificationService).cleanupDepartedMember("user-1", "guild-1");
         GuildMemberRemoveEvent event = mock(GuildMemberRemoveEvent.class);
         when(event.getGuild()).thenReturn(guild);
@@ -213,7 +219,7 @@ class GuildLifecycleListenerTest {
 
         listener.onGuildMemberRoleRemove(roleRemoveEvent(List.of(role("some-role"))));
 
-        verify(verifiedUserRepository, never()).existsByDiscordIdAndGuildId(any(), any());
+        verify(verifiedUserRepository, never()).findByDiscordIdAndGuildId(any(), any());
     }
 
     @Test
@@ -222,13 +228,13 @@ class GuildLifecycleListenerTest {
 
         listener.onGuildMemberRoleRemove(roleRemoveEvent(List.of(role("other-role"))));
 
-        verify(verifiedUserRepository, never()).existsByDiscordIdAndGuildId(any(), any());
+        verify(verifiedUserRepository, never()).findByDiscordIdAndGuildId(any(), any());
     }
 
     @Test
     void roleRemoveDoesNothingWhenNoMatchingVerifiedUsersRowExists() {
         when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settingsWithVerifiedRole("verified-role"));
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(false);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.empty());
 
         listener.onGuildMemberRoleRemove(roleRemoveEvent(List.of(role("verified-role"))));
 
@@ -239,7 +245,7 @@ class GuildLifecycleListenerTest {
     @SuppressWarnings("unchecked")
     void roleRemoveCleansUpAndSendsEventLogWhenVerifiedRoleIsRemoved() {
         when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settingsWithVerifiedRole("verified-role"));
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(true);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.of(verifiedUser()));
         AuditLogPaginationAction auditAction = mock(AuditLogPaginationAction.class, Mockito.RETURNS_SELF);
         when(guild.retrieveAuditLogs()).thenReturn(auditAction);
         Mockito.doAnswer(invocation -> {
@@ -259,7 +265,7 @@ class GuildLifecycleListenerTest {
     @SuppressWarnings("unchecked")
     void roleRemoveStillSendsEventLogWhenCleanupThrows() {
         when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settingsWithVerifiedRole("verified-role"));
-        when(verifiedUserRepository.existsByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(true);
+        when(verifiedUserRepository.findByDiscordIdAndGuildId("user-1", "guild-1")).thenReturn(Optional.of(verifiedUser()));
         doThrow(new RuntimeException("db down")).when(verificationService).cleanupDepartedMember("user-1", "guild-1");
         AuditLogPaginationAction auditAction = mock(AuditLogPaginationAction.class, Mockito.RETURNS_SELF);
         when(guild.retrieveAuditLogs()).thenReturn(auditAction);

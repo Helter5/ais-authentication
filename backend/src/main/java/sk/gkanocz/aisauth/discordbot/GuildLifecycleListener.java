@@ -16,6 +16,7 @@ import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.verification.VerificationService;
+import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
 import java.awt.Color;
@@ -36,7 +37,8 @@ class GuildLifecycleListener extends ListenerAdapter {
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {
         String guildId = event.getGuild().getId();
         String discordId = event.getUser().getId();
-        boolean wasVerified = verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId);
+        String aisId = verifiedUserRepository.findByDiscordIdAndGuildId(discordId, guildId)
+                .map(VerifiedUser::getAisId).orElse(null);
 
         try {
             verificationService.cleanupDepartedMember(discordId, guildId);
@@ -49,11 +51,12 @@ class GuildLifecycleListener extends ListenerAdapter {
             log.error("Failed to clean up departed member {}", discordId, e);
         }
 
-        if (wasVerified) {
+        if (aisId != null) {
             eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFIED_USER_REMOVED, new EmbedBuilder()
                     .setColor(new Color(0xEF4444))
                     .setTitle("Removed From Users Directory")
                     .addField("User", "<@" + discordId + "> (" + event.getUser().getName() + ")", true)
+                    .addField("AIS ID", aisId, true)
                     .setDescription("This member left the server, or was kicked/banned, and has been removed from the Users Directory."));
         }
     }
@@ -126,7 +129,9 @@ class GuildLifecycleListener extends ListenerAdapter {
             return;
         }
         String discordId = event.getUser().getId();
-        if (!verifiedUserRepository.existsByDiscordIdAndGuildId(discordId, guildId)) {
+        String aisId = verifiedUserRepository.findByDiscordIdAndGuildId(discordId, guildId)
+                .map(VerifiedUser::getAisId).orElse(null);
+        if (aisId == null) {
             return;
         }
 
@@ -146,7 +151,7 @@ class GuildLifecycleListener extends ListenerAdapter {
                         .setColor(new Color(0xEF4444))
                         .setTitle("Removed From Users Directory")
                         .addField("User", "<@" + discordId + "> (" + event.getUser().getName() + ")", true)
-                        .addField("Role", "<@&" + verifiedRoleId + ">", true)
+                        .addField("AIS ID", aisId, true)
                         .addField("Removed By", actor, true)
                         .setDescription("The Verified role was removed while this member is still in the server, and they have been removed from the Users Directory.")));
     }
