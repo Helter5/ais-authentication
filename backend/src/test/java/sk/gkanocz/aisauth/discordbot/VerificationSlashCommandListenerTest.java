@@ -412,12 +412,37 @@ class VerificationSlashCommandListenerTest {
         AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
         when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
         when(adminSettingsService.get(eq("cmd_settings_guild-1_code"), any(TypeReference.class), any()))
-                .thenReturn(Map.of("message", "Vitaj {user} na {server} v {channel}, AIS {ais_id}!"));
+                .thenReturn(Map.of(
+                        "message", "Vitaj {user} na {server} v {channel}, AIS {ais_id}!",
+                        "linkChannelId", "roles-channel-1"));
         stubTextReply();
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage("Vitaj TestUser na TestGuild v #general, AIS 12345!");
+        verify(hook).sendMessage("Vitaj TestUser na TestGuild v <#roles-channel-1>, AIS 12345!");
+    }
+
+    @Test
+    void codeLeavesChannelPlaceholderBlankWhenNoLinkChannelConfigured() {
+        asCommand("code");
+        enableVerification();
+        Role role = mock(Role.class);
+        when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(role);
+        Member member = mock(Member.class);
+        when(member.getRoles()).thenReturn(List.of());
+        when(event.getMember()).thenReturn(member);
+        stubStringOption("code", "ABC123");
+        VerifiedUser verifiedUser = new VerifiedUser("12345", "discord-1", "guild-1", "s@stuba.sk");
+        when(verificationService.confirmVerification("discord-1", "guild-1", "ABC123")).thenReturn(verifiedUser);
+        AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
+        when(adminSettingsService.get(eq("cmd_settings_guild-1_code"), any(TypeReference.class), any()))
+                .thenReturn(Map.of("message", "Pozri sem: {channel}"));
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage("Pozri sem: ");
     }
 
     @Test

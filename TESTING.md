@@ -182,7 +182,7 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] "Sync Visibility" — spinner → "Synced!" na 3s.
 - [X] Prepnutie servera resetne všetky stavy a znova načíta.
 - [X] "Log Channel" modal (na karte príkazu, čo loguje) — výber kanála sa NEuloží hneď; treba kliknúť "Save" (predtým bola len "Close", žiadne Save). "Save" je disabled kým sa nič nezmenilo. Zavretie bez uloženia zahodí výber.
-- [ ] `/code` má teraz Settings modal (predtým nemal žiadny) — textarea "Success message" s placeholdermi `{user}` `{server}` `{channel}` `{ais_id}`; prázdne pole = použije sa default "Úspešne overené! Vitaj.". Ulož vlastnú správu s placeholdermi, spusti `/verify` + `/code` v Discorde a over, že sa placeholdery správne nahradili (meno, názov servera, `#kanál`, AIS ID).
+- [ ] `/code` má teraz Settings modal (predtým nemal žiadny) — "Link channel" picker + textarea "Success message" s placeholdermi `{user}` `{server}` `{channel}` `{ais_id}`; prázdne pole správy = použije sa default "Úspešne overené! Vitaj.". `{channel}` NIE JE kanál, kde bol príkaz spustený — je to kanál vybraný v "Link channel" (napr. kanál na výber rolí), vykreslí sa ako klikateľný Discord channel-mention. Bez vybraného "Link channel" sa `{channel}` nahradí prázdnym reťazcom. Ulož vlastnú správu s placeholdermi aj Link channel, spusti `/verify` + `/code` v Discorde a over: meno, názov servera, klikateľný odkaz na zvolený kanál (klik ťa naň prenesie), AIS ID.
 
 ---
 

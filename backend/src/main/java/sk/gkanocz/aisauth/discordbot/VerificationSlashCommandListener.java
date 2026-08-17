@@ -174,19 +174,25 @@ class VerificationSlashCommandListener {
     }
 
     /**
-     * "cmd_settings_<guild>_code" -> "message" - configurable via the /code card's Settings modal
-     * (Commands page), falls back to the hardcoded default when unset/blank.
+     * "cmd_settings_<guild>_code" -> "message"/"linkChannelId" - configurable via the /code card's
+     * Settings modal (Commands page), falls back to the hardcoded default when unset/blank.
+     * {channel} is deliberately NOT the channel /code was run in - it's an admin-picked channel
+     * (e.g. a role-picker channel), rendered as a real clickable Discord channel mention so the
+     * message can point somewhere useful ("check {channel} to pick your roles").
      */
     private String codeSuccessMessage(SlashCommandInteractionEvent event, String guildId, VerifiedUser verifiedUser) {
         Map<String, Object> settings = adminSettingsService.get(
                 "cmd_settings_" + guildId + "_code", new TypeReference<Map<String, Object>>() { }, Map.of());
-        Object configured = settings.get("message");
-        String template = (configured instanceof String s && !s.isBlank()) ? s : DEFAULT_CODE_SUCCESS_MESSAGE;
+        Object configuredMessage = settings.get("message");
+        String template = (configuredMessage instanceof String s && !s.isBlank()) ? s : DEFAULT_CODE_SUCCESS_MESSAGE;
+
+        Object configuredChannel = settings.get("linkChannelId");
+        String channelMention = (configuredChannel instanceof String c && !c.isBlank()) ? "<#" + c + ">" : "";
 
         return template
                 .replace("{user}", event.getUser().getName())
                 .replace("{server}", event.getGuild().getName())
-                .replace("{channel}", "#" + event.getChannel().getName())
+                .replace("{channel}", channelMention)
                 .replace("{ais_id}", verifiedUser.getAisId());
     }
 

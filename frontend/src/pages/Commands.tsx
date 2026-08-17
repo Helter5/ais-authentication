@@ -8,7 +8,7 @@ import {
   ToggleLeft, ToggleRight, AlertTriangle, ArrowRight, UserMinus, Clock, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker, LogChannelModal } from "@/components/modules/shared";
+import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker, LogChannelModal, ChannelPicker } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -38,6 +38,7 @@ type CmdSettingsData = {
   ephemeral?: boolean;
   includeBots?: boolean;
   message?: string;
+  linkChannelId?: string;
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
@@ -45,12 +46,12 @@ const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
-  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
+  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean; channelPicker?: boolean;
 }> = {
   warn:         { ephemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
   verify:       { ephemeral: true },
-  code:         { message: true },
+  code:         { message: true, channelPicker: true },
   manualverify: { ephemeral: true },
   find:         { ephemeral: true },
   mywarns:      { ephemeral: true },
@@ -209,10 +210,11 @@ function WarnThresholdsEditor({ guildId }: { guildId: string }) {
 
 // ─── Command settings modal ───────────────────────────────────────────────────
 
-function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
+function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }: {
   title: string;
   commandKey: string;
   guildId: string;
+  channels: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const schema = CMD_SETTINGS_SCHEMA[commandKey] ?? {};
@@ -222,6 +224,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
   const [includeBots, setIncludeBots] = useState(defaults.includeBots ?? false);
   const [message, setMessage] = useState(defaults.message ?? "");
+  const [linkChannelId, setLinkChannelId] = useState<string | null>(defaults.linkChannelId ?? null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -239,7 +242,8 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
         if (schema.dmUser)      setDmUser(data.dmUser ?? defaults.dmUser ?? false);
         if (schema.ephemeral)   setEphemeral(data.ephemeral ?? defaults.ephemeral ?? false);
         if (schema.includeBots) setIncludeBots(data.includeBots ?? defaults.includeBots ?? false);
-        if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
+        if (schema.message)       setMessage(data.message ?? defaults.message ?? "");
+        if (schema.channelPicker) setLinkChannelId(data.linkChannelId ?? defaults.linkChannelId ?? null);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -250,19 +254,22 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
     schema.ephemeral,
     schema.includeBots,
     schema.message,
+    schema.channelPicker,
     defaults.dmUser,
     defaults.ephemeral,
     defaults.includeBots,
     defaults.message,
+    defaults.linkChannelId,
   ]);
 
   const save = async () => {
     setSaving(true);
     const data: CmdSettingsData = {};
-    if (schema.dmUser)      data.dmUser = dmUser;
-    if (schema.ephemeral)   data.ephemeral = ephemeral;
-    if (schema.includeBots) data.includeBots = includeBots;
-    if (schema.message)     data.message = message;
+    if (schema.dmUser)       data.dmUser = dmUser;
+    if (schema.ephemeral)    data.ephemeral = ephemeral;
+    if (schema.includeBots)  data.includeBots = includeBots;
+    if (schema.message)      data.message = message;
+    if (schema.channelPicker) data.linkChannelId = linkChannelId ?? "";
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
@@ -304,6 +311,13 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
             <CmdSettingsRow label="Include bots" hint="Include bot accounts in the results">
               <Toggle enabled={includeBots} onChange={setIncludeBots} />
             </CmdSettingsRow>
+          )}
+          {schema.channelPicker && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Link channel</p>
+              <ChannelPicker channels={channels} value={linkChannelId} onChange={setLinkChannelId} placeholder="No channel linked" />
+              <p className="text-[11px] text-zinc-600 mt-1">Channel that <span className="font-mono">{"{channel}"}</span> below points to (clickable channel link, not where the command was run) - e.g. your role-picker channel.</p>
+            </div>
           )}
           {schema.message && (
             <div>
@@ -664,6 +678,7 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
           title={`Settings (${cmd.name})`}
           commandKey={cmd.name.replace("/", "")}
           guildId={guildId}
+          channels={channels}
           onClose={() => setModal(null)}
         />
       )}
