@@ -14,15 +14,15 @@
 |--------|-------|
 | 🔴 Critical | 0 |
 | 🟠 High | 0 |
-| 🟡 Medium | 5 |
+| 🟡 Medium | 4 |
 | 🟢 Low | 5 |
-| 🔵 Informational | 4 |
+| 🔵 Informational | 5 |
 | 🔲 Gray-box findings | 2 |
 | 📍 Security hotspots | 4 |
 | 🧹 Code smells | 3 |
-| **Total findings** | **14** |
+| **Total findings** | **14** (1 downgraded to Info after verification, see Remediation Status) |
 
-**Overall Risk Assessment**: Low-to-Moderate. No critical or high-severity vulnerability was found — access control, JWT handling, LDAP/JPA query construction, OAuth2 state validation, CORS, and exception handling are all sound, and a prior remediation PR (`0af3a79`) already closed the cookie-flag, JWT-fail-fast, CSP, rate-limit and dependency-CVE gaps identified in the previous audit. Remaining issues are: two Discord bot commands (`/find`, `/user`) leaking member email addresses to any guild member; a super-admin JWT claim that isn't re-validated live the way manager roles are; a committed OpenVPN `tls-auth` key; and default/exposed Docker Compose infrastructure settings (DB password fallback + published port, unauthenticated Mailpit SMTP port). None require urgent hotfixing, but the Discord PII leak and the stale super-admin claim should be prioritized.
+**Overall Risk Assessment**: Low. No critical or high-severity vulnerability was found — access control, JWT handling, LDAP/JPA query construction, OAuth2 state validation, CORS, and exception handling are all sound, and a prior remediation PR (`0af3a79`) already closed the cookie-flag, JWT-fail-fast, CSP, rate-limit and dependency-CVE gaps identified in the previous audit. All Medium findings from the initial pass are now fixed except MEDIUM-002, and one initial Medium finding (the committed OpenVPN `tls-auth` key) was verified to be the university's own publicly-distributed config, not a secret — downgraded to informational, no action needed. Remaining open item: the super-admin JWT claim isn't re-validated live the way manager roles are (MEDIUM-002) — fix in progress.
 
 ---
 
@@ -31,8 +31,8 @@
 | ID | Status | Note |
 |----|--------|------|
 | MEDIUM-001 (`/find`/`/user` PII leak) | ✅ Partially fixed | `/find` no longer includes email in its reply. `/user` left as-is per product decision — guild admins are expected to restrict it via the existing per-guild `CommandPermissions` dashboard setting, not a code-level default. |
-| MEDIUM-002 (stale super-admin claim) | ⏳ Deferred | Understood and acknowledged, not yet fixed - see clarification given in chat. Tracked as follow-up. |
-| MEDIUM-003 (`tls-auth` key in git) | ✅ Fixed (repo hygiene) / ⏳ Pending (history + key rotation) | `infra/vpn/client.ovpn` untracked and gitignored, `client.ovpn.example` added with the key/cert redacted. Purging the key from git history (and rotating it server-side) requires a separate confirmed step - see chat. |
+| MEDIUM-002 (stale super-admin claim) | ✅ Fixed | `GuildAccessService.isSuperAdmin()` now also cross-checks `AdminProperties.superAdminIds()` (SUPER_ADMIN_IDS) live on every call, not just the JWT claim — an ID removed from config and redeployed loses super-admin access on its very next request. |
+| MEDIUM-003 (`tls-auth` key in git) | 🔵 Downgraded to Info, resolved | Verified via SHA-256 comparison against STU's own public download that the `<ca>`/`<tls-auth>` blocks are the university's standard published config, not a secret. No rotation or history rewrite needed. Repo hygiene (untrack + `.example`) from the earlier pass left in place as harmless but no longer necessary. |
 | MEDIUM-004 (weak default DB password + published port) | ✅ Fixed | `ProductionSecretsValidator` now also rejects the placeholder DB password under the `prod` profile; `infra/docker-compose.yml` binds Postgres to `127.0.0.1` instead of all interfaces. |
 | MEDIUM-005 (Mailpit SMTP exposed) | ✅ Fixed | Bound to `127.0.0.1:1025:1025`. |
 | LOW-001 (`guildId` validation) | ✅ Fixed | `GuildAccessService.requireValidGuildId()` added; both flagged endpoints now validate before use. |
@@ -125,16 +125,17 @@
 - **Impact**: A revoked super-admin can retain destructive access (guild wipe, allowed-guilds management) for up to the access-token TTL after revocation.
 - **Remediation**: Re-validate `superAdmin` against `AdminProperties.superAdminIds()` on every privileged request (same pattern already used for manager roles), or provide an explicit session-revocation path tied to config changes.
 
-### 🟡 [MEDIUM-003] OpenVPN `tls-auth` static pre-shared key committed to git
-- **Severity**: 🟡 MEDIUM
+### ~~🟡 [MEDIUM-003]~~ 🔵 [MEDIUM-003 → INFO, RESOLVED] OpenVPN `tls-auth` key — verified NOT a secret, false positive
+- **Severity**: ~~🟡 MEDIUM~~ 🔵 INFO (downgraded after verification)
 - **OWASP**: A02:2025 (Security Misconfiguration), secondary A04:2025 (Cryptographic Failures)
-- **CWE**: CWE-798 (Use of Hard-coded Credentials), CWE-321 (Use of Hard-coded Cryptographic Key)
+- **CWE**: CWE-798 (Use of Hard-coded Credentials), CWE-321 (Use of Hard-coded Cryptographic Key) — both N/A, see below
 - **NIST CSF**: PR.DS (primary), PR.PS
 - **Compliance**: ASVS V6.4 | PCI DSS 3.5 | T1552.001 | SOC 2 CC6.7 | ISO 27001 A.8.24
-- **Location**: `infra/vpn/client.ovpn` (tracked since its single commit; `infra/vpn/auth.txt`, which holds the real university username/password, is correctly gitignored — only `client.ovpn` and its embedded key were missed)
-- **Attack Vector**: The `<ca>` block in the file is the university's public root CA cert (not sensitive). The `<tls-auth>` block is a shared HMAC secret whose purpose is defense-in-depth: it makes the OpenVPN server silently drop unauthenticated control-channel packets, protecting against port scanning/DoS/replay before TLS negotiation even starts. Anyone who clones the repo gets this key and the CA cert, can build their own `.ovpn` profile, and reach the server's control channel — but still cannot authenticate without also knowing the still-secret `auth.txt` credentials, since `auth-user-pass` is a separate, correctly-gitignored file.
-- **Impact**: Loss of one DoS/scan-resistance layer on the university's OpenVPN endpoint; enables targeted credential-stuffing attempts against the real AIS login for anyone who also obtains or guesses valid credentials. No direct LDAP/data access from this key alone.
-- **Remediation**: Rotate the `tls-auth` key on the OpenVPN server (`openvpn --genkey secret ta.key`, distribute out-of-band), `git rm --cached infra/vpn/client.ovpn` and rewrite history if the repo will ever go public, add `client.ovpn` to `.gitignore`, and ship a redacted `client.ovpn.example` mirroring `auth.txt.example`.
+- **Location**: `infra/vpn/client.ovpn`
+- **Verification (2026-08-17, follow-up)**: The developer identified that STU Bratislava publishes this exact `client.ovpn` — `<ca>` cert and `<tls-auth>` static key included — as the standard, identical-for-everyone connection profile on its own public IT support site (`stuba.sk/.../openvpn-v.3-connect.html`, direct download `stuba.sk/buxus/docs/stu/pracoviska/cvt/navody/client.ovpn`). Fetched that URL and SHA-256-compared its `<ca>` and `<tls-auth>` blocks byte-for-byte against the repo's copy: **identical hashes on both blocks**. This is not a per-installation or per-user secret — it's the university's own published default, distributed to every student/staff VPN user. The only actual secret in this flow is the personal `auth-user-pass` credential in `infra/vpn/auth.txt`, which was correctly gitignored from the start and was never affected by this finding.
+- **Original attack vector reasoning (now moot)**: The `<tls-auth>` block was assumed to be a shared-but-not-public HMAC secret providing defense-in-depth against port scanning/DoS/replay. That assumption was wrong — STU treats it as public configuration, not a secret, so there is nothing to rotate and no exposure from this repo having tracked it.
+- **Action taken anyway**: `infra/vpn/client.ovpn` was untracked and gitignored, with a redacted `client.ovpn.example` added, before this was confirmed (see commit `2a8bdbe`) — harmless, but unnecessary. Git history was **not** rewritten, and per this verification, does not need to be.
+- **Remediation**: None required. Optional: re-track `client.ovpn` directly instead of via the `.example` indirection, since it's genuinely public config — left as-is to avoid unnecessary churn.
 
 ### 🟡 [MEDIUM-004] Weak default database credentials combined with published Postgres port
 - **Severity**: 🟡 MEDIUM
@@ -250,7 +251,7 @@
 - **Expected**: Removing an ID from `SUPER_ADMIN_IDS` and redeploying should immediately revoke super-admin access, matching how manager-role revocation is re-checked live on every request
 - **Actual**: `GuildAccessService.isSuperAdmin()` reads only the JWT's `superAdmin` claim, which is set once at token issuance/refresh; a currently-valid access token keeps working for its full remaining TTL (default 300s) after the operator-side revocation
 - **Request**: `POST /api/wipe` with a previously-issued, still-unexpired access-token cookie belonging to the removed super admin
-- **Remediation**: See MEDIUM-002.
+- **Status**: ✅ Fixed — `isSuperAdmin()` now also checks `AdminProperties.superAdminIds()` live on every call.
 
 ---
 
@@ -313,24 +314,24 @@
 ## Recommendations Summary
 
 **A01/A07 — Access control & auth freshness (highest priority)**
-1. Restrict `/find` and `/user` Discord commands to admins, or strip email from their replies (MEDIUM-001 / GRAY-001).
-2. Re-validate the `superAdmin` claim live on every privileged request, matching the manager-role pattern (MEDIUM-002 / GRAY-002).
-3. Add `@EnableMethodSecurity`/`@PreAuthorize` as a default-deny safety net over the existing manual per-controller checks (HOTSPOT-001).
+1. ✅ Fixed — `/find` no longer replies with email (MEDIUM-001 / GRAY-001).
+2. ✅ Fixed — `superAdmin` claim re-validated live on every privileged request (MEDIUM-002 / GRAY-002).
+3. Open — Add `@EnableMethodSecurity`/`@PreAuthorize` as a default-deny safety net over the existing manual per-controller checks (HOTSPOT-001).
 
 **A02 — Infrastructure hardening**
-4. Rotate and stop tracking the OpenVPN `tls-auth` key (MEDIUM-003).
-5. Require `DB_PASSWORD`, extend `ProductionSecretsValidator` to cover it, and stop publishing `5432` to the host (MEDIUM-004).
-6. Bind Mailpit's SMTP port to loopback (MEDIUM-005).
+4. ✅ Resolved — OpenVPN `tls-auth` key verified as STU's own public config, not a secret; no rotation needed (MEDIUM-003, downgraded to Info).
+5. ✅ Fixed — `DB_PASSWORD` covered by `ProductionSecretsValidator`, Postgres port bound to loopback (MEDIUM-004).
+6. ✅ Fixed — Mailpit SMTP bound to loopback (MEDIUM-005).
 
 **A03 — Supply chain hygiene**
-7. Pin `nginx:alpine` and backend base images to specific tags/digests (LOW-002, INFO-003).
-8. Remove the unused `jwt-decode` dependency (LOW-004 / SMELL-002).
-9. Add an SCA/dependency-vulnerability scan step to CI (INFO-004).
+7. ✅ Fixed (nginx) / Open (backend digest pin) — `nginx:alpine` pinned to `nginx:1.27-alpine`; backend base image digest-pinning still needs a live registry lookup (LOW-002, INFO-003).
+8. ✅ Fixed — Unused `jwt-decode` dependency removed (LOW-004 / SMELL-002).
+9. Open — Add an SCA/dependency-vulnerability scan step to CI (INFO-004).
 
 **A06 — Design hardening**
-10. Move `guildId`-bearing endpoints to typed, validated DTOs (LOW-001 / SMELL-001).
+10. ✅ Fixed — `guildId`-bearing endpoints now validate via `GuildAccessService.requireValidGuildId()` (LOW-001 / SMELL-001).
 
-None of the above are urgent hotfixes; the Discord PII leak and super-admin claim freshness are the two items worth scheduling first.
+Remaining open items: `@PreAuthorize` default-deny safety net (HOTSPOT-001) and CI dependency scanning (INFO-004) — neither urgent, both good next-pass candidates.
 
 ---
 

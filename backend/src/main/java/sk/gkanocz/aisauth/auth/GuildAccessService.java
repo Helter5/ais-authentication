@@ -21,6 +21,7 @@ public class GuildAccessService {
 
     private final DiscordBotService discordBotService;
     private final AdminSettingsService adminSettingsService;
+    private final AdminProperties adminProperties;
 
     /**
      * Endpoints that pull guildId out of a raw request Map (instead of a typed DTO) should route it
@@ -34,8 +35,15 @@ public class GuildAccessService {
         return guildId;
     }
 
+    /**
+     * Re-checks the claim against the current SUPER_ADMIN_IDS config on every call instead of just
+     * trusting the JWT - same reasoning as hasLiveManagerRole below: an ID removed from config and
+     * redeployed must lose super-admin access immediately, not only once its current access token
+     * (up to app.jwt.access-token-ttl-seconds) happens to expire or gets refreshed.
+     */
     public boolean isSuperAdmin(Claims claims) {
-        return Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class));
+        return Boolean.TRUE.equals(claims.get("superAdmin", Boolean.class))
+                && adminProperties.superAdminIds().contains(claims.getSubject());
     }
 
     @SuppressWarnings("unchecked")
