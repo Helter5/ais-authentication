@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -76,6 +77,8 @@ class VerificationSlashCommandListenerTest {
     private InteractionHook hook;
     @Mock
     private ReplyCallbackAction replyCallbackAction;
+    @Mock
+    private MessageChannelUnion channel;
 
     private VerificationSlashCommandListener listener;
 
@@ -92,6 +95,8 @@ class VerificationSlashCommandListenerTest {
         Mockito.lenient().when(event.getName()).thenReturn("verify");
         Mockito.lenient().when(user.getId()).thenReturn("discord-1");
         Mockito.lenient().when(guild.getId()).thenReturn("guild-1");
+        Mockito.lenient().when(event.getChannel()).thenReturn(channel);
+        Mockito.lenient().when(channel.getId()).thenReturn("channel-1");
     }
 
     @SuppressWarnings("unchecked")

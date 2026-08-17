@@ -152,31 +152,31 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] Breadcrumb späť na Modules.
 - [X] Číselné inputy (Delete after seconds, cleanup min) — zmazanie prvej číslice/nuly funguje normálne (known bug z minula, over či je opravený).
 - [X] "New Channel" vytvorí nový config; existujúce v ľavom zozname (kanál + delay napr. "60s"/"5m"/"1h"/"instant").
-- [ ] Zmazanie configu — hover → kôš → inline Yes/No potvrdenie.
+- [X] Zmazanie configu — hover → kôš → inline Yes/No potvrdenie.
 - [X] Editor: Channel select (už použité kanály disabled), "Delete after (seconds)" s približným prekladom ("≈ 5m"/"instant").
-- [ ] "Ignore bots" toggle už neexistuje — over, že sa nikde nezobrazuje; bot správy sa naďalej nikdy nemažú (natvrdo).
-- [ ] Ignore Rules: Ignore pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
+- [X] "Ignore bots" toggle už neexistuje — over, že sa nikde nezobrazuje; bot správy sa naďalej nikdy nemažú (natvrdo).
+- [X] Ignore Rules: Ignore pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
 - [X] Notify User toggle → In Channel/DM voľba; DM ukáže poznámku o zatvorených DMkách.
-- [ ] In Channel + Delete bot message → "Delete after" s minimom 3s (nižšie hodnoty sa orežú).
-- [ ] Message textarea s placeholderom `{channel} {server} {user}`.
+- [X] In Channel + Delete bot message → "Delete after" s minimom 3s (nižšie hodnoty sa orežú).
+- [X] Message textarea s placeholderom `{channel} {server} {user}`.
 - [X] Save bez vybraného kanála → toast "Select a channel first." (needá sa uložiť).
 - [X] Úspešné uloženie → toast "Config saved successfully."; zlyhanie → toast s chybou.
 
 ---
 
 ## 🔒 Commands (`/commands`)
-- [ ] Bez servera: "No server selected. Pick one."
-- [ ] 3 taby: Moderation, Verification, Utility — správne príkazy v každom.
-- [ ] Každý príkaz má toggle enable/disable (optimistické prepnutie, vráti sa späť pri chybe).
-- [ ] Zámok pri príkaze, ktorý má nastavené obmedzenia (admin-only/role/kanály) + farebné chipy pod popisom.
-- [ ] "Authorization" modal — admin-only toggle, sekcie Require roles / Block roles / Allowed channels / Blocked channels (rozbaľovacie, s vyhľadávaním).
-- [ ] Kliknutie na už otvorenú/aktívnu sekciu v Authorization modali ju zbalí AJ vymaže výber.
-- [ ] Save v modali — spinner → "Saved!" na 2s; Cancel/klik mimo modal zavrie bez uloženia.
-- [ ] "Settings" modal (len pri príkazoch, čo ho majú) — napr. Ephemeral response, Include bots, DM before wipe.
-- [ ] Kategóriové "Authorization" tlačidlo (hromadne pre celý tab) — ak majú príkazy rôzne nastavenia, formulár začne prázdny (explicitné prepísanie).
-- [ ] "Enable All"/"Disable All" pre aktívny tab.
-- [ ] "Sync Visibility" — spinner → "Synced!" na 3s.
-- [ ] Prepnutie servera resetne všetky stavy a znova načíta.
+- [X] Bez servera: "No server selected. Pick one."
+- [X] 3 taby: Moderation, Verification, Utility — správne príkazy v každom.
+- [X] Každý príkaz má toggle enable/disable (optimistické prepnutie, vráti sa späť pri chybe).
+- [X] Zámok pri príkaze, ktorý má nastavené obmedzenia (admin-only/role/kanály) + farebné chipy pod popisom.
+- [X] "Authorization" modal — admin-only toggle, sekcie Require roles / Block roles / Allowed channels / Blocked channels (rozbaľovacie, s vyhľadávaním).
+- [X] Kliknutie na už otvorenú/aktívnu sekciu v Authorization modali ju zbalí AJ vymaže výber.
+- [X] Save v modali — spinner → "Saved!" na 2s; Cancel/klik mimo modal zavrie bez uloženia.
+- [X] "Settings" modal (len pri príkazoch, čo ho majú) — napr. Ephemeral response, Include bots, DM before wipe.
+- [X] Kategóriové "Authorization" tlačidlo (hromadne pre celý tab) — ak majú príkazy rôzne nastavenia, formulár začne prázdny (explicitné prepísanie).
+- [X] "Enable All"/"Disable All" pre aktívny tab.
+- [X] "Sync Visibility" — spinner → "Synced!" na 3s.
+- [X] Prepnutie servera resetne všetky stavy a znova načíta.
 
 ---
 

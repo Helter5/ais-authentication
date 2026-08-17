@@ -147,8 +147,10 @@ class VerificationSlashCommandListener {
 
             eventLogEmbedSender.send(event.getGuild(), LogEventType.CODE_CONFIRMED, new EmbedBuilder()
                     .setColor(new Color(0x22C55E))
-                    .setTitle("Verification Completed")
-                    .addField("User", "<@" + discordId + ">", true));
+                    .setTitle("User Verified")
+                    .addField("User", "<@" + discordId + ">", true)
+                    .addField("Channel", "<#" + event.getChannel().getId() + ">", true)
+                    .addField("AIS ID", verifiedUser.getAisId(), true));
             event.getHook().sendMessage("Úspešne overené! Vitaj.").queue();
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
