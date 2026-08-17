@@ -37,18 +37,20 @@ type CmdSettingsData = {
   dmUser?: boolean;
   ephemeral?: boolean;
   includeBots?: boolean;
+  message?: string;
 };
 
+const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
-  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean;
+  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
 }> = {
   warn:         { ephemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
   verify:       { ephemeral: true },
-  code:         {},
+  code:         { message: true },
   manualverify: { ephemeral: true },
   find:         { ephemeral: true },
   mywarns:      { ephemeral: true },
@@ -60,7 +62,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   warn:         { ephemeral: false },
   wipe:         { dmUser: false, ephemeral: false },
   verify:       { ephemeral: true },
-  code:         {},
+  code:         { message: DEFAULT_CODE_MESSAGE },
   manualverify: { ephemeral: true },
   find:     { ephemeral: true },
   mywarns:      { ephemeral: true },
@@ -93,7 +95,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   ],
   Verification: [
     { name: "/verify",   description: "Verify yourself as an active FEI student using your AIS ID.", hasSettings: true },
-    { name: "/code",     description: "Enter the verification code received via email to complete verification." },
+    { name: "/code",     description: "Enter the verification code received via email to complete verification.", hasSettings: true },
     { name: "/find", description: "Find a verified user's record by their AIS ID.", hasSettings: true },
     { name: "/mywarns",  description: "Check your own active warnings on this server.", hasSettings: true },
   ],
@@ -219,6 +221,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
   const [dmUser, setDmUser] = useState(defaults.dmUser ?? false);
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
   const [includeBots, setIncludeBots] = useState(defaults.includeBots ?? false);
+  const [message, setMessage] = useState(defaults.message ?? "");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -236,6 +239,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
         if (schema.dmUser)      setDmUser(data.dmUser ?? defaults.dmUser ?? false);
         if (schema.ephemeral)   setEphemeral(data.ephemeral ?? defaults.ephemeral ?? false);
         if (schema.includeBots) setIncludeBots(data.includeBots ?? defaults.includeBots ?? false);
+        if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -245,9 +249,11 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
     schema.dmUser,
     schema.ephemeral,
     schema.includeBots,
+    schema.message,
     defaults.dmUser,
     defaults.ephemeral,
     defaults.includeBots,
+    defaults.message,
   ]);
 
   const save = async () => {
@@ -256,6 +262,7 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
     if (schema.dmUser)      data.dmUser = dmUser;
     if (schema.ephemeral)   data.ephemeral = ephemeral;
     if (schema.includeBots) data.includeBots = includeBots;
+    if (schema.message)     data.message = message;
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
@@ -297,6 +304,21 @@ function CommandSettingsModal({ title, commandKey, guildId, onClose }: {
             <CmdSettingsRow label="Include bots" hint="Include bot accounts in the results">
               <Toggle enabled={includeBots} onChange={setIncludeBots} />
             </CmdSettingsRow>
+          )}
+          {schema.message && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Success message</p>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={3}
+                placeholder={DEFAULT_CODE_MESSAGE}
+                className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
+              />
+              <p className="text-[11px] text-zinc-600 mt-1">
+                Placeholders: <span className="font-mono">{"{user}"}</span> <span className="font-mono">{"{server}"}</span> <span className="font-mono">{"{channel}"}</span> <span className="font-mono">{"{ais_id}"}</span>
+              </p>
+            </div>
           )}
         </div>
       )}

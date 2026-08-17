@@ -182,6 +182,7 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] "Sync Visibility" — spinner → "Synced!" na 3s.
 - [X] Prepnutie servera resetne všetky stavy a znova načíta.
 - [X] "Log Channel" modal (na karte príkazu, čo loguje) — výber kanála sa NEuloží hneď; treba kliknúť "Save" (predtým bola len "Close", žiadne Save). "Save" je disabled kým sa nič nezmenilo. Zavretie bez uloženia zahodí výber.
+- [ ] `/code` má teraz Settings modal (predtým nemal žiadny) — textarea "Success message" s placeholdermi `{user}` `{server}` `{channel}` `{ais_id}`; prázdne pole = použije sa default "Úspešne overené! Vitaj.". Ulož vlastnú správu s placeholdermi, spusti `/verify` + `/code` v Discorde a over, že sa placeholdery správne nahradili (meno, názov servera, `#kanál`, AIS ID).
 
 ---
 

@@ -10,15 +10,18 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.verification.VerificationService;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
+import tools.jackson.core.type.TypeReference;
 
 import java.awt.Color;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -30,6 +33,7 @@ class VerificationSlashCommandListener {
     private static final String VERIFICATION_DISABLED_MESSAGE =
             "Verifikácia je na tomto serveri momentálne vypnutá. Kontaktuj administrátora.";
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
+    private static final String DEFAULT_CODE_SUCCESS_MESSAGE = "Úspešne overené! Vitaj.";
 
     private final VerificationService verificationService;
     private final GuildSettingsService guildSettingsService;
@@ -39,6 +43,7 @@ class VerificationSlashCommandListener {
     private final EventLogEmbedSender eventLogEmbedSender;
     private final VerificationProperties verificationProperties;
     private final PendingVerificationStore pendingVerificationStore;
+    private final AdminSettingsService adminSettingsService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -159,13 +164,30 @@ class VerificationSlashCommandListener {
                             .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
                             .addField("AIS ID", verifiedUser.getAisId(), true)
                             .addField("Channel", "<#" + event.getChannel().getId() + ">", true));
-            event.getHook().sendMessage("Úspešne overené! Vitaj.").queue();
+            event.getHook().sendMessage(codeSuccessMessage(event, guildId, verifiedUser)).queue();
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
             log.error("Code command failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
+    }
+
+    /**
+     * "cmd_settings_<guild>_code" -> "message" - configurable via the /code card's Settings modal
+     * (Commands page), falls back to the hardcoded default when unset/blank.
+     */
+    private String codeSuccessMessage(SlashCommandInteractionEvent event, String guildId, VerifiedUser verifiedUser) {
+        Map<String, Object> settings = adminSettingsService.get(
+                "cmd_settings_" + guildId + "_code", new TypeReference<Map<String, Object>>() { }, Map.of());
+        Object configured = settings.get("message");
+        String template = (configured instanceof String s && !s.isBlank()) ? s : DEFAULT_CODE_SUCCESS_MESSAGE;
+
+        return template
+                .replace("{user}", event.getUser().getName())
+                .replace("{server}", event.getGuild().getName())
+                .replace("{channel}", "#" + event.getChannel().getName())
+                .replace("{ais_id}", verifiedUser.getAisId());
     }
 
     private void handleFind(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {

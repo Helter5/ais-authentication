@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
@@ -31,8 +32,10 @@ import sk.gkanocz.aisauth.verification.AlreadyVerifiedException;
 import sk.gkanocz.aisauth.verification.InvalidVerificationCodeException;
 import sk.gkanocz.aisauth.verification.VerificationService;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
+import tools.jackson.core.type.TypeReference;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +69,8 @@ class VerificationSlashCommandListenerTest {
     private EventLogEmbedSender eventLogEmbedSender;
     @Mock
     private PendingVerificationStore pendingVerificationStore;
+    @Mock
+    private AdminSettingsService adminSettingsService;
 
     @Mock
     private SlashCommandInteractionEvent event;
@@ -86,7 +91,8 @@ class VerificationSlashCommandListenerTest {
     void setUp() {
         listener = new VerificationSlashCommandListener(
                 verificationService, guildSettingsService, logRoutingService, verifiedRoleResolver,
-                verifyRateLimiter, eventLogEmbedSender, TESTING_MODE_OFF, pendingVerificationStore);
+                verifyRateLimiter, eventLogEmbedSender, TESTING_MODE_OFF, pendingVerificationStore,
+                adminSettingsService);
 
         Mockito.lenient().when(event.deferReply(anyBoolean())).thenReturn(replyCallbackAction);
         Mockito.lenient().when(event.getHook()).thenReturn(hook);
@@ -94,9 +100,14 @@ class VerificationSlashCommandListenerTest {
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(event.getName()).thenReturn("verify");
         Mockito.lenient().when(user.getId()).thenReturn("discord-1");
+        Mockito.lenient().when(user.getName()).thenReturn("TestUser");
         Mockito.lenient().when(guild.getId()).thenReturn("guild-1");
+        Mockito.lenient().when(guild.getName()).thenReturn("TestGuild");
         Mockito.lenient().when(event.getChannel()).thenReturn(channel);
         Mockito.lenient().when(channel.getId()).thenReturn("channel-1");
+        Mockito.lenient().when(channel.getName()).thenReturn("general");
+        Mockito.lenient().when(adminSettingsService.get(anyString(), any(TypeReference.class), any()))
+                .thenReturn(Map.of());
     }
 
     @SuppressWarnings("unchecked")
@@ -220,7 +231,8 @@ class VerificationSlashCommandListenerTest {
         VerificationProperties testingMode = new VerificationProperties(List.of("fei-stud"), "student:active", true);
         listener = new VerificationSlashCommandListener(
                 verificationService, guildSettingsService, logRoutingService, verifiedRoleResolver,
-                verifyRateLimiter, eventLogEmbedSender, testingMode, pendingVerificationStore);
+                verifyRateLimiter, eventLogEmbedSender, testingMode, pendingVerificationStore,
+                adminSettingsService);
         enableVerification();
         configureLogChannel();
         when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(mock(Role.class));
@@ -383,6 +395,29 @@ class VerificationSlashCommandListenerTest {
         verify(verificationService).revertVerification(verifiedUser);
         verify(hook).sendMessage(contains("nemôžem ti priradiť rolu"));
         verify(eventLogEmbedSender, never()).send(any(), any(), any());
+    }
+
+    @Test
+    void codeUsesConfiguredSuccessMessageWithPlaceholdersSubstituted() {
+        asCommand("code");
+        enableVerification();
+        Role role = mock(Role.class);
+        when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(role);
+        Member member = mock(Member.class);
+        when(member.getRoles()).thenReturn(List.of());
+        when(event.getMember()).thenReturn(member);
+        stubStringOption("code", "ABC123");
+        VerifiedUser verifiedUser = new VerifiedUser("12345", "discord-1", "guild-1", "s@stuba.sk");
+        when(verificationService.confirmVerification("discord-1", "guild-1", "ABC123")).thenReturn(verifiedUser);
+        AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
+        when(adminSettingsService.get(eq("cmd_settings_guild-1_code"), any(TypeReference.class), any()))
+                .thenReturn(Map.of("message", "Vitaj {user} na {server} v {channel}, AIS {ais_id}!"));
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage("Vitaj TestUser na TestGuild v #general, AIS 12345!");
     }
 
     @Test
