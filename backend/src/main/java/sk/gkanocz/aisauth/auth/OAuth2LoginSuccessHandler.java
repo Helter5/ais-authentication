@@ -35,6 +35,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final AccessLogRepository accessLogRepository;
     private final DiscordBotService discordBotService;
     private final OAuthExchangeStore exchangeStore;
+    private final ClientIpResolver clientIpResolver;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -68,7 +69,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 jwtService.mintAccessToken(discordId, username, avatar, isSuperAdmin, eligibleGuildIds);
         adminSessionRepository.save(new AdminSession(issuedToken.jti(), discordId, issuedToken.expiresAt()));
         String refreshToken = refreshTokenService.issue(discordId, username, avatar, isSuperAdmin, eligibleGuildIds);
-        recordAccessLog(discordId, username, eligibleGuildIds, clientIp(request));
+        recordAccessLog(discordId, username, eligibleGuildIds, clientIpResolver.resolve(request));
 
         log.info("[OAuth SUCCESS] ({}) {} eligible guild(s)", username, eligibleGuildIds.size());
 
@@ -80,14 +81,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         for (String guildId : guildIds) {
             accessLogRepository.save(new AccessLog(discordId, username, "login", guildId, ip));
         }
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private void redirectToFrontendLogin(HttpServletResponse response, String error) throws IOException {

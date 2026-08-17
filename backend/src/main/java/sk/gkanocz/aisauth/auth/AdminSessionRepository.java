@@ -11,4 +11,6 @@ public interface AdminSessionRepository extends JpaRepository<AdminSession, Stri
     void deleteByJti(String jti);
 
     void deleteByExpiresAtBefore(LocalDateTime now);
+
+    void deleteByUserId(String userId);
 }

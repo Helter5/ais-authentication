@@ -8,14 +8,13 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Mirrors the old bot's handleAutoDelete: per-channel delayed message deletion with optional
@@ -30,7 +29,7 @@ public class AutoDeleteListener extends ListenerAdapter {
     private final AutoDeleteConfigRepository autoDeleteConfigRepository;
     private final AdminSettingsService adminSettingsService;
     private final ObjectMapper objectMapper;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final TaskScheduler taskScheduler;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
@@ -71,7 +70,7 @@ public class AutoDeleteListener extends ListenerAdapter {
         if (config.getDelaySeconds() <= 0) {
             task.run();
         } else {
-            scheduler.schedule(task, config.getDelaySeconds(), TimeUnit.SECONDS);
+            taskScheduler.schedule(task, Instant.now().plusSeconds(config.getDelaySeconds()));
         }
     }
 
@@ -106,9 +105,9 @@ public class AutoDeleteListener extends ListenerAdapter {
 
         channel.sendMessage("<@" + message.getAuthor().getId() + "> " + text).queue(sent -> {
             if (config.isNotifyDeleteBotMsg()) {
-                scheduler.schedule(
+                taskScheduler.schedule(
                         () -> sent.delete().queue(s -> { }, f -> { }),
-                        Math.max(3, config.getNotifyDeleteDelay()), TimeUnit.SECONDS);
+                        Instant.now().plusSeconds(Math.max(3, config.getNotifyDeleteDelay())));
             }
         }, f -> { });
     }

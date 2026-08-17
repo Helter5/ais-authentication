@@ -43,12 +43,13 @@ public class AuthController {
     private final DiscordBotService discordBotService;
     private final SessionCookieFactory cookieFactory;
     private final AuthEndpointRateLimiter rateLimiter;
+    private final ClientIpResolver clientIpResolver;
 
     @PublicToAuthenticated
     @PostMapping("/exchange")
     public ResponseEntity<SessionResponse> exchange(
             @RequestBody ExchangeRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
-        rateLimiter.checkAndRecordAttempt("exchange", clientIp(httpRequest));
+        rateLimiter.checkAndRecordAttempt("exchange", clientIpResolver.resolve(httpRequest));
         OAuthExchangeStore.ExchangedTokens tokens = exchangeStore.consumeToken(request.code());
         if (tokens == null) {
             return ResponseEntity.badRequest().build();
@@ -83,7 +84,7 @@ public class AuthController {
     @PostMapping("/refresh")
     @Transactional
     public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
-        rateLimiter.checkAndRecordAttempt("refresh", clientIp(request));
+        rateLimiter.checkAndRecordAttempt("refresh", clientIpResolver.resolve(request));
         String refreshTokenCookie = extractCookie(request, REFRESH_COOKIE_NAME);
         if (refreshTokenCookie == null) {
             throw RefreshTokenInvalidException.create();
@@ -124,16 +125,6 @@ public class AuthController {
         cookieFactory.expireStrict(response, AUTH_COOKIE_NAME);
         cookieFactory.expireStrict(response, REFRESH_COOKIE_NAME);
         return ResponseEntity.ok().build();
-    }
-
-    /** Same X-Forwarded-For convention as OAuth2LoginSuccessHandler.clientIp - both sit behind the
-     * same nginx proxy (see infra/docker-compose.yml). */
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String extractCookie(HttpServletRequest request, String name) {

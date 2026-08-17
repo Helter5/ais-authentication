@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.TaskScheduler;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import tools.jackson.databind.ObjectMapper;
 
@@ -40,6 +41,8 @@ class AutoDeleteListenerTest {
     private AutoDeleteConfigRepository autoDeleteConfigRepository;
     @Mock
     private AdminSettingsService adminSettingsService;
+    @Mock
+    private TaskScheduler taskScheduler;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -56,7 +59,7 @@ class AutoDeleteListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new AutoDeleteListener(autoDeleteConfigRepository, adminSettingsService, objectMapper);
+        listener = new AutoDeleteListener(autoDeleteConfigRepository, adminSettingsService, objectMapper, taskScheduler);
     }
 
     @Test

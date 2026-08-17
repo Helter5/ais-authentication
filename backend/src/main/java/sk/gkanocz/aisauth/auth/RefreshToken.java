@@ -45,6 +45,16 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * Set instead of deleting the row on first {@link RefreshTokenService#consume}, so a second
+     * presentation of the same (now-consumed) token can be told apart from an unknown/expired one -
+     * that's what lets {@link RefreshTokenService} detect token replay and revoke the rest of the
+     * session family. The row still ages out naturally via {@code expires_at} (see
+     * ExpiredDataCleanupJob), so no separate retention window is needed.
+     */
+    @Column(name = "revoked_at")
+    private LocalDateTime revokedAt;
+
     protected RefreshToken() {
         // JPA
     }
@@ -64,5 +74,13 @@ public class RefreshToken {
 
     public List<String> guildIds() {
         return guildIdsCsv == null || guildIdsCsv.isBlank() ? List.of() : List.of(guildIdsCsv.split(","));
+    }
+
+    public boolean isRevoked() {
+        return revokedAt != null;
+    }
+
+    void markRevoked() {
+        this.revokedAt = LocalDateTime.now();
     }
 }

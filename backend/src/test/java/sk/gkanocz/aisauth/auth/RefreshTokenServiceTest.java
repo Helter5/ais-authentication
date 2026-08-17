@@ -27,11 +27,14 @@ class RefreshTokenServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private AdminSessionRepository adminSessionRepository;
+
     private RefreshTokenService refreshTokenService;
 
     @BeforeEach
     void setUp() {
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, PROPERTIES);
+        refreshTokenService = new RefreshTokenService(refreshTokenRepository, adminSessionRepository, PROPERTIES);
     }
 
     @Test
@@ -60,11 +63,11 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    void consumeReturnsTheSessionAndDeletesTheRowSoItsSingleUse() {
+    void consumeReturnsTheSessionAndMarksTheRowRevokedSoItsSingleUse() {
         RefreshToken stored = new RefreshToken(
                 "tok-1", "discord-1", "someuser", "avatar-hash", true, List.of("guild-1"),
                 LocalDateTime.now().plusDays(1));
-        when(refreshTokenRepository.findByTokenAndExpiresAtAfter(eq("tok-1"), any())).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.findByToken(eq("tok-1"))).thenReturn(Optional.of(stored));
 
         RefreshTokenService.RefreshSession session = refreshTokenService.consume("tok-1");
 
@@ -73,16 +76,31 @@ class RefreshTokenServiceTest {
         assertThat(session.avatar()).isEqualTo("avatar-hash");
         assertThat(session.superAdmin()).isTrue();
         assertThat(session.guildIds()).containsExactly("guild-1");
-        verify(refreshTokenRepository).deleteByToken("tok-1");
+        assertThat(stored.isRevoked()).isTrue();
     }
 
     @Test
     void consumeThrowsWhenTokenIsMissingOrExpired() {
-        when(refreshTokenRepository.findByTokenAndExpiresAtAfter(eq("missing"), any())).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByToken(eq("missing"))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> refreshTokenService.consume("missing"))
                 .isInstanceOf(RefreshTokenInvalidException.class);
-        verify(refreshTokenRepository, never()).deleteByToken(any());
+        verify(refreshTokenRepository, never()).deleteByUserId(any());
+    }
+
+    @Test
+    void consumeOfAnAlreadyRevokedTokenRevokesTheWholeSessionFamily() {
+        RefreshToken stored = new RefreshToken(
+                "tok-1", "discord-1", "someuser", "avatar-hash", true, List.of("guild-1"),
+                LocalDateTime.now().plusDays(1));
+        stored.markRevoked();
+        when(refreshTokenRepository.findByToken(eq("tok-1"))).thenReturn(Optional.of(stored));
+
+        assertThatThrownBy(() -> refreshTokenService.consume("tok-1"))
+                .isInstanceOf(RefreshTokenInvalidException.class);
+
+        verify(refreshTokenRepository).deleteByUserId("discord-1");
+        verify(adminSessionRepository).deleteByUserId("discord-1");
     }
 
     @Test
