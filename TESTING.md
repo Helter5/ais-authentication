@@ -154,7 +154,8 @@ Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), 
 - [X] "New Channel" vytvorí nový config; existujúce v ľavom zozname (kanál + delay napr. "60s"/"5m"/"1h"/"instant").
 - [ ] Zmazanie configu — hover → kôš → inline Yes/No potvrdenie.
 - [X] Editor: Channel select (už použité kanály disabled), "Delete after (seconds)" s približným prekladom ("≈ 5m"/"instant").
-- [ ] Ignore Rules: Ignore bots/pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
+- [ ] "Ignore bots" toggle už neexistuje — over, že sa nikde nezobrazuje; bot správy sa naďalej nikdy nemažú (natvrdo).
+- [ ] Ignore Rules: Ignore pinned toggle, Ignore roles multi-select, Ignore users — pridávanie Discord ID (Enter/čiarka), neplatné ID (nie 17-20 číslic) sa nepridá.
 - [X] Notify User toggle → In Channel/DM voľba; DM ukáže poznámku o zatvorených DMkách.
 - [ ] In Channel + Delete bot message → "Delete after" s minimom 3s (nižšie hodnoty sa orežú).
 - [ ] Message textarea s placeholderom `{channel} {server} {user}`.
