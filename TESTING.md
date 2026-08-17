@@ -93,6 +93,7 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] **Logins tab** — Time/User/IP/Action, "login" akcia sa zobrazí ako "Logged into dashboard".
 - [X] **Warnings tab** — Time/Warning ID/User/Moderator/Reason; opakovaný priestupca dostane "{N}×" odznak.
 - [X] **Automod tab** — status pill (success/failed/other), info "i" tlačidlo vysvetľuje čo presne sa loguje; funguje status filter.
+- [ ] Discord log embedy (Warn issued/removed/cleared/threshold, Hacked Account Trap ban, Wipe inactive removed, User Verified, Manual Verification, Removed From Users Directory, Role Added Outside /verify) — over vizuálne v Discorde, že farby sú teraz zjednotené (zelená=success, červená=danger, jantárová=warning) a "User" pole má všade formát mention + username.
 - [X] **Verification tab** — rovnaká tabuľka ako Automod, len iné dáta.
 - [x] Log embed "Removed From Users Directory" (kick/ban/leave aj Verified rola odobraná) obsahuje AIS ID; pri odobratí roly je namiesto poľa "Role" pole "AIS ID".
 - [X] **Commands tab** — Time/User/Channel/Command/Status/Duration, dôvod blokovania/chyba viditeľné, status filter má viac možností.
