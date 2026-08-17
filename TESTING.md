@@ -94,6 +94,7 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] **Warnings tab** — Time/Warning ID/User/Moderator/Reason; opakovaný priestupca dostane "{N}×" odznak.
 - [X] **Automod tab** — status pill (success/failed/other), info "i" tlačidlo vysvetľuje čo presne sa loguje; funguje status filter.
 - [X] **Verification tab** — rovnaká tabuľka ako Automod, len iné dáta.
+- [ ] Log embed "Removed From Users Directory" (kick/ban/leave aj Verified rola odobraná) obsahuje AIS ID; pri odobratí roly je namiesto poľa "Role" pole "AIS ID".
 - [X] **Commands tab** — Time/User/Channel/Command/Status/Duration, dôvod blokovania/chyba viditeľné, status filter má viac možností.
 - [X] Search je na každom tabe (okrem loading/error stavu).
 - [X] "Show all" / "Paginate" prepínač, pri väčšom počte strán sa čísla strán skracujú na "…".
