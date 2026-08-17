@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -40,6 +41,21 @@ public class SemesterOperationService {
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
+    /**
+     * Guards the read-check-write sequence in startSetup/startSwitch below (read "is setup or
+     * switch already running for this guild" from AdminSettingsService, validate, then persist the
+     * new running state) - without this, two concurrent start calls for the same guild (a
+     * double-click, or a setup and a switch racing each other) can both observe "not running" before
+     * either writes, both proceed, and the second run's initial tracker.save() silently clobbers the
+     * first's persisted progress. One lock object per guild, shared between startSetup and
+     * startSwitch, since each already needs to see the other's state atomically too.
+     */
+    private final Map<String, Object> operationLocks = new ConcurrentHashMap<>();
+
+    private Object lockFor(String guildId) {
+        return operationLocks.computeIfAbsent(guildId, id -> new Object());
+    }
+
     // ── Setup ────────────────────────────────────────────────────────────────
 
     public void startSetup(Guild guild, String semesterName, boolean visible, boolean clearRoles, boolean resume,
@@ -51,44 +67,50 @@ public class SemesterOperationService {
         }
 
         String progressKey = "semester_setup_log_" + guildId;
-        SemesterOperationState previous = adminSettingsService.get(progressKey, SemesterOperationState.class, null);
-        if (previous != null && previous.running()) {
-            throw SemesterOperationInProgressException.withMessage("Semester setup already in progress");
-        }
-        SemesterOperationState activeSwitch = adminSettingsService.get(
-                "switchsemester_log_" + guildId, SemesterOperationState.class, null);
-        if (activeSwitch != null && activeSwitch.running()) {
-            throw SemesterOperationInProgressException.withMessage("A semester switch is already in progress");
-        }
+        SemesterProgressTracker tracker;
+        SemesterDefinition sem;
+        boolean everyoneViewChannel;
 
-        SwitchSemesterSettings settings = adminSettingsService.get(
-                SemesterController.configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
-        SemesterDefinition sem = settings.find(semesterName);
-        if (sem == null) {
-            throw InvalidRequestException.withMessage("Semester \"" + semesterName + "\" not configured.");
-        }
-
-        boolean everyoneViewChannel = visible && sem.isEveryoneViewChannel();
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("semesterName", semesterName);
-        params.put("visible", visible);
-        params.put("everyoneViewChannel", everyoneViewChannel);
-        params.put("clearRoles", clearRoles);
-
-        if (resume) {
-            boolean canResume = previous != null && List.of("partial", "failed").contains(previous.status())
-                    && params.equals(previous.params());
-            if (!canResume) {
-                throw InvalidRequestException.withMessage("There is no matching failed semester setup to resume.");
+        synchronized (lockFor(guildId)) {
+            SemesterOperationState previous = adminSettingsService.get(progressKey, SemesterOperationState.class, null);
+            if (previous != null && previous.running()) {
+                throw SemesterOperationInProgressException.withMessage("Semester setup already in progress");
             }
-        }
+            SemesterOperationState activeSwitch = adminSettingsService.get(
+                    "switchsemester_log_" + guildId, SemesterOperationState.class, null);
+            if (activeSwitch != null && activeSwitch.running()) {
+                throw SemesterOperationInProgressException.withMessage("A semester switch is already in progress");
+            }
 
-        SemesterProgressTracker tracker = new SemesterProgressTracker(adminSettingsService, progressKey, resume, previous, params, "setup");
-        tracker.save(0, resume
-                ? "Resuming setup: " + semesterName + " (" + tracker.completedCount() + " step"
-                        + (tracker.completedCount() == 1 ? "" : "s") + " already complete)"
-                : "Setup: " + semesterName + " — " + (visible ? "showing" : "hiding") + " channels, @everyone View Channel = "
-                        + everyoneViewChannel + (clearRoles ? ", clearing subject roles" : ""));
+            SwitchSemesterSettings settings = adminSettingsService.get(
+                    SemesterController.configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
+            sem = settings.find(semesterName);
+            if (sem == null) {
+                throw InvalidRequestException.withMessage("Semester \"" + semesterName + "\" not configured.");
+            }
+
+            everyoneViewChannel = visible && sem.isEveryoneViewChannel();
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("semesterName", semesterName);
+            params.put("visible", visible);
+            params.put("everyoneViewChannel", everyoneViewChannel);
+            params.put("clearRoles", clearRoles);
+
+            if (resume) {
+                boolean canResume = previous != null && List.of("partial", "failed").contains(previous.status())
+                        && params.equals(previous.params());
+                if (!canResume) {
+                    throw InvalidRequestException.withMessage("There is no matching failed semester setup to resume.");
+                }
+            }
+
+            tracker = new SemesterProgressTracker(adminSettingsService, progressKey, resume, previous, params, "setup");
+            tracker.save(0, resume
+                    ? "Resuming setup: " + semesterName + " (" + tracker.completedCount() + " step"
+                            + (tracker.completedCount() == 1 ? "" : "s") + " already complete)"
+                    : "Setup: " + semesterName + " — " + (visible ? "showing" : "hiding") + " channels, @everyone View Channel = "
+                            + everyoneViewChannel + (clearRoles ? ", clearing subject roles" : ""));
+        }
 
         executor.submit(() -> runSetup(guild, sem, semesterName, visible, everyoneViewChannel, clearRoles,
                 tracker, recapChannelId, actorId, actorName));
@@ -220,51 +242,58 @@ public class SemesterOperationService {
         }
 
         String progressKey = "switchsemester_log_" + guildId;
-        SemesterOperationState previous = adminSettingsService.get(progressKey, SemesterOperationState.class, null);
-        if (previous != null && previous.running()) {
-            throw SemesterOperationInProgressException.withMessage("Semester switch already in progress");
-        }
-        SemesterOperationState activeSetup = adminSettingsService.get(
-                "semester_setup_log_" + guildId, SemesterOperationState.class, null);
-        if (activeSetup != null && activeSetup.running()) {
-            throw SemesterOperationInProgressException.withMessage("A semester setup is already in progress");
-        }
+        SemesterProgressTracker tracker;
+        SemesterDefinition oldSem;
+        SemesterDefinition newSem;
+        boolean newEveryoneViewChannel;
 
-        SwitchSemesterSettings settings = adminSettingsService.get(
-                SemesterController.configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
-        SemesterDefinition oldSem = settings.find(oldName);
-        SemesterDefinition newSem = settings.find(newName);
-        if (oldSem == null) {
-            throw InvalidRequestException.withMessage("Semester \"" + oldName + "\" not configured.");
-        }
-        if (newSem == null) {
-            throw InvalidRequestException.withMessage("Semester \"" + newName + "\" not configured.");
-        }
-        if (!settings.transitionAllowed(oldName, newName)) {
-            throw InvalidRequestException.withMessage(
-                    "Transition \"" + oldName + "\" → \"" + newName + "\" is not in the allowed transitions list.");
-        }
-
-        boolean newEveryoneViewChannel = newSem.isEveryoneViewChannel();
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("oldName", oldName);
-        params.put("newName", newName);
-        params.put("oldEveryoneViewChannel", false);
-        params.put("newEveryoneViewChannel", newEveryoneViewChannel);
-
-        if (resume) {
-            boolean canResume = previous != null && List.of("partial", "failed").contains(previous.status())
-                    && params.equals(previous.params());
-            if (!canResume) {
-                throw InvalidRequestException.withMessage("There is no matching failed semester switch to resume.");
+        synchronized (lockFor(guildId)) {
+            SemesterOperationState previous = adminSettingsService.get(progressKey, SemesterOperationState.class, null);
+            if (previous != null && previous.running()) {
+                throw SemesterOperationInProgressException.withMessage("Semester switch already in progress");
             }
-        }
+            SemesterOperationState activeSetup = adminSettingsService.get(
+                    "semester_setup_log_" + guildId, SemesterOperationState.class, null);
+            if (activeSetup != null && activeSetup.running()) {
+                throw SemesterOperationInProgressException.withMessage("A semester setup is already in progress");
+            }
 
-        SemesterProgressTracker tracker = new SemesterProgressTracker(adminSettingsService, progressKey, resume, previous, params, "switch");
-        tracker.save(0, resume
-                ? "Resuming: " + oldName + " → " + newName + " (" + tracker.completedCount() + " step"
-                        + (tracker.completedCount() == 1 ? "" : "s") + " already complete)"
-                : "Starting: " + oldName + " → " + newName + " (@everyone View Channel = " + newEveryoneViewChannel + " for " + newName + ")");
+            SwitchSemesterSettings settings = adminSettingsService.get(
+                    SemesterController.configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
+            oldSem = settings.find(oldName);
+            newSem = settings.find(newName);
+            if (oldSem == null) {
+                throw InvalidRequestException.withMessage("Semester \"" + oldName + "\" not configured.");
+            }
+            if (newSem == null) {
+                throw InvalidRequestException.withMessage("Semester \"" + newName + "\" not configured.");
+            }
+            if (!settings.transitionAllowed(oldName, newName)) {
+                throw InvalidRequestException.withMessage(
+                        "Transition \"" + oldName + "\" → \"" + newName + "\" is not in the allowed transitions list.");
+            }
+
+            newEveryoneViewChannel = newSem.isEveryoneViewChannel();
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("oldName", oldName);
+            params.put("newName", newName);
+            params.put("oldEveryoneViewChannel", false);
+            params.put("newEveryoneViewChannel", newEveryoneViewChannel);
+
+            if (resume) {
+                boolean canResume = previous != null && List.of("partial", "failed").contains(previous.status())
+                        && params.equals(previous.params());
+                if (!canResume) {
+                    throw InvalidRequestException.withMessage("There is no matching failed semester switch to resume.");
+                }
+            }
+
+            tracker = new SemesterProgressTracker(adminSettingsService, progressKey, resume, previous, params, "switch");
+            tracker.save(0, resume
+                    ? "Resuming: " + oldName + " → " + newName + " (" + tracker.completedCount() + " step"
+                            + (tracker.completedCount() == 1 ? "" : "s") + " already complete)"
+                    : "Starting: " + oldName + " → " + newName + " (@everyone View Channel = " + newEveryoneViewChannel + " for " + newName + ")");
+        }
 
         executor.submit(() -> runSwitch(guild, oldSem, newSem, oldName, newName, newEveryoneViewChannel, tracker, actorId, actorName));
     }

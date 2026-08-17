@@ -84,6 +84,9 @@ public class WipeService {
     public int start(Guild guild, boolean removeAllRoles, List<String> keepRoleIds, String actorId, String actorName) {
         String guildId = guild.getId();
         if (isRunning(guildId)) {
+            // Fast fail before doing any of the validation/DB work below - not itself sufficient
+            // to prevent two concurrent start() calls both getting this far (see tryClaim, which
+            // does the actual atomic check-and-set right before committing to run).
             throw WipeInProgressException.create();
         }
 
@@ -113,10 +116,33 @@ public class WipeService {
         WipeState state = new WipeState(verifiedUsers.size());
         state.log("Starting wipe — checking " + verifiedUsers.size() + " verified users against LDAP"
                 + (removeAllRoles ? " (remove all roles mode, keeping " + keepRoleIdSet.size() + " role(s))" : "") + "...", "info");
-        progress.put(guildId, state);
+        if (!tryClaim(guildId, state)) {
+            throw WipeInProgressException.create();
+        }
 
         executor.submit(() -> runWipe(guild, verifiedUsers, guildSettings, removeAllRoles, keepRoleIdSet, state, actorId, actorName));
         return verifiedUsers.size();
+    }
+
+    /**
+     * Atomically claims the per-guild wipe slot - {@code ConcurrentHashMap.compute} runs its whole
+     * remapping function under that key's internal lock, so this closes the race the isRunning()
+     * fast-path check above can't: two concurrent start() calls for the same guild can each only
+     * observe this map update once fully applied, never interleaved. Without this, both could pass
+     * the earlier isRunning() check before either reached the old plain progress.put(), doubling
+     * every Discord API call the wipe makes and silently discarding whichever run's WipeState the
+     * second put() overwrote.
+     */
+    private boolean tryClaim(String guildId, WipeState state) {
+        boolean[] claimed = {false};
+        progress.compute(guildId, (id, existing) -> {
+            if (existing != null && existing.running) {
+                return existing;
+            }
+            claimed[0] = true;
+            return state;
+        });
+        return claimed[0];
     }
 
     private void runWipe(
