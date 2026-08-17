@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 class VerificationServiceTest {
 
     private static final VerificationProperties PROPERTIES =
-            new VerificationProperties(List.of("fei-stud"), "student:active");
+            new VerificationProperties(List.of("fei-stud"), "student:active", false);
 
     @Mock
     private VerificationCodeRepository verificationCodeRepository;

@@ -6,5 +6,6 @@ import java.util.List;
 @ConfigurationProperties(prefix = "app.verification")
 public record VerificationProperties (
     List<String> allowedFaculties,
-    String requiredAccountStatus) {
+    String requiredAccountStatus,
+    boolean testingMode) {
 }

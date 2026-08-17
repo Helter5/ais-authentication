@@ -20,9 +20,11 @@ import java.util.Optional;
 class LdapStudentDirectoryService implements StudentDirectoryService {
 
     private final LdapTemplate ldapTemplate;
+    private final LdapRequestThrottle ldapRequestThrottle;
 
     @Override
     public Optional<StudentRecord> findByAisId(String aisId) {
+        ldapRequestThrottle.awaitTurn();
         List<StudentRecord> results = ldapTemplate.search(
                 LdapQueryBuilder.query().where("uisId").is(aisId),
                 this::mapAttributes);

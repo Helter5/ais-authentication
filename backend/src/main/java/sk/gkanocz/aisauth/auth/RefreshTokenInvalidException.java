@@ -1,4 +1,4 @@
-package sk.gkanocz.aisauth.auth.keycloak;
+package sk.gkanocz.aisauth.auth;
 
 import org.springframework.http.HttpStatus;
 import sk.gkanocz.aisauth.shared.DomainException;

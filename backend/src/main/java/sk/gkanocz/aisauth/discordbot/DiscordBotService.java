@@ -45,6 +45,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final HackedAccountTrapListener hackedAccountTrapListener;
     private final TicketButtonListener ticketButtonListener;
     private final RoleMenuInteractionListener roleMenuInteractionListener;
+    private final VerifyConfirmationButtonListener verifyConfirmationButtonListener;
     private final GuildAllowlistEventManager guildAllowlistEventManager;
     private final DatabaseSyncService databaseSyncService;
 
@@ -79,7 +80,8 @@ public class DiscordBotService implements ApplicationRunner {
                 .setChunkingFilter(ChunkingFilter.ALL)
                 .setEventManager(guildAllowlistEventManager)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
-                        autoMentionListener, hackedAccountTrapListener, ticketButtonListener, roleMenuInteractionListener)
+                        autoMentionListener, hackedAccountTrapListener, ticketButtonListener, roleMenuInteractionListener,
+                        verifyConfirmationButtonListener)
                 .build()
                 .awaitReady();
 

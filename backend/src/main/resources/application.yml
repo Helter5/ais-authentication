@@ -31,12 +31,17 @@ spring:
     port: ${MAIL_PORT:1025}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:ais-auth}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false} # Mailpit potrebuje false (bez auth); realny SMTP nastav MAIL_SMTP_AUTH=true
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false} # port 587 -> true; port 465 (implicitne SSL) -> MAIL_SMTP_SSL=true namiesto tohto
+          ssl:
+            enable: ${MAIL_SMTP_SSL:false}
+          connectiontimeout: 10000 # bez timeoutu vie zle nakonfigurovany SMTP (napr. spatna kombinacia port/ssl) blokovat
+          timeout: 10000           # celu /verify interakciu na minuty - radsej rychlo zlyhat s chybovou hlaskou
+          writetimeout: 10000
 
 server:
   port: ${SERVER_PORT:8080}
@@ -48,16 +53,15 @@ management:
         enabled: true # /actuator/health/liveness a /readiness - nezavisia od LDAP (na rozdiel od agregovaneho /actuator/health), pouzivane v Docker HEALTHCHECK
 
 app:
-  keycloak:
-    server-url: ${KEYCLOAK_URL:http://localhost:8180}
-    realm: ${KEYCLOAK_REALM:ais-auth}
-    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:ais-auth-backend}
-    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
-    token-client-id: ${KEYCLOAK_TOKEN_CLIENT_ID:ais-auth-tokens}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-signing-key-at-least-32-bytes-long!!}
+    access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:300}
+    refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL_SECONDS:2592000}
   verification:
     allowed-faculties:
       - fei-stud
     required-account-status: student:active
+    testing-mode: ${VERIFICATION_TESTING_MODE:false} # true: /verify preskoci odoslanie mailu a ukaze kod priamo v Discorde
   mail:
     from: ${MAIL_FROM:Verifikácia <noreply@stuba.sk>}
   admin:

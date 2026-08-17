@@ -1,39 +1,33 @@
 package sk.gkanocz.aisauth.support;
 
-import io.jsonwebtoken.Jwts;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import sk.gkanocz.aisauth.TestcontainersConfiguration;
 import sk.gkanocz.aisauth.auth.AdminSession;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
+import sk.gkanocz.aisauth.auth.JwtService;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
 import tools.jackson.core.type.TypeReference;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 /**
- * Issues a real JWT (signed with the fixed test key that {@link TestcontainersConfiguration}'s
- * JwtDecoder bean trusts - no live Keycloak needed) + a matching admin_sessions row, since
- * JwtAuthenticationFilter requires both (a valid signature AND a live session row) before it'll
- * authenticate a request. Lets integration tests exercise the real security filter chain instead
- * of mocking auth away.
+ * Issues a real access token via the same {@link JwtService} production code uses (so it's signed
+ * with whatever app.jwt.secret the test context resolves - no separate test-only key to keep in
+ * sync) + a matching admin_sessions row, since JwtAuthenticationFilter requires both (a valid
+ * signature AND a live session row) before it'll authenticate a request. Lets integration tests
+ * exercise the real security filter chain instead of mocking auth away.
  */
 @Component
 public class AuthenticatedRequestHelper {
@@ -47,6 +41,8 @@ public class AuthenticatedRequestHelper {
     private AdminSettingsService adminSettingsService;
     @Autowired
     private DiscordBotService discordBotService;
+    @Autowired
+    private JwtService jwtService;
 
     public String tokenFor(String discordId, boolean superAdmin, List<String> guildIds) {
         IssuedToken issued = rawIssue(discordId, "test_user", superAdmin, guildIds);
@@ -56,23 +52,8 @@ public class AuthenticatedRequestHelper {
 
     /** Mints a token WITHOUT persisting an admin_sessions row - lets tests simulate a revoked/logged-out session. */
     public IssuedToken rawIssue(String discordId, String username, boolean superAdmin, List<String> guildIds) {
-        String jti = UUID.randomUUID().toString();
-        Instant now = Instant.now();
-        Instant expiresAt = now.plus(1, ChronoUnit.HOURS);
-
-        String token = Jwts.builder()
-                .subject(discordId)
-                .claim("discord_id", discordId)
-                .claim("username", username)
-                .claim("superAdmin", superAdmin)
-                .claim("guildIds", guildIds)
-                .id(jti)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(expiresAt))
-                .signWith(TestcontainersConfiguration.TEST_JWT_SIGNING_KEY)
-                .compact();
-
-        return new IssuedToken(token, jti, LocalDateTime.ofInstant(expiresAt, ZoneId.systemDefault()));
+        JwtService.IssuedAccessToken issued = jwtService.mintAccessToken(discordId, username, null, superAdmin, guildIds);
+        return new IssuedToken(issued.token(), issued.jti(), issued.expiresAt());
     }
 
     public String superAdminToken() {

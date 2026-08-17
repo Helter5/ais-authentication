@@ -29,6 +29,30 @@ public class VerificationService {
 
     @Transactional
     public VerificationCode initiateVerification(String discordId, String guildId, String aisId) {
+        StudentRecord student = resolveEligibleStudent(discordId, guildId, aisId);
+
+        // nahrádza INSERT OR REPLACE zo SQLite - zmažeme predchádzajúci pending kód, ak existuje
+        verificationCodeRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
+
+        String code = generateCode();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(CODE_VALIDITY_MINUTES);
+        VerificationCode verificationCode =
+                new VerificationCode(discordId, guildId, code, student.mail(), aisId, expiresAt);
+        return verificationCodeRepository.save(verificationCode);
+    }
+
+    /**
+     * Read-only preview for the /verify confirmation embed (Discord button flow) - runs the same
+     * LDAP lookup + eligibility checks as initiateVerification but writes nothing, so the user can
+     * see which email the code would go to and back out before anything is actually sent. The
+     * eligibility check re-runs in full when Confirm is clicked (initiateVerification again), which
+     * also re-catches races (e.g. someone else claiming the AIS ID) between preview and confirm.
+     */
+    public String checkEligibility(String discordId, String guildId, String aisId) {
+        return resolveEligibleStudent(discordId, guildId, aisId).mail();
+    }
+
+    private StudentRecord resolveEligibleStudent(String discordId, String guildId, String aisId) {
         assertValidAndNotAlreadyVerified(discordId, guildId, aisId);
 
         StudentRecord student = studentDirectoryService.findByAisId(aisId)
@@ -40,15 +64,7 @@ public class VerificationService {
         if (!student.belongsToAnyFaculty(verificationProperties.allowedFaculties())) {
             throw StudentNotEligibleException.wrongFaculty();
         }
-
-        // nahrádza INSERT OR REPLACE zo SQLite - zmažeme predchádzajúci pending kód, ak existuje
-        verificationCodeRepository.deleteByDiscordIdAndGuildId(discordId, guildId);
-
-        String code = generateCode();
-        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(CODE_VALIDITY_MINUTES);
-        VerificationCode verificationCode =
-                new VerificationCode(discordId, guildId, code, student.mail(), aisId, expiresAt);
-        return verificationCodeRepository.save(verificationCode);
+        return student;
     }
 
     @Transactional
@@ -82,6 +98,17 @@ public class VerificationService {
 
     public Optional<VerifiedUser> findVerifiedUser(String aisId, String guildId) {
         return verifiedUserRepository.findByAisIdAndGuildId(aisId, guildId);
+    }
+
+    /**
+     * Rolls back a VerifiedUser row just created by confirmVerification/manuallyVerify when
+     * assigning the Discord role afterward fails - mirrors the old bot's rollback in code.js /
+     * ManualVerification.js. Without this, a failed role assignment left the user "verified" in
+     * the database with no role and no way to retry /code (their pending code was already deleted).
+     */
+    @Transactional
+    public void revertVerification(VerifiedUser verifiedUser) {
+        verifiedUserRepository.delete(verifiedUser);
     }
 
     @Transactional

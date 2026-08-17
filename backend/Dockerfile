@@ -24,4 +24,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
   CMD wget -qO- http://localhost:8080/actuator/health/liveness | grep -q '"status":"UP"' || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=Europe/Bratislava", "-jar", "app.jar"]

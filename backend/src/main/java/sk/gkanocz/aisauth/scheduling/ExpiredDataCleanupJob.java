@@ -6,6 +6,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
+import sk.gkanocz.aisauth.auth.RefreshTokenRepository;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ public class ExpiredDataCleanupJob {
 
     private final VerificationCodeRepository verificationCodeRepository;
     private final AdminSessionRepository adminSessionRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Scheduled(fixedRate = 15, timeUnit = TimeUnit.MINUTES)
     @Transactional
@@ -25,6 +27,7 @@ public class ExpiredDataCleanupJob {
         LocalDateTime now = LocalDateTime.now();
         verificationCodeRepository.deleteByExpiresAtBefore(now);
         adminSessionRepository.deleteByExpiresAtBefore(now);
-        log.debug("Cleaned up expired verification codes and admin sessions");
+        refreshTokenRepository.deleteByExpiresAtBefore(now);
+        log.debug("Cleaned up expired verification codes, admin sessions, and refresh tokens");
     }
 }

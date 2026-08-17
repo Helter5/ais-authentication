@@ -22,27 +22,33 @@ services:
     container_name: ais-auth-mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # web UI (http://localhost:8025)
+      - "1025:1025" # SMTP - published so tools outside the compose network can send through it too
+    # web UI (8025) deliberately not published - backend only needs SMTP:1025
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    container_name: ais-auth-keycloak
+  vpn:
+    build:
+      context: ./vpn
+      dockerfile: Dockerfile
+    container_name: ais-auth-vpn
     restart: unless-stopped
-    command: start-dev --import-realm
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-dev-only-change-me}
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-dev-only-client-secret-change-me}
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-    ports:
-      - "8180:8080"
+      - ./vpn/client.ovpn:/vpn/client.ovpn:ro
+      - ./vpn/auth.txt:/run/secrets/vpn_auth:ro
+    environment:
+      LDAP_PROXY_PORT: 1389
+      LDAP_UPSTREAM_HOST: ldap.stuba.sk
+      LDAP_UPSTREAM_PORT: 389
+      LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+      test: ["CMD", "/usr/local/bin/vpn-ldap-healthcheck"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 30s
 
   backend:
     build:
@@ -55,7 +61,7 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
-      keycloak:
+      vpn:
         condition: service_healthy
     environment:
       DB_HOST: postgres
@@ -63,13 +69,15 @@ services:
       DB_NAME: ${DB_NAME:-ais_auth}
       DB_USER: ${DB_USER:-ais_auth}
       DB_PASSWORD: ${DB_PASSWORD:-ais_auth}
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-ais-auth}
-      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-ais-auth-backend}
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-dev-only-client-secret-change-me}
-      KEYCLOAK_TOKEN_CLIENT_ID: ${KEYCLOAK_TOKEN_CLIENT_ID:-ais-auth-tokens}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Verifikácia <noreply@stuba.sk>}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
+      MAIL_SMTP_SSL: ${MAIL_SMTP_SSL:-false}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-signing-key-at-least-32-bytes-long!!}
       SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:-}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
@@ -77,8 +85,9 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
-      LDAP_URL: ${LDAP_URL:-ldap://localhost:389}
+      LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
+      VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
     ports:
       - "8080:8080"
 

@@ -3,6 +3,10 @@
 *.env
 !.env.example
 
+# VPN credentials/profile (obsahujú univerzitné heslo + client cert, nikdy necommitovať)
+infra/vpn/auth.txt
+!infra/vpn/auth.txt.example
+
 # OS
 .DS_Store
 

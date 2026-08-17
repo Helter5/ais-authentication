@@ -6,12 +6,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import sk.gkanocz.aisauth.auth.CookieOAuth2AuthorizationRequestRepository;
+import sk.gkanocz.aisauth.auth.DiscordAuthorizationRequestResolver;
 import sk.gkanocz.aisauth.auth.JwtAuthenticationFilter;
+import sk.gkanocz.aisauth.auth.OAuth2LoginFailureHandler;
+import sk.gkanocz.aisauth.auth.OAuth2LoginSuccessHandler;
 
 import java.util.List;
 
@@ -21,6 +26,11 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JsonAuthEntryPoint jsonAuthEntryPoint;
+    private final ClientRegistrationRepository clientRegistrationRepository;
+    private final CookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+    private final DiscordAuthorizationRequestResolver discordAuthorizationRequestResolver;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -46,7 +56,15 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(jsonAuthEntryPoint)
                         .accessDeniedHandler(jsonAuthEntryPoint))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .oauth2Login(oauth2 -> oauth2
+                        .clientRegistrationRepository(clientRegistrationRepository)
+                        .authorizationEndpoint(a -> a
+                                .authorizationRequestResolver(discordAuthorizationRequestResolver)
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository))
+                        .redirectionEndpoint(r -> r.baseUri("/api/auth/discord/callback"))
+                        .successHandler(oAuth2LoginSuccessHandler)
+                        .failureHandler(oAuth2LoginFailureHandler));
 
         return http.build();
     }
