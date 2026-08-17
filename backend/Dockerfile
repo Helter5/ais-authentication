@@ -2,7 +2,7 @@
 # Digest-pinned (not just tag-pinned) so a force-moved tag or registry compromise can't silently
 # change what ships - same reasoning as mailpit's version pin in infra/docker-compose.yml. Re-pin
 # deliberately when picking up new patches: `docker buildx imagetools inspect eclipse-temurin:21-jdk`.
-FROM eclipse-temurin:21-jdk@sha256:57865c22b954cf920cb05a610af81d577e89783282514ba071e99c7357f6c769 AS build
+FROM eclipse-temurin:25-jdk@sha256:c42fecf62f32725c65cfea284c012526d6fb31cc78123c740ebdc1cfd2dced12 AS build
 WORKDIR /build
 
 # Zavislosti sa stiahnu do samostatnej cache vrstvy - zmena v src/ nezneplatni tuto vrstvu
@@ -15,7 +15,7 @@ RUN ./mvnw -B clean package -DskipTests
 
 # ---- runtime stage ----
 # Digest-pinned - see the build-stage comment above.
-FROM eclipse-temurin:21-jre-alpine@sha256:3f08b13888f595cc49edabea7250ba69499ba25602b267da591720769400e08c AS runtime
+FROM eclipse-temurin:25-jre-alpine@sha256:28db6fdf60e38945e43d840c0333aeaec66c15943070104f7586fd3c9d1665b0 AS runtime
 WORKDIR /app
 
 RUN addgroup -g 1001 appgroup && adduser -D -u 1001 -G appgroup appuser
