@@ -11,10 +11,7 @@ spring:
     open-in-view: false # inak SSE endpointy (napr. maintenance/stream) drzia Hikari connection po celu dobu spojenia
     hibernate:
       ddl-auto: validate # schéma sa spravuje výhradne cez Flyway migrácie, nie auto-generovaním
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
+    show-sql: false
 
   flyway:
     enabled: true
