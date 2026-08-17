@@ -39,7 +39,7 @@ public class WipeController {
         if (guildId == null) {
             return Map.of("allowed", false, "reason", "no_guild");
         }
-        if (!guildAccessService.canManageGuild(claims, guildId)) {
+        if (!guildAccessService.isSuperAdmin(claims)) {
             return Map.of("allowed", false, "reason", "no_permission");
         }
         if (logRoutingService.channelIdFor(guildId, LogEventType.WIPE_RECAP).isEmpty()) {
@@ -56,7 +56,11 @@ public class WipeController {
 
     @PostMapping
     public Map<String, Object> startWipe(@AuthenticationPrincipal Claims claims, @RequestBody StartWipeRequest request) {
-        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        // Old app stacked requireSuperAdmin + requireGuildManager on this route - since super
+        // admins already auto-pass canManageGuild too, that combo was effectively super-admin-only
+        // for this destructive action. assertCanManageGuild alone would let any per-guild manager
+        // trigger a wipe, which is a real permission widening on a mass-removal action.
+        guildAccessService.assertSuperAdmin(claims);
         Guild guild = discordBotService.requireGuild(request.guildId());
         List<String> keepRoleIds = request.keepRoleIds() == null ? List.of() : request.keepRoleIds();
         int total = wipeService.start(
