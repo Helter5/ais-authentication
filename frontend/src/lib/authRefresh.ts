@@ -1,4 +1,4 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
 
 let refreshPromise: Promise<boolean> | null = null;
 

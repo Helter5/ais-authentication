@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { refreshSession } from '@/lib/authRefresh';
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
 
 type AuthUser = { id: string; username: string; avatar?: string | null; guildIds?: string[] };
 

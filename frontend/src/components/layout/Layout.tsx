@@ -8,7 +8,7 @@ import { adminApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { setSelectedGuildId, useSelectedGuildId } from "@/components/modules/shared";
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
 const GUILD_KEY = "selected_guild_id";
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#ef4444","#f97316","#22c55e","#06b6d4","#3b82f6"];
 
