@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${DB_USER:-ais_auth}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ais_auth}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432" # loopback only - backend reaches this over the compose network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     container_name: ais-auth-mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025" # SMTP - published so tools outside the compose network can send through it too
+      - "127.0.0.1:1025:1025" # SMTP, loopback only - unauthenticated, for local dev tools on this host
     # web UI (8025) deliberately not published - backend only needs SMTP:1025
 
   vpn:
@@ -92,8 +92,9 @@ services:
       LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
       VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
-    ports:
-      - "8080:8080"
+    # No host port publish - only `frontend`'s nginx proxy (/api/) should reach this, over the
+    # internal compose network. Add a port mapping back in a local dev-override file if you need
+    # to hit the backend directly for debugging.
 
   frontend:
     build:

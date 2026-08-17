@@ -21,6 +21,7 @@ import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.settings.AdminSetting;
 import sk.gkanocz.aisauth.settings.AdminSettingRepository;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -141,8 +142,10 @@ public class CommandManagementController {
 
     @PostMapping("/command-settings")
     public Map<String, Boolean> saveCommandSettings(@AuthenticationPrincipal Claims claims, @RequestBody Map<String, Object> body) {
-        String guildId = (String) body.get("guildId");
-        String command = (String) body.get("command");
+        String guildId = guildAccessService.requireValidGuildId(body.get("guildId"));
+        if (!(body.get("command") instanceof String command) || command.isBlank()) {
+            throw InvalidRequestException.withMessage("A valid command name is required");
+        }
         guildAccessService.assertCanManageGuild(claims, guildId);
         String key = "cmd_settings_" + guildId + "_" + command;
         Map<String, Object> previous = adminSettingsService.get(key, new TypeReference<Map<String, Object>>() { }, Map.of());

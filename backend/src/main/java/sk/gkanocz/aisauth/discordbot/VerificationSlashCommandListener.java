@@ -213,7 +213,6 @@ class VerificationSlashCommandListener {
 
         String message = "**AIS ID:** " + user.getAisId()
                 + "\n**Discord:** <@" + user.getDiscordId() + ">"
-                + "\n**Email:** " + user.getEmail()
                 + "\n**Verified at:** " + user.getVerifiedAt().format(DATE_FORMAT);
         event.getHook().sendMessage(message).queue();
     }
