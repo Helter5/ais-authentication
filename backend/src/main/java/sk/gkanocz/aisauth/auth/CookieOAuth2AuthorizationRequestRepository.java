@@ -48,6 +48,7 @@ public class CookieOAuth2AuthorizationRequestRepository
     private static final int COOKIE_MAX_AGE_SECONDS = 15 * 60;
 
     private final JwtProperties jwtProperties;
+    private final SessionCookieFactory cookieFactory;
 
     @Override
     public OAuth2AuthorizationRequest loadAuthorizationRequest(HttpServletRequest request) {
@@ -61,7 +62,7 @@ public class CookieOAuth2AuthorizationRequestRepository
             deleteCookie(response);
             return;
         }
-        response.addCookie(cookie(encode(authorizationRequest), COOKIE_MAX_AGE_SECONDS));
+        cookieFactory.setLax(response, COOKIE_NAME, encode(authorizationRequest), COOKIE_MAX_AGE_SECONDS);
     }
 
     @Override
@@ -138,14 +139,6 @@ public class CookieOAuth2AuthorizationRequestRepository
     }
 
     private void deleteCookie(HttpServletResponse response) {
-        response.addCookie(cookie("", 0));
-    }
-
-    private Cookie cookie(String value, int maxAge) {
-        Cookie cookie = new Cookie(COOKIE_NAME, value);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(maxAge);
-        return cookie;
+        cookieFactory.expireLax(response, COOKIE_NAME);
     }
 }

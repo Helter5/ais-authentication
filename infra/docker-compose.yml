@@ -18,7 +18,7 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.29.7 # pinned - :latest silently changes what ships on every rebuild
     container_name: ais-auth-mailpit
     restart: unless-stopped
     ports:
@@ -64,6 +64,10 @@ services:
       vpn:
         condition: service_healthy
     environment:
+      # Activates ProductionSecretsValidator (fails fast on a default/placeholder JWT_SECRET) and
+      # application-prod.yml's stricter logging level - this is the real deployment path, unlike
+      # the bare `./mvnw spring-boot:run` local quickstart in README, which stays profile-less.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-ais_auth}

@@ -41,18 +41,20 @@ public class AuthController {
     private final EligibleGuildsResolver eligibleGuildsResolver;
     private final OAuthExchangeStore exchangeStore;
     private final DiscordBotService discordBotService;
+    private final SessionCookieFactory cookieFactory;
+    private final AuthEndpointRateLimiter rateLimiter;
 
     @PostMapping("/exchange")
     public ResponseEntity<SessionResponse> exchange(
-            @RequestBody ExchangeRequest request, HttpServletResponse response) {
+            @RequestBody ExchangeRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
+        rateLimiter.checkAndRecordAttempt("exchange", clientIp(httpRequest));
         OAuthExchangeStore.ExchangedTokens tokens = exchangeStore.consumeToken(request.code());
         if (tokens == null) {
             return ResponseEntity.badRequest().build();
         }
 
         Claims claims = new JwtClaimsAdapter(jwtDecoder.decode(tokens.accessToken()));
-        response.addCookie(authCookie(tokens.accessToken()));
-        response.addCookie(refreshCookie(tokens.refreshToken()));
+        setAuthCookies(response, tokens.accessToken(), tokens.refreshToken());
         return ResponseEntity.ok(new SessionResponse(CurrentUserResponse.fromClaims(claims)));
     }
 
@@ -78,6 +80,7 @@ public class AuthController {
     @PostMapping("/refresh")
     @Transactional
     public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
+        rateLimiter.checkAndRecordAttempt("refresh", clientIp(request));
         String refreshTokenCookie = extractCookie(request, REFRESH_COOKIE_NAME);
         if (refreshTokenCookie == null) {
             throw RefreshTokenInvalidException.create();
@@ -101,8 +104,7 @@ public class AuthController {
         String newRefreshToken = refreshTokenService.issue(
                 previous.discordId(), previous.username(), previous.avatar(), isSuperAdmin, guildIds);
 
-        response.addCookie(authCookie(issued.token()));
-        response.addCookie(refreshCookie(newRefreshToken));
+        setAuthCookies(response, issued.token(), newRefreshToken);
         return ResponseEntity.ok().build();
     }
 
@@ -115,9 +117,19 @@ public class AuthController {
         if (refreshToken != null) {
             refreshTokenService.revoke(refreshToken);
         }
-        response.addCookie(expireCookie(AUTH_COOKIE_NAME));
-        response.addCookie(expireCookie(REFRESH_COOKIE_NAME));
+        cookieFactory.expireStrict(response, AUTH_COOKIE_NAME);
+        cookieFactory.expireStrict(response, REFRESH_COOKIE_NAME);
         return ResponseEntity.ok().build();
+    }
+
+    /** Same X-Forwarded-For convention as OAuth2LoginSuccessHandler.clientIp - both sit behind the
+     * same nginx proxy (see infra/docker-compose.yml). */
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private String extractCookie(HttpServletRequest request, String name) {
@@ -133,28 +145,14 @@ public class AuthController {
         return null;
     }
 
-    private Cookie expireCookie(String name) {
-        Cookie cookie = new Cookie(name, "");
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        return cookie;
-    }
-
-    private Cookie authCookie(String token) {
-        Cookie cookie = new Cookie(AUTH_COOKIE_NAME, token);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(24 * 60 * 60);
-        return cookie;
-    }
-
-    private Cookie refreshCookie(String token) {
-        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, token);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(REFRESH_COOKIE_MAX_AGE);
-        return cookie;
+    /**
+     * SameSite=Strict on both (see SessionCookieFactory javadoc): the SPA only ever sends these via
+     * same-origin XHR/fetch, never a cross-site navigation, so Strict is safe and is what makes
+     * disabling CSRF protection in SecurityConfig a deliberate, verifiable choice.
+     */
+    private void setAuthCookies(HttpServletResponse response, String accessToken, String refreshToken) {
+        cookieFactory.setStrict(response, AUTH_COOKIE_NAME, accessToken, 24 * 60 * 60);
+        cookieFactory.setStrict(response, REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_MAX_AGE);
     }
 
     public record ExchangeRequest(String code) {

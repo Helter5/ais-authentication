@@ -14,7 +14,7 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
             new JwtProperties("test-only-signing-key-at-least-32-bytes-long!!", 300, 2592000);
 
     private final CookieOAuth2AuthorizationRequestRepository repository =
-            new CookieOAuth2AuthorizationRequestRepository(JWT_PROPERTIES);
+            new CookieOAuth2AuthorizationRequestRepository(JWT_PROPERTIES, new SessionCookieFactory());
 
     private OAuth2AuthorizationRequest sampleRequest() {
         return OAuth2AuthorizationRequest.authorizationCode()
@@ -64,6 +64,18 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
     }
 
     @Test
+    void cookieIsSecureAndSameSiteLax() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        repository.saveAuthorizationRequest(sampleRequest(), new MockHttpServletRequest(), response);
+
+        String setCookieHeader = response.getHeader("Set-Cookie");
+        // SameSite=Lax (not Strict) is required here specifically: this cookie has to survive the
+        // cross-site top-level redirect Discord sends the browser back with after login approval.
+        assertThat(setCookieHeader).contains("Secure").contains("SameSite=Lax");
+    }
+
+    @Test
     void savingNullDeletesTheCookie() {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -109,7 +121,7 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
     @Test
     void loadReturnsNullForATokenSignedWithADifferentKey() {
         CookieOAuth2AuthorizationRequestRepository attackerRepository = new CookieOAuth2AuthorizationRequestRepository(
-                new JwtProperties("a-completely-different-signing-key-32-bytes!!", 300, 2592000));
+                new JwtProperties("a-completely-different-signing-key-32-bytes!!", 300, 2592000), new SessionCookieFactory());
         MockHttpServletResponse forgedResponse = new MockHttpServletResponse();
         attackerRepository.saveAuthorizationRequest(sampleRequest(), new MockHttpServletRequest(), forgedResponse);
         MockHttpServletRequest request = requestCarryingCookieFrom(forgedResponse);
