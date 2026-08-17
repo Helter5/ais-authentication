@@ -412,18 +412,16 @@ class VerificationSlashCommandListenerTest {
         AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
         when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
         when(adminSettingsService.get(eq("cmd_settings_guild-1_code"), any(TypeReference.class), any()))
-                .thenReturn(Map.of(
-                        "message", "Vitaj {user} na {server} v {channel}, AIS {ais_id}!",
-                        "linkChannelId", "roles-channel-1"));
+                .thenReturn(Map.of("message", "Vitaj {user} na {server}, AIS {ais_id}!"));
         stubTextReply();
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage("Vitaj TestUser na TestGuild v <#roles-channel-1>, AIS 12345!");
+        verify(hook).sendMessage("Vitaj TestUser na TestGuild, AIS 12345!");
     }
 
     @Test
-    void codeLeavesChannelPlaceholderBlankWhenNoLinkChannelConfigured() {
+    void codeResolvesMultipleChannelTokensToDistinctClickableMentions() {
         asCommand("code");
         enableVerification();
         Role role = mock(Role.class);
@@ -437,12 +435,12 @@ class VerificationSlashCommandListenerTest {
         AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
         when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
         when(adminSettingsService.get(eq("cmd_settings_guild-1_code"), any(TypeReference.class), any()))
-                .thenReturn(Map.of("message", "Pozri sem: {channel}"));
+                .thenReturn(Map.of("message", "Pozri {channel=111111111111111111} a {channel=222222222222222222}."));
         stubTextReply();
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage("Pozri sem: ");
+        verify(hook).sendMessage("Pozri <#111111111111111111> a <#222222222222222222>.");
     }
 
     @Test

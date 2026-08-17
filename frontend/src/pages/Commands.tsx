@@ -38,7 +38,6 @@ type CmdSettingsData = {
   ephemeral?: boolean;
   includeBots?: boolean;
   message?: string;
-  linkChannelId?: string;
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
@@ -46,12 +45,12 @@ const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
-  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean; channelPicker?: boolean;
+  dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
 }> = {
   warn:         { ephemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
   verify:       { ephemeral: true },
-  code:         { message: true, channelPicker: true },
+  code:         { message: true },
   manualverify: { ephemeral: true },
   find:         { ephemeral: true },
   mywarns:      { ephemeral: true },
@@ -224,11 +223,11 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
   const [includeBots, setIncludeBots] = useState(defaults.includeBots ?? false);
   const [message, setMessage] = useState(defaults.message ?? "");
-  const [linkChannelId, setLinkChannelId] = useState<string | null>(defaults.linkChannelId ?? null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   useEffect(() => () => {
@@ -242,8 +241,7 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
         if (schema.dmUser)      setDmUser(data.dmUser ?? defaults.dmUser ?? false);
         if (schema.ephemeral)   setEphemeral(data.ephemeral ?? defaults.ephemeral ?? false);
         if (schema.includeBots) setIncludeBots(data.includeBots ?? defaults.includeBots ?? false);
-        if (schema.message)       setMessage(data.message ?? defaults.message ?? "");
-        if (schema.channelPicker) setLinkChannelId(data.linkChannelId ?? defaults.linkChannelId ?? null);
+        if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -254,22 +252,35 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
     schema.ephemeral,
     schema.includeBots,
     schema.message,
-    schema.channelPicker,
     defaults.dmUser,
     defaults.ephemeral,
     defaults.includeBots,
     defaults.message,
-    defaults.linkChannelId,
   ]);
+
+  /** Inserts a {channel=<id>} token at the cursor (or end, if the textarea isn't focused) - lets one
+   *  message reference any number of different channels, each resolved to its own clickable mention. */
+  const insertChannelToken = (channelId: string | null) => {
+    if (!channelId) return;
+    const token = `{channel=${channelId}}`;
+    const el = messageRef.current;
+    const start = el?.selectionStart ?? message.length;
+    const end = el?.selectionEnd ?? message.length;
+    const next = message.slice(0, start) + token + message.slice(end);
+    setMessage(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
 
   const save = async () => {
     setSaving(true);
     const data: CmdSettingsData = {};
-    if (schema.dmUser)       data.dmUser = dmUser;
-    if (schema.ephemeral)    data.ephemeral = ephemeral;
-    if (schema.includeBots)  data.includeBots = includeBots;
-    if (schema.message)      data.message = message;
-    if (schema.channelPicker) data.linkChannelId = linkChannelId ?? "";
+    if (schema.dmUser)      data.dmUser = dmUser;
+    if (schema.ephemeral)   data.ephemeral = ephemeral;
+    if (schema.includeBots) data.includeBots = includeBots;
+    if (schema.message)     data.message = message;
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
@@ -312,17 +323,16 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
               <Toggle enabled={includeBots} onChange={setIncludeBots} />
             </CmdSettingsRow>
           )}
-          {schema.channelPicker && (
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Link channel</p>
-              <ChannelPicker channels={channels} value={linkChannelId} onChange={setLinkChannelId} placeholder="No channel linked" />
-              <p className="text-[11px] text-zinc-600 mt-1">Channel that <span className="font-mono">{"{channel}"}</span> below points to (clickable channel link, not where the command was run) - e.g. your role-picker channel.</p>
-            </div>
-          )}
           {schema.message && (
             <div>
-              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Success message</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-zinc-400">Success message</p>
+                <div className="w-44">
+                  <ChannelPicker channels={channels} value={null} onChange={insertChannelToken} placeholder="+ Insert channel" />
+                </div>
+              </div>
               <textarea
+                ref={messageRef}
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 rows={3}
@@ -330,7 +340,9 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
                 className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
               />
               <p className="text-[11px] text-zinc-600 mt-1">
-                Placeholders: <span className="font-mono">{"{user}"}</span> <span className="font-mono">{"{server}"}</span> <span className="font-mono">{"{channel}"}</span> <span className="font-mono">{"{ais_id}"}</span>
+                Placeholders: <span className="font-mono">{"{user}"}</span> <span className="font-mono">{"{server}"}</span> <span className="font-mono">{"{ais_id}"}</span>.
+                For channels, pick one from "Insert channel" above (as many times/channels as you want) - it inserts a <span className="font-mono">{"{channel=id}"}</span> token
+                which renders as a clickable link to that channel, wherever you place it in the text.
               </p>
             </div>
           )}

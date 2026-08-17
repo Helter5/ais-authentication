@@ -23,6 +23,8 @@ import java.awt.Color;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -34,6 +36,9 @@ class VerificationSlashCommandListener {
             "Verifikácia je na tomto serveri momentálne vypnutá. Kontaktuj administrátora.";
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
     private static final String DEFAULT_CODE_SUCCESS_MESSAGE = "Úspešne overené! Vitaj.";
+    /** {channel=123456789012345678} - one token per referenced channel, so a single message can
+     * link to as many different channels (roles, rules, welcome, ...) as an admin wants, not just one. */
+    private static final Pattern CHANNEL_TOKEN = Pattern.compile("\\{channel=(\\d+)}");
 
     private final VerificationService verificationService;
     private final GuildSettingsService guildSettingsService;
@@ -174,11 +179,10 @@ class VerificationSlashCommandListener {
     }
 
     /**
-     * "cmd_settings_<guild>_code" -> "message"/"linkChannelId" - configurable via the /code card's
-     * Settings modal (Commands page), falls back to the hardcoded default when unset/blank.
-     * {channel} is deliberately NOT the channel /code was run in - it's an admin-picked channel
-     * (e.g. a role-picker channel), rendered as a real clickable Discord channel mention so the
-     * message can point somewhere useful ("check {channel} to pick your roles").
+     * "cmd_settings_<guild>_code" -> "message" - configurable via the /code card's Settings modal
+     * (Commands page), falls back to the hardcoded default when unset/blank. Every {channel=<id>}
+     * token (there can be several, one per referenced channel) is turned into a real clickable
+     * Discord channel mention - these are admin-picked channels, not the one /code was run in.
      */
     private String codeSuccessMessage(SlashCommandInteractionEvent event, String guildId, VerifiedUser verifiedUser) {
         Map<String, Object> settings = adminSettingsService.get(
@@ -186,13 +190,12 @@ class VerificationSlashCommandListener {
         Object configuredMessage = settings.get("message");
         String template = (configuredMessage instanceof String s && !s.isBlank()) ? s : DEFAULT_CODE_SUCCESS_MESSAGE;
 
-        Object configuredChannel = settings.get("linkChannelId");
-        String channelMention = (configuredChannel instanceof String c && !c.isBlank()) ? "<#" + c + ">" : "";
+        Matcher matcher = CHANNEL_TOKEN.matcher(template);
+        String withChannels = matcher.replaceAll(result -> "<#" + result.group(1) + ">");
 
-        return template
+        return withChannels
                 .replace("{user}", event.getUser().getName())
                 .replace("{server}", event.getGuild().getName())
-                .replace("{channel}", channelMention)
                 .replace("{ais_id}", verifiedUser.getAisId());
     }
 
