@@ -2,6 +2,7 @@ package sk.gkanocz.aisauth.discordbot;
 
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
@@ -15,6 +16,7 @@ import java.util.Map;
  * AuditLogService, so the intentional best-effort behavior (never block the underlying change on
  * a logging failure) lives in exactly one place.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DashboardAuditLogger {
@@ -45,7 +47,10 @@ public class DashboardAuditLogger {
             auditLogService.log(new AuditLogEntry(
                     "dashboard", action, guildId, guildName, null, null, actorId, actorName, details));
         } catch (Exception e) {
-            // best-effort audit trail; never block the underlying change on a logging failure
+            // Best-effort audit trail; never block the underlying change on a logging failure -
+            // but a persistent failure here would otherwise go completely dark (see
+            // security-audit-report.md INFO-002), so at least leave a trace to alert on.
+            log.warn("Failed to write dashboard audit log entry: guild={}, action={}", guildId, action, e);
         }
     }
 }
