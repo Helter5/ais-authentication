@@ -101,16 +101,6 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 
 ---
 
-## Ticket Transcript (`/tickets/:channelId?guildId=...`) 👤
-- [ ] Bez `channelId` alebo `guildId` v URL → "Missing channel or server id in the link."
-- [ ] Chyba pri načítaní → "Failed to load transcript." (alebo iná chyba zo servera).
-- [ ] Hlavička ukazuje Status (open/zatvorené), kto zatvoril a kedy.
-- [ ] Zoznam správ — autor, čas, text, prílohy (klikateľný odkaz, otvorí sa v novom tabe).
-- [ ] Prázdny transcript → "No messages recorded."
-- [ ] Over, že sa logujú VŠETKY správy z kanála, nielen časť (známy podozrivý bug z minula — over explicitne).
-
----
-
 ## Semester Management (`/semester`, `/semester/switch`, `/semester/setup`) 👤
 - [X] Bez servera: "No server selected."
 - [X] Prístup sa kontroluje — kým sa nenačíta: "Checking access…"
@@ -140,25 +130,22 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 - [X] Auto Delete toggle — zapnutie/vypnutie funguje, chyba sa ukáže inline pri zlyhaní.
 
 ### 🔒 Modules → Hacked Account Trap (`/modules/hacked-account-trap`)
-- [X] Breadcrumb späť na Modules.
-- [X] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako vyššie).
-- [X] Trap channel picker (povinný).
-- [X] Uloženie settings bez vybraného kanála → jasná notifikácia "vyber aspoň jeden kanál" (NIE generické "Failed to save settings").
-- [X] Moderation action: Timeout/Kick/Ban; pri Timeout sa objaví stepper na minúty (1–40320).
-- [ ] Delete triggering message toggle.
-- [ ] Delete recent messages toggle → cleanup perióda (1–1440 min).
+Prepracované: modul teraz vždy len permanentne banuje (žiadny výber akcie), incident kanál/ticket systém je preč, cleanup sekcia nahradená Discord-natívnym "delete message history" pri bane.
+- [ ] Breadcrumb späť na Modules.
+- [ ] "Enable/Disable Module" tlačidlo v hlavičke (rovnaká kontrola trap/log kanála ako na Modules stránke).
+- [ ] Trap channel picker (povinný).
+- [ ] Uloženie settings bez vybraného kanála → jasná notifikácia "vyber aspoň jeden kanál" (NIE generické "Failed to save settings").
+- [ ] Žiadny výber moderation akcie v UI — trigger vždy permanentne banuje.
 - [ ] Ignore administrators toggle.
+- [ ] Delete message history toggle → po zapnutí sa objaví dropdown s presne týmito možnosťami: Previous Hour, Previous 6 Hours, Previous 12 Hours, Previous 24 Hours, Previous 3 Days, Previous 7 Days.
+- [ ] Vyskúšaj trigger s Delete message history zapnutým aj vypnutým — over v Discorde (audit log / mazané správy v iných kanáloch), že Discord skutočne zmazal históriu na zvolenú dĺžku, keď je zapnuté, a nezmazal nič navyše, keď je vypnuté.
 - [ ] Exempt roles multi-select.
+- [ ] Delete triggering message toggle.
+- [ ] Message Cleanup sekcia (cleanup perióda v minútach) už neexistuje — over, že sa nikde nezobrazuje.
 - [ ] DM affected user toggle → textarea so správou (placeholder `{user}, {server}`).
-- [ ] Create incident channel toggle → vnorené nastavenia (názov kanála s `{user},{id}`, kategória, kategória po zatvorení, prístup pre postihnutého, správa v kanáli, tag rolí).
+- [ ] Incident Channel sekcia už neexistuje — over, že sa nikde nezobrazuje (žiadny incident kanál sa nevytvára, žiadne ticket ovládacie tlačidlá/príkazy).
 - [ ] Moderation reason input.
 - [ ] "Save Module" — spinner → "Saved!" na 2s.
-- [ ] Hraničné hodnoty (1 a 40320 min pri timeoute, 1 a 1440 pri cleanupe) sa orežú na limity.
-- [ ] Číselné inputy (stepper hodnoty) — zmazanie prvej číslice funguje normálne, nemusíš najprv napísať dve číslice a potom meniť (known bug z minula, over či je opravený).
-- [ ] Incident kanál — meno postihnutého v ňom obsahuje aj tag (`.helter (@helter)`), nielen meno.
-- [ ] Opakované písanie postihnutého do trap kanála po vytvorení ticketu — bot netvorí nový spam, len taguje v existujúcom ticket kanáli (known bug z minula, over či je opravený).
-- [ ] Incident kanál má pripnuté (pin) kontrolné tlačidlá.
-- [ ] Ticket sa dá ovládať aj príkazmi (`/ticketclose`, `/ticketrecap`, `/ticketdelete`, `/ticketopen`), nielen UI tlačidlami.
 
 ### 🔒 Modules → Auto Delete (`/modules/autodelete`)
 - [X] Breadcrumb späť na Modules.
@@ -247,7 +234,6 @@ Legenda: 🔒 = vidno/funguje len pre Super Admina, 👤 = ktokoľvek s manager 
 | `/users` | 👤 manažér |
 | `/semester*` | 👤 manažér + vlastná kontrola prístupu |
 | `/access-logs` | 👤 manažér |
-| `/tickets/:channelId` | 👤 manažér |
 | `/modules*` | 🔒 super admin |
 | `/commands` | 🔒 super admin |
 | `/wipe` | 🔒 super admin + vlastná kontrola prístupu |
@@ -279,7 +265,6 @@ LDAP server, SMTP), alebo reálny servlet request/AsyncListener lifecycle (SSE),
 - [ ] `/user @niekto` — embed s account info, roles, verified status, warns; skús aj na niekom, kto už nie je na serveri.
 - [ ] `/warn add`, `/warn list`, `/warn remove`, `/mywarns`, `/warn clearall` — celý flow, Discord embed/reply formátovanie.
 - [ ] `/verify` flow — AIS ID, doručenie emailu s kódom (bod 5), `/code` na potvrdenie, pridelenie Verified role.
-- [ ] Ticket príkazy (`/ticketclose`, `/ticketrecap`, `/ticketdelete`, `/ticketopen`) v incident kanáli.
 - [ ] Role menu interakcie (klik na tlačidlo/select v role menu správe) — pridelenie/odobratie role.
 - [ ] Moderation auto-action z `/warn` (timeout/kick/ban pri dosiahnutí limitu) — bot má reálne oprávnenia, akcia prebehne v Discorde.
 
@@ -297,11 +282,11 @@ LDAP server, SMTP), alebo reálny servlet request/AsyncListener lifecycle (SSE),
 - [ ] Auto Mention — rola sa naozaj mentionne v správnom kanáli; pri auto-zmazaní mention message zmizne po nastavenom čase.
 
 ## 7. Hacked Account Trap — plný trigger flow
-- [ ] Skutočné triggernutie pasce → incident kanál sa vytvorí, história správ sa presunie/skopíruje, moderation akcia sa aplikuje, DM sa odošle (ak zapnuté).
-- [ ] Opakované písanie postihnutého do trap kanála po vytvorení ticketu — bot nespamuje, len taguje v existujúcom ticket kanáli.
+- [ ] Skutočné triggernutie pasce → autor sa permanentne banuje, DM sa odošle (ak zapnuté), trigger správa sa zmaže (ak zapnuté).
+- [ ] S Delete message history zapnutým → over v Discorde, že sa naozaj zmazala história správ na zvolenú dĺžku (Discord to robí sám ako súčasť banu, dashboard nevracia počet).
+- [ ] Keďže ban je permanentný, autor sa po prvom triggeri už nemôže vrátiť a spustiť trigger znova (žiadna "repeat trigger" logika už neexistuje — bola viazaná na incident kanál/ticket, ktoré sú preč).
 
 ## 8. Scheduled joby (reálny čas)
-- [ ] `TicketTranscriptRetentionJob` — cez reálny `@Scheduled` interval (24h) alebo dočasne skrátený; mažú sa len tickety staršie ako nastavený retention.
 - [ ] `DatabaseSyncService` — reštart bota → v logoch vidno, že sync prebehol a vo `verified_users` zmizli riadky pre ľudí bez Verified role.
 - [ ] `ExpiredDataCleanupJob` — mazanie expirovaných verification codes/sessions po reálnom čase.
 
