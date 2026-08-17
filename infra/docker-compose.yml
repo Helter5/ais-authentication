@@ -92,6 +92,9 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN must be set}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
+      # Plaintext ldap:// - STU's server doesn't offer StartTLS/LDAPS. Accepted risk: this hop is
+      # confined to the internal compose network (never exposed on a host port), and the outer
+      # vpn->ldap.stuba.sk leg is already inside the OpenVPN tunnel. Revisit if STU ever adds TLS.
       LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
       LDAP_USERNAME: ${LDAP_USERNAME:?LDAP_USERNAME must be set}
