@@ -27,6 +27,95 @@ class SemesterControllerIntegrationTest {
     private AuthenticatedRequestHelper auth;
 
     @Test
+    void getMappingsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(get("/api/semester/mappings")
+                        .param("guildId", "some-other-guild")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void saveMappingForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(post("/api/semester/mappings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"some-other-guild\",\"rocnik\":1,\"semester\":1,\"categories\":[]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void setVisibilityForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(post("/api/semester")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"some-other-guild\",\"rocnik\":1,\"semester\":1,\"visible\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getConfigsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(get("/api/semester/configs")
+                        .param("guildId", "some-other-guild")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void saveConfigsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(post("/api/semester/configs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"some-other-guild\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getAccessReturnsNoPermissionReasonInsteadOfForbiddenStatus() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(get("/api/semester/access")
+                        .param("guildId", "some-other-guild")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.reason").value("no_permission"));
+    }
+
+    @Test
+    void getAccessReturnsNoGuildReasonWhenGuildIdOmitted() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(get("/api/semester/access")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.reason").value("no_guild"));
+    }
+
+    @Test
+    void getAccessReturnsNoChannelReasonWhenNoRecapChannelConfigured() throws Exception {
+        String guildId = "guild-sem-access-1";
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(get("/api/semester/access")
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.reason").value("no_channel"));
+    }
+
+    @Test
     void savingAMappingWithAnOutOfRangeRocnikIsBadRequest() throws Exception {
         String guildId = "guild-sem-1";
         String token = auth.managerTokenFor(guildId);
