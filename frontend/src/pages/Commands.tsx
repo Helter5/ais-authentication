@@ -327,7 +327,7 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs font-semibold text-zinc-400">Success message</p>
-                <div className="w-44">
+                <div className="w-64">
                   <ChannelPicker channels={channels} value={null} onChange={insertChannelToken} placeholder="+ Insert channel" />
                 </div>
               </div>
