@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, Trash2, MessageSquare, Radio } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, MessageSquare, Radio } from "lucide-react";
 import { adminApi, apiErrorMessage, type HackedAccountTrapSettings, type DeleteMessageHistorySeconds } from "@/lib/api";
 import { useSelectedGuildId, Toggle, CmdSettingsRow, MultiPicker, ChannelPicker, ModulePageHeader } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
@@ -16,14 +16,12 @@ const DELETE_MESSAGE_HISTORY_OPTIONS: { value: DeleteMessageHistorySeconds; labe
 const DEFAULT_TRAP_SETTINGS: HackedAccountTrapSettings = {
   enabled: false,
   trapChannelId: null,
-  deleteTriggerMessage: true,
   ignoreAdministrators: true,
   exemptRoleIds: [],
   deleteMessageHistory: false,
   deleteMessageHistorySeconds: 3600,
   dmUser: false,
   dmMessage: "Your account triggered the hacked-account trap in {server}. Please contact a server administrator if this was a mistake.",
-  reason: "Hacked account trap triggered",
 };
 
 export function HackedAccountTrapModule() {
@@ -131,7 +129,9 @@ export function HackedAccountTrapModule() {
               <Radio className="w-4 h-4 text-indigo-400" />
               <div>
                 <h2 className="text-sm font-bold text-zinc-100">Trigger</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Posting any message in the trap channel bans the author permanently.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Posting any message in the trap channel <span className="font-bold text-red-400">bans the author permanently</span>.
+                </p>
               </div>
             </div>
             <div className="px-4 py-4 space-y-4">
@@ -170,18 +170,6 @@ export function HackedAccountTrapModule() {
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900">
             <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-              <Trash2 className="w-4 h-4 text-amber-400" />
-              <h2 className="text-sm font-bold text-zinc-100">Trigger Message</h2>
-            </div>
-            <div className="px-4 py-4">
-              <CmdSettingsRow label="Delete triggering message" hint="Remove the message posted in the trap channel">
-                <Toggle enabled={settings.deleteTriggerMessage} onChange={value => update("deleteTriggerMessage", value)} />
-              </CmdSettingsRow>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-emerald-400" />
               <h2 className="text-sm font-bold text-zinc-100">Notify User</h2>
             </div>
@@ -197,19 +185,6 @@ export function HackedAccountTrapModule() {
                   <p className="text-[11px] text-zinc-600">Variables: <span className="font-mono">{"{user}, {server}"}</span></p>
                 </>
               )}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-zinc-400" />
-              <h2 className="text-sm font-bold text-zinc-100">Audit Log</h2>
-            </div>
-            <div className="px-4 py-4">
-              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Moderation reason</p>
-              <input value={settings.reason} onChange={event => update("reason", event.target.value)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
-                placeholder="Reason shown in Discord's audit log" />
             </div>
           </div>
 

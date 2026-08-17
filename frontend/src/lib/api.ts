@@ -124,14 +124,12 @@ export type DeleteMessageHistorySeconds = 3600 | 21600 | 43200 | 86400 | 259200 
 export interface HackedAccountTrapSettings {
   enabled: boolean;
   trapChannelId: string | null;
-  deleteTriggerMessage: boolean;
   ignoreAdministrators: boolean;
   exemptRoleIds: string[];
   deleteMessageHistory: boolean;
   deleteMessageHistorySeconds: DeleteMessageHistorySeconds;
   dmUser: boolean;
   dmMessage: string;
-  reason: string;
 }
 
 export interface AutoMention {

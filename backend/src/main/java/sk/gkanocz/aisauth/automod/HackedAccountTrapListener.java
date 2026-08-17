@@ -25,9 +25,10 @@ import java.util.Map;
 
 /**
  * Mirrors handleHackedAccountTrap from the old bot's messageCreate.js: a message posted in the
- * configured trap channel triggers an optional DM, deletion of the trigger message, and a
- * permanent ban (optionally deleting the author's recent message history via Discord's own
- * ban-duration options), all logged to the "automod" audit category and the guild's spam log.
+ * configured trap channel triggers an optional DM and a permanent ban (optionally deleting the
+ * author's recent message history via Discord's own ban-duration options - the trigger message
+ * itself is deliberately left alone since deleting recent history already covers it), all logged
+ * to the "automod" audit category and the guild's spam log.
  */
 @Slf4j
 @Component
@@ -100,19 +101,9 @@ public class HackedAccountTrapListener extends ListenerAdapter {
             dmSent = sendDm(event, guild, settings.dmMessage());
         }
 
-        boolean triggerDeleted = false;
-        if (settings.deleteTriggerMessage()) {
-            try {
-                message.delete().complete();
-                triggerDeleted = true;
-            } catch (Exception e) {
-                log.error("HackedAccountTrap: Failed to delete trigger message: {}", e.getMessage());
-            }
-        }
-
         int deleteMessageSeconds = settings.deleteMessageHistory() ? settings.deleteMessageHistorySeconds() : 0;
         DiscordModerationService.Outcome outcome = moderationService.apply(
-                member, "ban", settings.reason(), Duration.ZERO, deleteMessageSeconds);
+                member, "ban", HackedAccountTrapSettings.REASON, Duration.ZERO, deleteMessageSeconds);
         boolean actionSucceeded = outcome != null && outcome.success();
         String actionError = null;
         String result;
@@ -134,7 +125,6 @@ public class HackedAccountTrapListener extends ListenerAdapter {
         details.put("result", result);
         details.put("message", triggerContent);
         details.put("moderationAction", "ban");
-        details.put("triggerDeleted", triggerDeleted);
         details.put("deleteMessageHistorySeconds", deleteMessageSeconds);
         details.put("dmSent", dmSent);
         details.put("error", actionError);

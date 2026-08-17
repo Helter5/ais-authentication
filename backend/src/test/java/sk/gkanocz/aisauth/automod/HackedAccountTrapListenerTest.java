@@ -76,23 +76,23 @@ class HackedAccountTrapListenerTest {
 
     private HackedAccountTrapSettings withEnabled(HackedAccountTrapSettings base, boolean enabled) {
         return new HackedAccountTrapSettings(
-                enabled, base.trapChannelId(), base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                enabled, base.trapChannelId(), base.ignoreAdministrators(),
                 base.exemptRoleIds(), base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
-                base.dmUser(), base.dmMessage(), base.reason());
+                base.dmUser(), base.dmMessage());
     }
 
     private HackedAccountTrapSettings withTrapChannelId(HackedAccountTrapSettings base, String trapChannelId) {
         return new HackedAccountTrapSettings(
-                base.enabled(), trapChannelId, base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                base.enabled(), trapChannelId, base.ignoreAdministrators(),
                 base.exemptRoleIds(), base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
-                base.dmUser(), base.dmMessage(), base.reason());
+                base.dmUser(), base.dmMessage());
     }
 
     private HackedAccountTrapSettings withExemptRoleIds(HackedAccountTrapSettings base, List<String> exemptRoleIds) {
         return new HackedAccountTrapSettings(
-                base.enabled(), base.trapChannelId(), base.deleteTriggerMessage(), base.ignoreAdministrators(),
+                base.enabled(), base.trapChannelId(), base.ignoreAdministrators(),
                 exemptRoleIds, base.deleteMessageHistory(), base.deleteMessageHistorySeconds(),
-                base.dmUser(), base.dmMessage(), base.reason());
+                base.dmUser(), base.dmMessage());
     }
 
     private void assertNoTriggerSideEffects() {

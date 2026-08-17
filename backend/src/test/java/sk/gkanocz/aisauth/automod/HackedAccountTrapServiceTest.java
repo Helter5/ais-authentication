@@ -48,8 +48,8 @@ class HackedAccountTrapServiceTest {
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest validRequest() {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                "guild-1", true, "trap-channel", true, true, List.of(),
-                false, 3600, false, "dm message", "reason");
+                "guild-1", true, "trap-channel", true, List.of(),
+                false, 3600, false, "dm message");
     }
 
     @Test
@@ -145,35 +145,35 @@ class HackedAccountTrapServiceTest {
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withEnabled(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, Boolean enabled) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), enabled, r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
-                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
+                r.guildId(), enabled, r.trapChannelId(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withDeleteMessageHistory(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, Boolean deleteMessageHistory, Integer seconds) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
-                r.exemptRoleIds(), deleteMessageHistory, seconds, r.dmUser(), r.dmMessage(), r.reason());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), deleteMessageHistory, seconds, r.dmUser(), r.dmMessage());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withDmMessage(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, String dmMessage) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
-                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), dmMessage, r.reason());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), dmMessage);
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withTrapChannel(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, String trapChannelId) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), trapChannelId, r.deleteTriggerMessage(), r.ignoreAdministrators(),
-                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
+                r.guildId(), r.enabled(), trapChannelId, r.ignoreAdministrators(),
+                r.exemptRoleIds(), r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage());
     }
 
     private HackedAccountTrapService.HackedAccountTrapSaveRequest withExemptRoles(
             HackedAccountTrapService.HackedAccountTrapSaveRequest r, List<String> exemptRoleIds) {
         return new HackedAccountTrapService.HackedAccountTrapSaveRequest(
-                r.guildId(), r.enabled(), r.trapChannelId(), r.deleteTriggerMessage(), r.ignoreAdministrators(),
-                exemptRoleIds, r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage(), r.reason());
+                r.guildId(), r.enabled(), r.trapChannelId(), r.ignoreAdministrators(),
+                exemptRoleIds, r.deleteMessageHistory(), r.deleteMessageHistorySeconds(), r.dmUser(), r.dmMessage());
     }
 }

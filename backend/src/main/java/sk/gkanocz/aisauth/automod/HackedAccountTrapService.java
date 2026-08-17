@@ -40,13 +40,11 @@ public class HackedAccountTrapService {
         validate(guild, request);
 
         HackedAccountTrapSettings settings = new HackedAccountTrapSettings(
-                request.enabled(), request.trapChannelId(),
-                Boolean.TRUE.equals(request.deleteTriggerMessage()), Boolean.TRUE.equals(request.ignoreAdministrators()),
+                request.enabled(), request.trapChannelId(), Boolean.TRUE.equals(request.ignoreAdministrators()),
                 distinct(request.exemptRoleIds()),
                 Boolean.TRUE.equals(request.deleteMessageHistory()),
                 request.deleteMessageHistorySeconds() == null ? 0 : request.deleteMessageHistorySeconds(),
-                Boolean.TRUE.equals(request.dmUser()), request.dmMessage().trim(),
-                blankToDefault(request.reason().trim(), "Hacked account trap triggered"));
+                Boolean.TRUE.equals(request.dmUser()), request.dmMessage().trim());
 
         adminSettingsService.set(key(guild.getId()), settings);
         guildSettingsService.updateField(guild.getId(), "spam_trap_channel_id", settings.trapChannelId());
@@ -60,9 +58,8 @@ public class HackedAccountTrapService {
         if (request.exemptRoleIds() == null) {
             throw InvalidRequestException.withMessage("Invalid exempt roles");
         }
-        if (request.dmMessage() == null || request.dmMessage().length() > 2000
-                || request.reason() == null || request.reason().length() > 512) {
-            throw InvalidRequestException.withMessage("DM message or reason is too long");
+        if (request.dmMessage() == null || request.dmMessage().length() > 2000) {
+            throw InvalidRequestException.withMessage("DM message is too long");
         }
         if (Boolean.TRUE.equals(request.deleteMessageHistory())
                 && (request.deleteMessageHistorySeconds() == null
@@ -90,10 +87,6 @@ public class HackedAccountTrapService {
         return List.copyOf(new LinkedHashSet<>(values));
     }
 
-    private String blankToDefault(String value, String fallback) {
-        return value.isBlank() ? fallback : value;
-    }
-
     private String key(String guildId) {
         return "module_hacked_account_trap_" + guildId;
     }
@@ -102,13 +95,11 @@ public class HackedAccountTrapService {
             String guildId,
             Boolean enabled,
             String trapChannelId,
-            Boolean deleteTriggerMessage,
             Boolean ignoreAdministrators,
             List<String> exemptRoleIds,
             Boolean deleteMessageHistory,
             Integer deleteMessageHistorySeconds,
             Boolean dmUser,
-            String dmMessage,
-            String reason) {
+            String dmMessage) {
     }
 }
