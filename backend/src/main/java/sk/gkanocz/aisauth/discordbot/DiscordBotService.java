@@ -4,9 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Icon;
+import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
@@ -35,6 +37,17 @@ import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 @Component
 @RequiredArgsConstructor
 public class DiscordBotService implements ApplicationRunner {
+
+    /**
+     * Discord-level floor for moderation-only commands (/manualverify, /warn) - locked to
+     * administrators by default at command-DEFINITION time, not just via the runtime
+     * CommandPermissions blob (which defaults to CommandPermissions.empty(), i.e. wide open, until a
+     * super-admin visits the Commands dashboard page and explicitly restricts + redeploys it). Without
+     * this, every freshly-added guild lets any member run /manualverify to self-grant the verified
+     * role (manuallyVerify() skips the LDAP eligibility check entirely) or /warn clearall to erase
+     * another member's warning history.
+     */
+    private static final DefaultMemberPermissions ADMIN_ONLY = DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR);
 
     private final DiscordBotProperties discordBotProperties;
     private final CommandInteractionListener commandInteractionListener;
@@ -116,7 +129,8 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("manualverify", "Manually verify a user by their Discord mention and AIS ID")
                         .addOption(OptionType.USER, "user", "The Discord user to verify", true)
                         .addOption(OptionType.STRING, "ais_id", "The AIS ID to assign to this user", true)
-                        .addOption(OptionType.STRING, "email", "Email address of the user", true),
+                        .addOption(OptionType.STRING, "email", "Email address of the user", true)
+                        .setDefaultPermissions(ADMIN_ONLY),
                 slash("warn", "Manage warnings for a user")
                         .addSubcommands(
                                 new SubcommandData("add", "Warn a user")
@@ -127,7 +141,8 @@ public class DiscordBotService implements ApplicationRunner {
                                 new SubcommandData("clearall", "Clear all warnings for a user")
                                         .addOption(OptionType.USER, "user", "User to clear warnings for", true),
                                 new SubcommandData("list", "View warnings - for a specific user or all warnings in this server")
-                                        .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false)),
+                                        .addOption(OptionType.USER, "user", "User to check warnings for (omit for all)", false))
+                        .setDefaultPermissions(ADMIN_ONLY),
                 slash("mywarns", "Show your own warnings on this server"),
                 slash("info", "Show bot configuration and server information"),
                 slash("user", "Show detailed info about a server member")

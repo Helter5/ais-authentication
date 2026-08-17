@@ -182,7 +182,14 @@ public class CommandManagementController {
         SlashCommandData data = Commands.slash(command.getName(), command.getDescription())
                 .addOptions(command.getOptions());
 
-        if (disabled || permissions.adminOnly()) {
+        // baseCommands() already locks moderation-only commands (/manualverify, /warn) to
+        // administrators at definition time - never rebuild a guild's deployed command data with a
+        // WEAKER default than that floor, or a super-admin who never touched Authorization for those
+        // commands would silently reopen them to every member the next time they click "Sync
+        // Visibility" (adminOnly() is false by default until explicitly configured).
+        boolean baseRequiresAdmin = command.getDefaultPermissions() != DefaultMemberPermissions.ENABLED;
+
+        if (disabled || permissions.adminOnly() || baseRequiresAdmin) {
             data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR));
         }
         return data;

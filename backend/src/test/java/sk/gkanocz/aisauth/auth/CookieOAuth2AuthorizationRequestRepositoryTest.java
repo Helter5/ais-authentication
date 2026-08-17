@@ -10,7 +10,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CookieOAuth2AuthorizationRequestRepositoryTest {
 
-    private final CookieOAuth2AuthorizationRequestRepository repository = new CookieOAuth2AuthorizationRequestRepository();
+    private static final JwtProperties JWT_PROPERTIES =
+            new JwtProperties("test-only-signing-key-at-least-32-bytes-long!!", 300, 2592000);
+
+    private final CookieOAuth2AuthorizationRequestRepository repository =
+            new CookieOAuth2AuthorizationRequestRepository(JWT_PROPERTIES);
 
     private OAuth2AuthorizationRequest sampleRequest() {
         return OAuth2AuthorizationRequest.authorizationCode()
@@ -80,5 +84,36 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
 
         assertThat(removed.getState()).isEqualTo("state-1");
         assertThat(removeResponse.getCookie(CookieOAuth2AuthorizationRequestRepository.COOKIE_NAME).getMaxAge()).isZero();
+    }
+
+    @Test
+    void loadReturnsNullForATamperedCookie() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        repository.saveAuthorizationRequest(sampleRequest(), new MockHttpServletRequest(), response);
+        Cookie cookie = response.getCookie(CookieOAuth2AuthorizationRequestRepository.COOKIE_NAME);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(CookieOAuth2AuthorizationRequestRepository.COOKIE_NAME, cookie.getValue() + "tampered"));
+
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
+    }
+
+    @Test
+    void loadReturnsNullForAGarbageCookieValue() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(CookieOAuth2AuthorizationRequestRepository.COOKIE_NAME, "not-a-jwt"));
+
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
+    }
+
+    @Test
+    void loadReturnsNullForATokenSignedWithADifferentKey() {
+        CookieOAuth2AuthorizationRequestRepository attackerRepository = new CookieOAuth2AuthorizationRequestRepository(
+                new JwtProperties("a-completely-different-signing-key-32-bytes!!", 300, 2592000));
+        MockHttpServletResponse forgedResponse = new MockHttpServletResponse();
+        attackerRepository.saveAuthorizationRequest(sampleRequest(), new MockHttpServletRequest(), forgedResponse);
+        MockHttpServletRequest request = requestCarryingCookieFrom(forgedResponse);
+
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
     }
 }

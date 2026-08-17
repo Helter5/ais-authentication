@@ -1,7 +1,9 @@
 package sk.gkanocz.aisauth.discordbot;
 
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,5 +108,32 @@ class DiscordBotServiceTest {
 
         assertThat(warn.getSubcommands()).extracting(SubcommandData::getName)
                 .containsExactly("add", "remove", "clearall", "list");
+    }
+
+    /**
+     * /manualverify bypasses the LDAP eligibility check entirely and /warn clearall/remove erase
+     * moderation history - both must be locked to administrators at Discord command-definition time,
+     * not left open-by-default pending a super-admin manually configuring CommandPermissions.
+     */
+    @Test
+    void manualVerifyAndWarnAreAdminOnlyByDefault() {
+        List<SlashCommandData> commands = service.baseCommands();
+
+        assertThat(commands.stream().filter(c -> c.getName().equals("manualverify")).findFirst().orElseThrow()
+                .getDefaultPermissions().getPermissionsRaw())
+                .isEqualTo(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR).getPermissionsRaw());
+        assertThat(commands.stream().filter(c -> c.getName().equals("warn")).findFirst().orElseThrow()
+                .getDefaultPermissions().getPermissionsRaw())
+                .isEqualTo(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR).getPermissionsRaw());
+    }
+
+    @Test
+    void everydayCommandsRemainUsableByEveryone() {
+        List<SlashCommandData> commands = service.baseCommands();
+
+        assertThat(commands.stream()
+                        .filter(c -> List.of("verify", "code", "find", "mywarns", "info", "user").contains(c.getName())))
+                .allSatisfy(c -> assertThat(c.getDefaultPermissions().getPermissionsRaw())
+                        .isEqualTo(DefaultMemberPermissions.ENABLED.getPermissionsRaw()));
     }
 }
