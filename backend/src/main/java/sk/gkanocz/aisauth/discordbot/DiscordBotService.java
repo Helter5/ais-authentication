@@ -155,17 +155,22 @@ public class DiscordBotService implements ApplicationRunner {
 
     private void registerCommands() {
         List<SlashCommandData> commands = baseCommands();
+        List<String> guildIds = discordBotProperties.guildIds();
 
-        Guild guild = StringUtils.hasText(discordBotProperties.guildId())
-                ? jda.getGuildById(discordBotProperties.guildId())
-                : null;
-
-        if (guild != null) {
-            guild.updateCommands().addCommands(commands).queue();
-            log.info("Slash commandy zaregistrované na guild {}", discordBotProperties.guildId());
-        } else {
+        if (guildIds.isEmpty()) {
             jda.updateCommands().addCommands(commands).queue();
             log.info("Slash commandy zaregistrované globálne (prejavia sa do ~1h)");
+            return;
+        }
+
+        for (String guildId : guildIds) {
+            Guild guild = jda.getGuildById(guildId);
+            if (guild == null) {
+                log.warn("Bot nie je na guilde {}, preskakujem registráciu commandov", guildId);
+                continue;
+            }
+            guild.updateCommands().addCommands(commands).queue();
+            log.info("Slash commandy zaregistrované na guild {}", guildId);
         }
     }
 }
