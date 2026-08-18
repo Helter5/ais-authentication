@@ -180,5 +180,11 @@ public class DiscordBotService implements ApplicationRunner {
             guild.updateCommands().addCommands(commands).queue();
             log.info("Slash commandy zaregistrované na guild {}", guildId);
         }
+
+        // Wipes any leftover *global* commands (e.g. from a past run before DISCORD_GUILD_ID was
+        // set) - otherwise they linger forever since this branch never touches them, and Discord's
+        // command picker shows both the global and guild-scoped copy of the same command name side
+        // by side as duplicates.
+        jda.updateCommands().queue();
     }
 }
