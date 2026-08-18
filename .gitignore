@@ -22,3 +22,6 @@ CLAUDE.md
 # Frontend (kým nepribudne frontend/.gitignore)
 node_modules/
 dist/
+
+# one-off migration output (contains real PII - emails, discord ids)
+migration.sql
