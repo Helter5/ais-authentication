@@ -163,10 +163,14 @@ class DatabaseSyncServiceTest {
         service.syncAllGuildsAsync(List.of(guild));
 
         verify(verifiedUserRepository, timeout(2000)).deleteByDiscordIdAndGuildId("user-1", "guild-1");
+        // auditLogService.log runs last in syncGuild()'s single-threaded execution, so waiting on it
+        // here also guarantees the two plain verifies below (which happen strictly before it in that
+        // same thread) have already completed - without this, they raced the async task on a loaded
+        // CI runner and intermittently failed with zero interactions.
+        verify(auditLogService, timeout(2000)).log(any());
         verify(guildSettingsService).recordDatabaseSync("guild-1", 1, 1);
         verify(adminSettingsService).set(eq("database_sync_removed_guild-1"),
                 eq(List.of(new RemovedVerificationEntry("user-1", null, "ais-1", "user1@stuba.sk"))));
-        verify(auditLogService).log(any());
     }
 
     @Test
