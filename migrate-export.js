@@ -185,13 +185,27 @@ log('');
     log('');
 }
 
-// ---- admin_settings: only the one key that's identical in both apps ----
+// ---- admin_settings: 'allowed_guild_ids' plus the two recap_channel_* prefixes ----
+// (recap_channel_wipe_<guildId> / recap_channel_semester_<guildId> - RecapChannelBackfillRunner
+// picks these up on next backend start and folds them into log_channel_subscription, then
+// deletes the admin_settings rows itself, so this is a one-time carry-over, not a permanent key.)
 {
     const row = db.prepare("SELECT * FROM admin_settings WHERE key = 'allowed_guild_ids'").get();
     log(`-- admin_settings['allowed_guild_ids']: ${row ? 'found' : 'not found, skipping'}`);
     if (row) {
         log(`INSERT INTO admin_settings (key, value, updated_at) VALUES ` +
             `('allowed_guild_ids', ${sqlJson(row.value, '[]')}, ${sqlStr(row.updated_at)}) ` +
+            `ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;`);
+    }
+    log('');
+
+    const recapRows = db.prepare(
+        "SELECT * FROM admin_settings WHERE key LIKE 'recap_channel_wipe_%' OR key LIKE 'recap_channel_semester_%'"
+    ).all();
+    log(`-- admin_settings recap_channel_wipe_*/recap_channel_semester_*: ${recapRows.length} row(s)`);
+    for (const r of recapRows) {
+        log(`INSERT INTO admin_settings (key, value, updated_at) VALUES ` +
+            `(${sqlStr(r.key)}, ${sqlJson(r.value)}, ${sqlStr(r.updated_at)}) ` +
             `ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;`);
     }
     log('');
