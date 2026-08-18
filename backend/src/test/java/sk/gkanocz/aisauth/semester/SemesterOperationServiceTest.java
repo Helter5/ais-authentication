@@ -13,6 +13,7 @@ import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
+import sk.gkanocz.aisauth.subjectrole.SubjectRoleService;
 
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +48,8 @@ class SemesterOperationServiceTest {
     @Mock
     private LogRoutingService logRoutingService;
     @Mock
+    private SubjectRoleService subjectRoleService;
+    @Mock
     private Guild guild;
 
     private SemesterOperationService service;
@@ -55,7 +58,7 @@ class SemesterOperationServiceTest {
     void setUp() {
         service = new SemesterOperationService(
                 adminSettingsService, dashboardAuditLogger, recapChannelPoster, moderationService,
-                semesterVisibilityService, logRoutingService);
+                semesterVisibilityService, logRoutingService, subjectRoleService);
 
         lenient().when(guild.getId()).thenReturn("guild-1");
         lenient().when(logRoutingService.channelIdFor("guild-1", LogEventType.SEMESTER_RECAP))

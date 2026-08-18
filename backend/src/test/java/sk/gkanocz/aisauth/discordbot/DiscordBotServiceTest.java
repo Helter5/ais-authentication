@@ -48,8 +48,8 @@ class DiscordBotServiceTest {
                 mock(GuildLifecycleListener.class), mock(AutoDeleteListener.class),
                 mock(AutoMentionListener.class), mock(HackedAccountTrapListener.class),
                 mock(RoleMenuInteractionListener.class),
-                mock(VerifyConfirmationButtonListener.class), mock(GuildAllowlistEventManager.class),
-                mock(DatabaseSyncService.class));
+                mock(VerifyConfirmationButtonListener.class), mock(SubjectRoleButtonListener.class),
+                mock(GuildAllowlistEventManager.class), mock(DatabaseSyncService.class));
     }
 
     // ---- jda() / requireGuild() ----
@@ -98,7 +98,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands).extracting(SlashCommandData::getName)
-                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user");
+                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "addpredmet");
     }
 
     @Test
@@ -132,7 +132,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands.stream()
-                        .filter(c -> List.of("verify", "code", "find", "mywarns").contains(c.getName())))
+                        .filter(c -> List.of("verify", "code", "find", "mywarns", "addpredmet").contains(c.getName())))
                 .allSatisfy(c -> assertThat(c.getDefaultPermissions().getPermissionsRaw())
                         .isEqualTo(DefaultMemberPermissions.ENABLED.getPermissionsRaw()));
     }

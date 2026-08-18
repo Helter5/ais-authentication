@@ -14,7 +14,10 @@ public enum LogEventType {
     CODE_CONFIRMED("/code", "Verification completed"),
     MANUAL_VERIFY_PERFORMED("/manualverify", "User manually verified"),
     VERIFIED_ROLE_ADDED_WITHOUT_VERIFY("/verify", "Verified role added to a member without going through /verify or /manualverify"),
-    VERIFIED_USER_REMOVED("/verify", "User removed from the Users Directory (left/kicked/banned, or Verified role removed)");
+    VERIFIED_USER_REMOVED("/verify", "User removed from the Users Directory (left/kicked/banned, or Verified role removed)"),
+    SUBJECT_ROLE_PENDING_APPROVAL("/addpredmet", "Subject role request needs admin approval (3rd+ this semester)"),
+    SUBJECT_ROLE_DECIDED("/addpredmet", "Admin approved or rejected a pending subject role request"),
+    SUBJECT_ROLE_MISSING_ROLE("/addpredmet", "Requested subject role does not exist or the bot cannot assign it");
 
     private final String label;
     private final String description;

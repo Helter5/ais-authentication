@@ -15,6 +15,7 @@ import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
+import sk.gkanocz.aisauth.subjectrole.SubjectRoleService;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,6 +39,7 @@ public class SemesterOperationService {
     private final DiscordModerationService moderationService;
     private final SemesterVisibilityService semesterVisibilityService;
     private final LogRoutingService logRoutingService;
+    private final SubjectRoleService subjectRoleService;
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -293,6 +295,12 @@ public class SemesterOperationService {
                     ? "Resuming: " + oldName + " → " + newName + " (" + tracker.completedCount() + " step"
                             + (tracker.completedCount() == 1 ? "" : "s") + " already complete)"
                     : "Starting: " + oldName + " → " + newName + " (@everyone View Channel = " + newEveryoneViewChannel + " for " + newName + ")");
+        }
+
+        if (!resume) {
+            // A genuinely new switch (not resuming a failed/partial one) marks the semester boundary
+            // that /addpredmet's auto-grant-vs-hold-for-approval counter resets against.
+            subjectRoleService.resetSemester(guildId);
         }
 
         executor.submit(() -> runSwitch(guild, oldSem, newSem, oldName, newName, newEveryoneViewChannel, tracker, actorId, actorName));
