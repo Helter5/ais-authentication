@@ -132,11 +132,8 @@ log('');
                 `(${sqlStr(r.guild_id)}, ${sqlStr(r.spam_log_channel_id)}, 'HACKED_ACCOUNT_TRAP_TRIGGERED') ` +
                 `ON CONFLICT (guild_id, event_type) DO NOTHING;`);
         }
-        if (r.transcript_log_channel_id) {
-            log(`INSERT INTO log_channel_subscription (guild_id, channel_id, event_type) VALUES ` +
-                `(${sqlStr(r.guild_id)}, ${sqlStr(r.transcript_log_channel_id)}, 'TICKET_TRANSCRIPT_SAVED') ` +
-                `ON CONFLICT (guild_id, event_type) DO NOTHING;`);
-        }
+        // transcript_log_channel_id skipped - ticket system removed (5e9d4e6), TICKET_TRANSCRIPT_SAVED
+        // no longer exists in LogEventType.
     }
     log('');
 }
