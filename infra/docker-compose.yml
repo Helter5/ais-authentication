@@ -99,8 +99,9 @@ services:
       # vpn->ldap.stuba.sk leg is already inside the OpenVPN tunnel. Revisit if STU ever adds TLS.
       LDAP_URL: ldap://vpn:1389
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
-      LDAP_USERNAME: ${LDAP_USERNAME:?LDAP_USERNAME must be set}
-      LDAP_PASSWORD: ${LDAP_PASSWORD:?LDAP_PASSWORD must be set}
+      # STU's LDAP allows anonymous read on ou=People - blank is the working config, not a placeholder.
+      LDAP_USERNAME: ${LDAP_USERNAME:-}
+      LDAP_PASSWORD: ${LDAP_PASSWORD:-}
       VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
     # No host port publish - only `frontend`'s nginx proxy (/api/) should reach this, over the
     # internal compose network. Add a port mapping back in a local dev-override file if you need
