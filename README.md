@@ -18,83 +18,6 @@ Prepis staršieho Node.js bota ([ais-authentication](../ais-authentication)) na 
 - **Autorizácia** — super-admini (celá appka) + per-guild manažéri (len svoj server), vynucované na každom endpointe cez `GuildAccessService`.
 - **Prihlasovanie** — Discord OAuth2 (`spring-boot-starter-oauth2-client`, vlastná `ClientRegistration` pre Discord). Appka si sama vydáva a validuje JWT session token + refresh token, žiadny externý identity provider.
 
-## Screenshoty
-
-**Discord bot**
-
-![Verify flow](docs/screenshots/discord-verify.png)
-`/verify` + `/code` flow — zadanie AIS ID, overovací kód na e-mail, pridelenie roly.
-
-**Login / výber servera**
-
-![Login](docs/screenshots/login.png)
-Discord OAuth2 login.
-
-![Select server](docs/screenshots/select-server.png)
-Výber servera (guildu), ktorý spravuješ — super-admin vidí všetky, manažér len svoje.
-
-**Dashboard**
-
-![Dashboard](docs/screenshots/dashboard.png)
-Prehľad servera — stav bota, počet overených členov, aktívne kódy, rýchle štatistiky.
-
-**Overení používatelia / kódy**
-
-![Users](docs/screenshots/users.png)
-Zoznam overených členov, hromadný re-check/wipe proti LDAP.
-
-![Codes](docs/screenshots/codes.png)
-Aktívne overovacie kódy.
-
-**Warny**
-
-![Warns](docs/screenshots/warns.png)
-Warn systém (`/warn`, `/warns`), auto-punishment pri prekročení limitu.
-
-**Moduly / automod**
-
-![Modules](docs/screenshots/modules.png)
-Prehľad zapnutých modulov.
-
-![Hacked Account Trap](docs/screenshots/hacked-account-trap.png)
-Nastavenie trap kanála, výnimiek a akcie pri triggeri.
-
-![Auto delete](docs/screenshots/auto-delete.png)
-Automatické mazanie správ.
-
-![Auto mentions](docs/screenshots/auto-mentions.png)
-Automod pre mention spam.
-
-**Role menu**
-
-![Role menu](docs/screenshots/role-menu.png)
-Správa self-service rolí cez Discord tlačidlá.
-
-**Príkazy**
-
-![Commands](docs/screenshots/commands.png)
-Zapínanie/vypínanie príkazov, per-guild permission overrides.
-
-**Logy**
-
-![Logs](docs/screenshots/logs.png)
-Audit log a access log admin/moderátorských akcií.
-
-**Nastavenia**
-
-![Settings](docs/screenshots/settings.png)
-Nickname bota, timezone, ostatné per-guild nastavenia.
-
-![Switch semester](docs/screenshots/switch-semester.png)
-Prepínanie semestra.
-
-**Super-admin**
-
-![Admin](docs/screenshots/admin.png)
-Globálna admin sekcia (mimo per-guild) — správa manažérov, super-admin nastavenia.
-
-*(obrázky doplň do `docs/screenshots/` pod týmito názvami — README ich už linkuje)*
-
 ## Štruktúra repa
 
 ```
@@ -181,3 +104,44 @@ GitHub Actions (`backend-ci.yml`) spúšťa `./mvnw verify` proti reálnemu Post
 ## Stav
 
 Jadro appky (overenie, dashboard, autorizácia, audit log, Discord OAuth2 login s vlastným JWT, Docker nasadenie, CI) hotové a funkčné. Otvorené: WAR deploy na Tomcat/JBoss, nasadenie na AWS, samostatný modul v Kotline/Quarkuse.
+
+## Screenshoty
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/discord-verify.png" width="100%"><br><sub><b>Discord — <code>/verify</code> flow</b><br>AIS ID → overovací kód na e-mail → pridelenie roly.</sub></td>
+<td width="50%"><img src="docs/screenshots/login.png" width="100%"><br><sub><b>Login</b><br>Discord OAuth2 login.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/select-server.png" width="100%"><br><sub><b>Select server</b><br>Výber servera — super-admin vidí všetky, manažér len svoje.</sub></td>
+<td><img src="docs/screenshots/dashboard.png" width="100%"><br><sub><b>Dashboard</b><br>Stav bota, počet overených členov, aktívne kódy.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/users.png" width="100%"><br><sub><b>Users</b><br>Overení členovia, hromadný re-check/wipe proti LDAP.</sub></td>
+<td><img src="docs/screenshots/codes.png" width="100%"><br><sub><b>Codes</b><br>Aktívne overovacie kódy.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/warns.png" width="100%"><br><sub><b>Warns</b><br><code>/warn</code>, <code>/warns</code>, auto-punishment.</sub></td>
+<td><img src="docs/screenshots/modules.png" width="100%"><br><sub><b>Modules</b><br>Prehľad zapnutých modulov.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/hacked-account-trap.png" width="100%"><br><sub><b>Hacked Account Trap</b><br>Trap kanál, výnimky, akcia pri triggeri.</sub></td>
+<td><img src="docs/screenshots/auto-delete.png" width="100%"><br><sub><b>Auto delete</b><br>Automatické mazanie správ.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/auto-mentions.png" width="100%"><br><sub><b>Auto mentions</b><br>Automod pre mention spam.</sub></td>
+<td><img src="docs/screenshots/role-menu.png" width="100%"><br><sub><b>Role menu</b><br>Self-service roly cez Discord tlačidlá.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/commands.png" width="100%"><br><sub><b>Commands</b><br>Zapínanie/vypínanie príkazov, permission overrides.</sub></td>
+<td><img src="docs/screenshots/logs.png" width="100%"><br><sub><b>Logs</b><br>Audit log a access log admin/moderátorských akcií.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/settings.png" width="100%"><br><sub><b>Settings</b><br>Nickname bota, timezone, per-guild nastavenia.</sub></td>
+<td><img src="docs/screenshots/switch-semester.png" width="100%"><br><sub><b>Switch semester</b><br>Prepínanie semestra.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/admin.png" width="100%"><br><sub><b>Admin</b><br>Globálna super-admin sekcia (mimo per-guild).</sub></td>
+<td></td>
+</tr>
+</table>
