@@ -16,12 +16,16 @@ import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.subjectrole.SubjectRoleRequest;
 import sk.gkanocz.aisauth.subjectrole.SubjectRoleService;
+import tools.jackson.core.type.TypeReference;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * /pridatpredmet - self-service role grant for students repeating or double-enrolled in a subject
@@ -40,7 +44,10 @@ import java.util.Set;
 class SubjectRoleSlashCommandListener {
 
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
+    private static final String DEFAULT_BLOCKED_MESSAGE = "🚫 Nie je v zozname povolených predmetov: {predmety}";
     private static final List<String> SUBJECT_OPTIONS = List.of("predmet1", "predmet2", "predmet3", "predmet4", "predmet5");
+    /** {channel=123456789012345678} - same convention as /code's configurable message. */
+    private static final Pattern CHANNEL_TOKEN = Pattern.compile("\\{channel=(\\d+)}");
 
     private final SubjectRoleService subjectRoleService;
     private final AdminSettingsService adminSettingsService;
@@ -129,7 +136,27 @@ class SubjectRoleSlashCommandListener {
             }
         }
 
-        event.getHook().sendMessage(formatSummary(granted, alreadyHave, pending, blocked, unavailable)).queue();
+        String blockedLine = blocked.isEmpty() ? null : blockedMessage(event, guild.getId(), blocked);
+        event.getHook().sendMessage(formatSummary(granted, alreadyHave, pending, blockedLine, unavailable)).queue();
+    }
+
+    /**
+     * "cmd_settings_<guild>_pridatpredmet" -> "message" - configurable via the card's Settings
+     * modal, same {channel=<id>} + placeholder-token convention as /code's success message.
+     */
+    private String blockedMessage(SlashCommandInteractionEvent event, String guildId, List<String> blocked) {
+        Map<String, Object> settings = adminSettingsService.get(
+                "cmd_settings_" + guildId + "_pridatpredmet", new TypeReference<Map<String, Object>>() { }, Map.of());
+        Object configured = settings.get("message");
+        String template = (configured instanceof String s && !s.isBlank()) ? s : DEFAULT_BLOCKED_MESSAGE;
+
+        Matcher matcher = CHANNEL_TOKEN.matcher(template);
+        String withChannels = matcher.replaceAll(result -> "<#" + result.group(1) + ">");
+
+        return withChannels
+                .replace("{user}", event.getUser().getName())
+                .replace("{server}", event.getGuild().getName())
+                .replace("{predmety}", String.join(", ", blocked));
     }
 
     private record RoleSelection(String rawValue, Role role) {
@@ -171,7 +198,7 @@ class SubjectRoleSlashCommandListener {
     }
 
     private String formatSummary(List<String> granted, List<String> alreadyHave, List<String> pending,
-                                  List<String> blocked, List<String> unavailable) {
+                                  String blockedLine, List<String> unavailable) {
         StringBuilder sb = new StringBuilder();
         if (!granted.isEmpty()) {
             sb.append("✅ Pridelené role: ").append(String.join(", ", granted)).append('\n');
@@ -183,8 +210,8 @@ class SubjectRoleSlashCommandListener {
             sb.append("⏳ Čaká na schválenie adminom (už máš ").append(SubjectRoleService.AUTO_GRANT_LIMIT)
                     .append("+ predmetových rolí tento semester): ").append(String.join(", ", pending)).append('\n');
         }
-        if (!blocked.isEmpty()) {
-            sb.append("🚫 Nie je v zozname povolených predmetov: ").append(String.join(", ", blocked)).append('\n');
+        if (blockedLine != null) {
+            sb.append(blockedLine).append('\n');
         }
         if (!unavailable.isEmpty()) {
             sb.append("⚠️ Nedalo sa spracovať, admin bol upozornený: ").append(String.join(", ", unavailable)).append('\n');

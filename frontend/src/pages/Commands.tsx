@@ -43,6 +43,13 @@ type CmdSettingsData = {
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
+const DEFAULT_BLOCKED_SUBJECT_MESSAGE = "🚫 Nie je v zozname povolených predmetov: {predmety}";
+
+/** Per-command label/placeholder/token-hints for the schema.message textarea - it's the same UI, just different content per command. */
+const CMD_MESSAGE_FIELD: Record<string, { label: string; tokens: string[] }> = {
+  code:         { label: "Success message", tokens: ["{user}", "{server}", "{ais_id}"] },
+  pridatpredmet: { label: "Blocked-subject message", tokens: ["{user}", "{server}", "{predmety}"] },
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,7 +66,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: true },
-  pridatpredmet: { ephemeral: true, allowedRoles: true, approverRoles: true },
+  pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
@@ -72,7 +79,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: false },
-  pridatpredmet: { ephemeral: true, allowedRoleIds: [], approverRoleIds: [] },
+  pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIds: [], approverRoleIds: [] },
 };
 
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
@@ -226,6 +233,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
 }) {
   const schema = CMD_SETTINGS_SCHEMA[commandKey] ?? {};
   const defaults = CMD_SETTINGS_DEFAULTS[commandKey] ?? {};
+  const messageField = CMD_MESSAGE_FIELD[commandKey] ?? { label: "Message", tokens: [] };
 
   const [dmUser, setDmUser] = useState(defaults.dmUser ?? false);
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
@@ -344,7 +352,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
           {schema.message && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <p className="text-xs font-semibold text-zinc-400">Success message</p>
+                <p className="text-xs font-semibold text-zinc-400">{messageField.label}</p>
                 <div className="w-64">
                   <ChannelPicker channels={channels} value={null} onChange={insertChannelToken} placeholder="+ Insert channel" />
                 </div>
@@ -354,11 +362,11 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 rows={3}
-                placeholder={DEFAULT_CODE_MESSAGE}
+                placeholder={defaults.message ?? ""}
                 className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin"
               />
               <p className="text-[11px] text-zinc-600 mt-1">
-                Placeholders: <span className="font-mono">{"{user}"}</span> <span className="font-mono">{"{server}"}</span> <span className="font-mono">{"{ais_id}"}</span>.
+                Placeholders: {messageField.tokens.map(t => <span key={t} className="font-mono">{t} </span>)}
                 For channels, pick one from "Insert channel" above (as many times/channels as you want) - it inserts a <span className="font-mono">{"{channel=id}"}</span> token
                 which renders as a clickable link to that channel, wherever you place it in the text.
               </p>
