@@ -61,6 +61,11 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
 
             Guild guild = event.getGuild();
             Member member = event.getMember();
+            List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
+            if (options.stream().noneMatch(option -> option.roleId().equals(clickedRoleId))) {
+                event.reply("That role isn't part of this menu.").setEphemeral(true).queue();
+                return;
+            }
             Role clickedRole = guild.getRoleById(clickedRoleId);
             if (clickedRole == null) {
                 event.reply("That role no longer exists.").setEphemeral(true).queue();
@@ -71,7 +76,6 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 return;
             }
 
-            List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
             List<String> added = new ArrayList<>();
             List<String> removed = new ArrayList<>();
             boolean single = "SINGLE".equals(config.getSelectionMode());
