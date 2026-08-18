@@ -2,6 +2,7 @@ package sk.gkanocz.aisauth.directory;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.ldap.core.LdapTemplate;
+import org.springframework.ldap.query.ContainerCriteria;
 import org.springframework.ldap.query.LdapQueryBuilder;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +13,10 @@ import javax.naming.directory.Attributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -30,6 +34,20 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
                 this::mapAttributes);
 
         return results.stream().findFirst();
+    }
+
+    @Override
+    public Map<String, StudentRecord> findByAisIds(List<String> aisIds) {
+        if (aisIds.isEmpty()) {
+            return Map.of();
+        }
+        ldapRequestThrottle.awaitTurn();
+        ContainerCriteria criteria = LdapQueryBuilder.query().where("uisId").is(aisIds.get(0));
+        for (int i = 1; i < aisIds.size(); i++) {
+            criteria = criteria.or("uisId").is(aisIds.get(i));
+        }
+        List<StudentRecord> results = ldapTemplate.search(criteria, this::mapAttributes);
+        return results.stream().collect(Collectors.toMap(StudentRecord::uisId, Function.identity(), (a, b) -> a));
     }
 
     private StudentRecord mapAttributes(Attributes attributes) throws NamingException {

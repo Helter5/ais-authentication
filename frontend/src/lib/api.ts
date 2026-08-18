@@ -444,6 +444,11 @@ export const adminApi = {
     return res.data;
   },
 
+  saveWipeSettings: async (guildId: string, removeAllRoles: boolean, keepRoleIds: string[]): Promise<{ removeAllRoles: boolean; keepRoleIds: string[] }> => {
+    const res = await api.post('/wipe/settings', { guildId, removeAllRoles, keepRoleIds });
+    return res.data;
+  },
+
   getSemesterAccess: async (guildId: string): Promise<{ allowed: boolean; reason?: string }> => {
     const res = await api.get('/semester/access', { params: { guildId } });
     return res.data;

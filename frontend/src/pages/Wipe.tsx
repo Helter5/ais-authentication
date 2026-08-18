@@ -50,6 +50,7 @@ export function Wipe() {
   const [removeAllRoles, setRemoveAllRoles] = useState(false);
   const [keepRoleIds, setKeepRoleIds] = useState<string[]>([]);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
+  const [savingSettings, setSavingSettings] = useState(false);
   const { toast } = useToast();
   const [clearedStartedAt, setClearedStartedAt] = useState<string | null>(
     () => localStorage.getItem(`wipe_console_cleared_${guildId}`) ?? null
@@ -133,6 +134,19 @@ export function Wipe() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [guildId, access, state?.running]);
+
+  const handleSaveSettings = async () => {
+    if (!guildId || savingSettings) return;
+    setSavingSettings(true);
+    try {
+      await adminApi.saveWipeSettings(guildId, removeAllRoles, keepRoleIds);
+      toast("Wipe settings saved.");
+    } catch (e: unknown) {
+      toast(apiErrorMessage(e, "Failed to save wipe settings."), "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleStart = async () => {
     if (!guildId || starting) return;
@@ -295,6 +309,14 @@ export function Wipe() {
                 <div className="pl-6 space-y-1.5">
                   <span className="text-xs text-zinc-500">Keep roles — these will not be removed</span>
                   <MultiPicker options={roles} selected={keepRoleIds} onChange={setKeepRoleIds} placeholder="Select role(s) to keep" />
+                  <button
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50"
+                  >
+                    {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {savingSettings ? "Saving…" : "Save settings"}
+                  </button>
                 </div>
               )}
               <div className="border-t border-zinc-800" />

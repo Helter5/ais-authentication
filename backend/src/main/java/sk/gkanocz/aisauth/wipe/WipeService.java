@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +46,9 @@ import java.util.concurrent.Executors;
 @Service
 @RequiredArgsConstructor
 public class WipeService {
+
+    /** OR-filter batch size for LDAP lookups - keeps the filter a reasonable length while cutting a 916-user wipe from ~916 throttled requests to ~23. */
+    private static final int LDAP_BATCH_SIZE = 40;
 
     private final VerifiedUserRepository verifiedUserRepository;
     private final GuildSettingsService guildSettingsService;
@@ -81,6 +85,13 @@ public class WipeService {
         return adminSettingsService.get("wipe_settings_" + guildId, WipeSettings.class, WipeSettings.empty());
     }
 
+    /** Lets an admin persist the removeAllRoles/keepRoleIds choice without actually running a wipe. */
+    public WipeSettings saveSettings(String guildId, boolean removeAllRoles, List<String> keepRoleIds) {
+        WipeSettings settings = new WipeSettings(removeAllRoles, removeAllRoles ? keepRoleIds : List.of());
+        adminSettingsService.set("wipe_settings_" + guildId, settings);
+        return settings;
+    }
+
     public int start(Guild guild, boolean removeAllRoles, List<String> keepRoleIds, String actorId, String actorName) {
         String guildId = guild.getId();
         if (isRunning(guildId)) {
@@ -111,7 +122,7 @@ public class WipeService {
         }
 
         Set<String> keepRoleIdSet = removeAllRoles ? new LinkedHashSet<>(keepRoleIds) : Set.of();
-        adminSettingsService.set("wipe_settings_" + guildId, new WipeSettings(removeAllRoles, List.copyOf(keepRoleIdSet)));
+        saveSettings(guildId, removeAllRoles, List.copyOf(keepRoleIdSet));
 
         WipeState state = new WipeState(verifiedUsers.size());
         state.log("Starting wipe — checking " + verifiedUsers.size() + " verified users against LDAP"
@@ -169,14 +180,28 @@ public class WipeService {
                 return;
             }
 
-            state.log("Checking " + verifiedUsers.size() + " users against LDAP (5 concurrent)...", "info");
+            int batchCount = (verifiedUsers.size() + LDAP_BATCH_SIZE - 1) / LDAP_BATCH_SIZE;
+            state.log("Checking " + verifiedUsers.size() + " users against LDAP in " + batchCount
+                    + " batch(es) of up to " + LDAP_BATCH_SIZE + " (Discord role changes run 5 concurrent)...", "info");
             List<InactiveEntry> inactiveEntries = Collections.synchronizedList(new ArrayList<>());
 
-            List<CompletableFuture<Void>> futures = verifiedUsers.stream()
-                    .map(user -> CompletableFuture.runAsync(() -> processUser(
-                            guild, user, verifiedRole, inactiveRole, removeAllRoles, keepRoleIdSet, self,
-                            state, inactiveEntries, verifiedUsers.size()), executor))
-                    .toList();
+            // LDAP lookups are batched (one OR-filter request per LDAP_BATCH_SIZE users) and run
+            // sequentially here since they all still share the same 1 req/sec LdapRequestThrottle -
+            // batching cuts the number of throttled round trips instead of fighting the throttle
+            // with more threads, which was previously the actual bottleneck (the 5-thread pool below
+            // only ever helped the Discord-side role changes, never the LDAP checks). Only the
+            // per-user Discord work (role changes, DB delete) is dispatched to the executor.
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            for (List<VerifiedUser> batch : partition(verifiedUsers, LDAP_BATCH_SIZE)) {
+                Map<String, StudentRecord> records = studentDirectoryService.findByAisIds(
+                        batch.stream().map(VerifiedUser::getAisId).toList());
+                for (VerifiedUser user : batch) {
+                    boolean verified = Optional.ofNullable(records.get(user.getAisId())).map(this::isEligible).orElse(false);
+                    futures.add(CompletableFuture.runAsync(() -> processUser(
+                            guild, user, verified, verifiedRole, inactiveRole, removeAllRoles, keepRoleIdSet, self,
+                            state, inactiveEntries, verifiedUsers.size()), executor));
+                }
+            }
             futures.forEach(CompletableFuture::join);
 
             sendInactiveLogEmbeds(guild, inactiveEntries);
@@ -201,11 +226,9 @@ public class WipeService {
     }
 
     private void processUser(
-            Guild guild, VerifiedUser user, Role verifiedRole, Role inactiveRole, boolean removeAllRoles,
+            Guild guild, VerifiedUser user, boolean verified, Role verifiedRole, Role inactiveRole, boolean removeAllRoles,
             Set<String> keepRoleIdSet, Member self, WipeState state, List<InactiveEntry> inactiveEntries, int total) {
         try {
-            boolean verified = studentDirectoryService.findByAisId(user.getAisId())
-                    .map(this::isEligible).orElse(false);
             int userNum = state.stats.processed.incrementAndGet();
 
             if (verified) {
@@ -258,6 +281,14 @@ public class WipeService {
     private boolean isEligible(StudentRecord record) {
         return record.hasAccountStatus(verificationProperties.requiredAccountStatus())
                 && record.belongsToAnyFaculty(verificationProperties.allowedFaculties());
+    }
+
+    private static <T> List<List<T>> partition(List<T> list, int size) {
+        List<List<T>> batches = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            batches.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return batches;
     }
 
     private Member retrieveMember(Guild guild, String discordId) {

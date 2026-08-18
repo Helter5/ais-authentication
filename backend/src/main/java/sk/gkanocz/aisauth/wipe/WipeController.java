@@ -38,6 +38,14 @@ public class WipeController {
         return wipeService.getSettings(guildId);
     }
 
+    @ManagerAccess
+    @PostMapping("/settings")
+    public WipeSettings saveSettings(@AuthenticationPrincipal Claims claims, @RequestBody SaveWipeSettingsRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        List<String> keepRoleIds = request.keepRoleIds() == null ? List.of() : request.keepRoleIds();
+        return wipeService.saveSettings(request.guildId(), Boolean.TRUE.equals(request.removeAllRoles()), keepRoleIds);
+    }
+
     @PublicToAuthenticated
     @GetMapping("/access")
     public Map<String, Object> getAccess(@AuthenticationPrincipal Claims claims, @RequestParam(required = false) String guildId) {
@@ -77,5 +85,8 @@ public class WipeController {
     }
 
     public record StartWipeRequest(String guildId, Boolean removeAllRoles, List<String> keepRoleIds) {
+    }
+
+    public record SaveWipeSettingsRequest(String guildId, Boolean removeAllRoles, List<String> keepRoleIds) {
     }
 }

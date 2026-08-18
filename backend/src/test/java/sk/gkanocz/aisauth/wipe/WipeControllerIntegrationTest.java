@@ -63,6 +63,39 @@ class WipeControllerIntegrationTest {
     }
 
     @Test
+    void managerCanSaveSettingsWithoutStartingAWipe() throws Exception {
+        String guildId = "guild-wipe-save-1";
+        String token = auth.managerTokenFor(guildId);
+
+        mockMvc.perform(post("/api/wipe/settings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"" + guildId + "\",\"removeAllRoles\":true,\"keepRoleIds\":[\"role-1\",\"role-2\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.removeAllRoles").value(true))
+                .andExpect(jsonPath("$.keepRoleIds[0]").value("role-1"))
+                .andExpect(jsonPath("$.keepRoleIds[1]").value("role-2"));
+
+        mockMvc.perform(get("/api/wipe/settings")
+                        .param("guildId", guildId)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.removeAllRoles").value(true))
+                .andExpect(jsonPath("$.keepRoleIds[0]").value("role-1"));
+    }
+
+    @Test
+    void saveSettingsForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+        String token = auth.managerTokenFor("guild-owned-by-manager");
+
+        mockMvc.perform(post("/api/wipe/settings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
+                        .content("{\"guildId\":\"some-other-guild\",\"removeAllRoles\":false,\"keepRoleIds\":[]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void startWipeForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 

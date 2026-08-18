@@ -16,12 +16,15 @@ import javax.naming.directory.Attributes;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +68,34 @@ class LdapStudentDirectoryServiceTest {
         Optional<StudentRecord> result = service.findByAisId("12345");
 
         assertThat(result).contains(record);
+    }
+
+    @Test
+    void findByAisIdsReturnsEmptyMapWithoutQueryingWhenGivenNoIds() {
+        Map<String, StudentRecord> result = service.findByAisIds(List.of());
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(ldapTemplate, ldapRequestThrottle);
+    }
+
+    @Test
+    void findByAisIdsAwaitsThrottleOnceForTheWholeBatch() {
+        when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class))).thenReturn(List.of());
+
+        service.findByAisIds(List.of("111", "222", "333"));
+
+        verify(ldapRequestThrottle, times(1)).awaitTurn();
+    }
+
+    @Test
+    void findByAisIdsKeysResultsByUisId() {
+        StudentRecord a = new StudentRecord("111", "a@b.sk", List.of(), List.of(), "A", "B", "A B", "cn");
+        StudentRecord b = new StudentRecord("222", "c@d.sk", List.of(), List.of(), "C", "D", "C D", "cn2");
+        when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class))).thenReturn(List.of(a, b));
+
+        Map<String, StudentRecord> result = service.findByAisIds(List.of("111", "222", "333"));
+
+        assertThat(result).containsOnly(Map.entry("111", a), Map.entry("222", b));
     }
 
     @SuppressWarnings("unchecked")
