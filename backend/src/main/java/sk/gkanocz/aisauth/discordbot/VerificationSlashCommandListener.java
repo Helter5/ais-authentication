@@ -139,6 +139,11 @@ class VerificationSlashCommandListener {
             event.getHook().sendMessage(VERIFICATION_DISABLED_MESSAGE).queue();
             return;
         }
+        if (logRoutingService.channelIdFor(guildId, LogEventType.CODE_CONFIRMED).isEmpty()) {
+            event.getHook().sendMessage(
+                    "Verifikačný log kanál nie je nastavený. Kontaktuj administrátora.").queue();
+            return;
+        }
 
         Role role;
         try {
@@ -227,6 +232,11 @@ class VerificationSlashCommandListener {
 
         if (target == null) {
             event.getHook().sendMessage("User not found in this server.").queue();
+            return;
+        }
+        if (logRoutingService.channelIdFor(guildId, LogEventType.MANUAL_VERIFY_PERFORMED).isEmpty()) {
+            event.getHook().sendMessage(
+                    "Verifikačný log kanál nie je nastavený. Kontaktuj administrátora.").queue();
             return;
         }
 

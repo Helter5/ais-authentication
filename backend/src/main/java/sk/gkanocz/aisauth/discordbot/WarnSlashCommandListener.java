@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
@@ -33,6 +34,7 @@ class WarnSlashCommandListener {
     private final AuditLogService auditLogService;
     private final DiscordModerationService moderationService;
     private final EventLogEmbedSender eventLogEmbedSender;
+    private final LogRoutingService logRoutingService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         if ("mywarns".equals(event.getName())) {
@@ -61,6 +63,9 @@ class WarnSlashCommandListener {
 
         if (target == null) {
             event.getHook().sendMessage("User not found in this server.").queue();
+            return;
+        }
+        if (!requireLogChannel(event, guildId, LogEventType.WARN_ISSUED)) {
             return;
         }
 
@@ -173,6 +178,9 @@ class WarnSlashCommandListener {
         event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
         long warnId = event.getOption("id").getAsLong();
         String guildId = event.getGuild().getId();
+        if (!requireLogChannel(event, guildId, LogEventType.WARN_REMOVED)) {
+            return;
+        }
 
         try {
             Warn removed = warnService.removeWarn(warnId, guildId);
@@ -193,6 +201,9 @@ class WarnSlashCommandListener {
         event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
         User target = event.getOption("user").getAsUser();
         String guildId = event.getGuild().getId();
+        if (!requireLogChannel(event, guildId, LogEventType.WARNS_CLEARED)) {
+            return;
+        }
 
         long cleared = warnService.clearWarns(target.getId(), guildId);
         if (cleared == 0) {
@@ -206,6 +217,15 @@ class WarnSlashCommandListener {
                         .addField("User", EventLogEmbedSender.userField(target.getId(), target.getName()), true)
                         .addField("Moderator", "<@" + event.getUser().getId() + ">", true)
                         .addField("Warnings Cleared", String.valueOf(cleared), true));
+    }
+
+    /** Refuses the subcommand outright when its log channel isn't configured, rather than silently moderating with no trail. */
+    private boolean requireLogChannel(SlashCommandInteractionEvent event, String guildId, LogEventType eventType) {
+        if (logRoutingService.channelIdFor(guildId, eventType).isPresent()) {
+            return true;
+        }
+        event.getHook().sendMessage("Log kanál pre tento príkaz nie je nastavený. Kontaktuj administrátora.").queue();
+        return false;
     }
 
     private String formatWarnList(String title, List<Warn> warns, boolean includeTarget) {

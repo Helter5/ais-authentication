@@ -80,9 +80,10 @@ class SubjectRoleSlashCommandListener {
 
         Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId());
         Set<String> approverRoleIds = SubjectRoleSettings.approverRoleIds(adminSettingsService, guild.getId());
-        if (allowedRoleIds.isEmpty() || approverRoleIds.isEmpty()) {
+        boolean logChannelSet = eventLogEmbedSender.resolveChannel(guild, LogEventType.SUBJECT_ROLE_PENDING_APPROVAL) != null;
+        if (allowedRoleIds.isEmpty() || approverRoleIds.isEmpty() || !logChannelSet) {
             event.getHook().sendMessage("Tento príkaz ešte nie je nastavený administrátorom "
-                    + "(chýbajú povolené predmetové role alebo schvaľovatelia v Settings), skús to neskôr.").queue();
+                    + "(chýbajú povolené predmetové role, schvaľovatelia, alebo Log Channel v Settings), skús to neskôr.").queue();
             return;
         }
 

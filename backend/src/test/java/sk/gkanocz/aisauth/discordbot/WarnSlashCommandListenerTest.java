@@ -17,6 +17,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
@@ -46,6 +47,8 @@ class WarnSlashCommandListenerTest {
     private DiscordModerationService moderationService;
     @Mock
     private EventLogEmbedSender eventLogEmbedSender;
+    @Mock
+    private LogRoutingService logRoutingService;
 
     @Mock
     private SlashCommandInteractionEvent event;
@@ -60,8 +63,9 @@ class WarnSlashCommandListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new WarnSlashCommandListener(warnService, auditLogService, moderationService, eventLogEmbedSender);
+        listener = new WarnSlashCommandListener(warnService, auditLogService, moderationService, eventLogEmbedSender, logRoutingService);
 
+        Mockito.lenient().when(logRoutingService.channelIdFor(anyString(), any(LogEventType.class))).thenReturn(Optional.of("log-channel-1"));
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(guild.getId()).thenReturn("guild-1");
         Mockito.lenient().when(guild.getName()).thenReturn("My Guild");
@@ -248,6 +252,19 @@ class WarnSlashCommandListenerTest {
         verify(hook).sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.");
     }
 
+    @Test
+    void warnRefusesWhenLogChannelNotConfigured() {
+        Member target = targetMember("user-1", "Alice");
+        stubWarnCommand(target, "spam");
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WARN_ISSUED)).thenReturn(Optional.empty());
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage("Log kanál pre tento príkaz nie je nastavený. Kontaktuj administrátora.");
+        verify(warnService, never()).addWarn(any(), any(), any(), any());
+    }
+
     // ---- handleWarns (warn list) ----
 
     @Test
@@ -331,6 +348,22 @@ class WarnSlashCommandListenerTest {
         verify(hook).sendMessage("Warn not found");
     }
 
+    @Test
+    void removeWarnRefusesWhenLogChannelNotConfigured() {
+        when(event.getName()).thenReturn("warn");
+        when(event.getSubcommandName()).thenReturn("remove");
+        OptionMapping idOption = mock(OptionMapping.class);
+        when(idOption.getAsLong()).thenReturn(42L);
+        when(event.getOption("id")).thenReturn(idOption);
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WARN_REMOVED)).thenReturn(Optional.empty());
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage("Log kanál pre tento príkaz nie je nastavený. Kontaktuj administrátora.");
+        verify(warnService, never()).removeWarn(any(), any());
+    }
+
     // ---- handleClearWarns ----
 
     @Test
@@ -369,5 +402,22 @@ class WarnSlashCommandListenerTest {
 
         verify(hook).sendMessage("Cleared 3 warning(s) for Alice.");
         verify(eventLogEmbedSender).send(eq(guild), eq(LogEventType.WARNS_CLEARED), any());
+    }
+
+    @Test
+    void clearWarnsRefusesWhenLogChannelNotConfigured() {
+        when(event.getName()).thenReturn("warn");
+        when(event.getSubcommandName()).thenReturn("clearall");
+        User target = mock(User.class);
+        OptionMapping userOption = mock(OptionMapping.class);
+        when(userOption.getAsUser()).thenReturn(target);
+        when(event.getOption("user")).thenReturn(userOption);
+        when(logRoutingService.channelIdFor("guild-1", LogEventType.WARNS_CLEARED)).thenReturn(Optional.empty());
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(hook).sendMessage("Log kanál pre tento príkaz nie je nastavený. Kontaktuj administrátora.");
+        verify(warnService, never()).clearWarns(any(), any());
     }
 }

@@ -108,6 +108,8 @@ class VerificationSlashCommandListenerTest {
         Mockito.lenient().when(channel.getName()).thenReturn("general");
         Mockito.lenient().when(adminSettingsService.get(anyString(), any(TypeReference.class), any()))
                 .thenReturn(Map.of());
+        Mockito.lenient().when(logRoutingService.channelIdFor(anyString(), any(LogEventType.class)))
+                .thenReturn(Optional.of("channel-1"));
     }
 
     @SuppressWarnings("unchecked")
