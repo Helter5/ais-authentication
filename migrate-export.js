@@ -5,11 +5,13 @@
  *
  * Scope (deliberately NOT everything - see chat for why):
  *   verified_users, warns, warn_thresholds, guild_settings, autodelete_configs, auto_mentions,
- *   incident_tickets, and exactly one admin_settings key ('allowed_guild_ids').
+ *   incident_tickets, and admin_settings in full minus a short denylist of keys confirmed dead
+ *   in the new app (see the EXCLUDE_EXACT/EXCLUDE_PREFIXES lists below - AIS sync scheduling,
+ *   the old ticket incident channel, maintenance_mode, super_admin_users, vpn_log_allowed_users,
+ *   and reaction_roles_enabled_* since reaction roles were redesigned as "rolemenu" with a
+ *   different key/shape - recreate that one manually via dashboard).
  * Explicitly skipped: sessions, access_logs, audit_logs, verification_codes (ephemeral),
- * reaction_roles (redesigned feature, not a 1:1 port - recreate manually via dashboard),
- * news_settings (feature doesn't exist in the new app), every other admin_settings key
- * (command-permission/progress blobs - either regenerable or keyed differently in the rewrite).
+ * news_settings (feature doesn't exist in the new app - separate table, not admin_settings).
  *
  * Usage (run on the server, where better-sqlite3 is already installed for the old app):
  *   node migrate-export.js /opt/app/src/database/database.db > migration.sql
@@ -182,25 +184,25 @@ log('');
     log('');
 }
 
-// ---- admin_settings: 'allowed_guild_ids' plus the two recap_channel_* prefixes ----
-// (recap_channel_wipe_<guildId> / recap_channel_semester_<guildId> - RecapChannelBackfillRunner
-// picks these up on next backend start and folds them into log_channel_subscription, then
-// deletes the admin_settings rows itself, so this is a one-time carry-over, not a permanent key.)
+// ---- admin_settings: full copy, minus keys confirmed dead in the new app ----
+// Key naming turned out to be 1:1 between the old bot and the new app for almost everything
+// here (verified by cross-referencing every admin_settings key prefix against the Java code
+// that reads it - see chat), so this is a denylist, not the old 2-key allowlist. All surviving
+// keys are read as generic Map/DTO shapes (no enum deserialization involved), so an unknown or
+// stale field just gets ignored/defaulted rather than crashing a request - unlike the
+// log_channel_subscription.event_type enum column, which is NOT safe to copy blindly (see the
+// TICKET_TRANSCRIPT_SAVED incident this same migration caused).
 {
-    const row = db.prepare("SELECT * FROM admin_settings WHERE key = 'allowed_guild_ids'").get();
-    log(`-- admin_settings['allowed_guild_ids']: ${row ? 'found' : 'not found, skipping'}`);
-    if (row) {
-        log(`INSERT INTO admin_settings (key, value, updated_at) VALUES ` +
-            `('allowed_guild_ids', ${sqlJson(row.value, '[]')}, ${sqlStr(row.updated_at)}) ` +
-            `ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;`);
-    }
-    log('');
-
-    const recapRows = db.prepare(
-        "SELECT * FROM admin_settings WHERE key LIKE 'recap_channel_wipe_%' OR key LIKE 'recap_channel_semester_%'"
-    ).all();
-    log(`-- admin_settings recap_channel_wipe_*/recap_channel_semester_*: ${recapRows.length} row(s)`);
-    for (const r of recapRows) {
+    const EXCLUDE_EXACT = new Set(['maintenance_mode', 'super_admin_users', 'vpn_log_allowed_users']);
+    const EXCLUDE_PREFIXES = [
+        'sync_interval_days_', 'sync_last_at_', 'sync_next_at_', // AIS sync scheduling - no reader left in the new app
+        'hacked_trap_incident_channel_', // ticket-based incident channel - ticket system removed
+        'reaction_roles_enabled_', // redesigned as "rolemenu" with a different key/shape - recreate manually via dashboard
+    ];
+    const allRows = db.prepare('SELECT * FROM admin_settings').all();
+    const rows = allRows.filter(r => !EXCLUDE_EXACT.has(r.key) && !EXCLUDE_PREFIXES.some(p => r.key.startsWith(p)));
+    log(`-- admin_settings: ${rows.length} row(s) (${allRows.length - rows.length} dead key(s) excluded)`);
+    for (const r of rows) {
         log(`INSERT INTO admin_settings (key, value, updated_at) VALUES ` +
             `(${sqlStr(r.key)}, ${sqlJson(r.value)}, ${sqlStr(r.updated_at)}) ` +
             `ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;`);
