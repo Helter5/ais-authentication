@@ -117,8 +117,25 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # No host port publish - Caddy reaches this over the internal compose network and terminates
+    # TLS in front of it. Add a port mapping back in a local dev-override file for direct access.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ais-auth-caddy
+    restart: unless-stopped
     ports:
-      - "8081:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
