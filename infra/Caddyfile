@@ -1,3 +1,7 @@
 bot.speai.sk {
     reverse_proxy frontend:80
 }
+
+localhost {
+    reverse_proxy frontend:80
+}

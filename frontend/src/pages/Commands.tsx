@@ -38,6 +38,8 @@ type CmdSettingsData = {
   ephemeral?: boolean;
   includeBots?: boolean;
   message?: string;
+  allowedRoleIds?: string[];
+  approverRoleIds?: string[];
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
@@ -46,6 +48,7 @@ const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
+  allowedRoles?: boolean; approverRoles?: boolean;
 }> = {
   warn:         { ephemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
@@ -56,6 +59,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: true },
+  pridatpredmet: { ephemeral: true, allowedRoles: true, approverRoles: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
@@ -68,6 +72,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: false },
+  pridatpredmet: { ephemeral: true, allowedRoleIds: [], approverRoleIds: [] },
 };
 
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
@@ -76,10 +81,11 @@ const CMD_LOG_EVENT_TYPES: Record<string, string[]> = {
   manualverify: ["MANUAL_VERIFY_PERFORMED"],
   verify:       ["VERIFY_REQUESTED", "VERIFIED_ROLE_ADDED_WITHOUT_VERIFY", "VERIFIED_USER_REMOVED"],
   code:         ["CODE_CONFIRMED"],
+  pridatpredmet: ["SUBJECT_ROLE_PENDING_APPROVAL", "SUBJECT_ROLE_MISSING_ROLE"],
 };
 
 /** Commands whose several event types should share one channel picker instead of one row each. */
-const CMD_LOG_COMBINED = new Set(["warn", "verify"]);
+const CMD_LOG_COMBINED = new Set(["warn", "verify", "pridatpredmet"]);
 
 const CATEGORY_ICONS: Record<CmdCategory, React.ElementType> = {
   Moderation:   ShieldAlert,
@@ -101,6 +107,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   ],
   Utility: [
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
+    { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
   ],
 };
 
@@ -209,10 +216,11 @@ function WarnThresholdsEditor({ guildId }: { guildId: string }) {
 
 // ─── Command settings modal ───────────────────────────────────────────────────
 
-function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }: {
+function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onClose }: {
   title: string;
   commandKey: string;
   guildId: string;
+  roles: { id: string; name: string; color?: string }[];
   channels: { id: string; name: string }[];
   onClose: () => void;
 }) {
@@ -223,6 +231,8 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
   const [includeBots, setIncludeBots] = useState(defaults.includeBots ?? false);
   const [message, setMessage] = useState(defaults.message ?? "");
+  const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(defaults.allowedRoleIds ?? []);
+  const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -242,6 +252,8 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
         if (schema.ephemeral)   setEphemeral(data.ephemeral ?? defaults.ephemeral ?? false);
         if (schema.includeBots) setIncludeBots(data.includeBots ?? defaults.includeBots ?? false);
         if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
+        if (schema.allowedRoles) setAllowedRoleIds(data.allowedRoleIds ?? defaults.allowedRoleIds ?? []);
+        if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -252,10 +264,14 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
     schema.ephemeral,
     schema.includeBots,
     schema.message,
+    schema.allowedRoles,
+    schema.approverRoles,
     defaults.dmUser,
     defaults.ephemeral,
     defaults.includeBots,
     defaults.message,
+    defaults.allowedRoleIds,
+    defaults.approverRoleIds,
   ]);
 
   /** Inserts a {channel=<id>} token at the cursor (or end, if the textarea isn't focused) - lets one
@@ -281,6 +297,8 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
     if (schema.ephemeral)   data.ephemeral = ephemeral;
     if (schema.includeBots) data.includeBots = includeBots;
     if (schema.message)     data.message = message;
+    if (schema.allowedRoles) data.allowedRoleIds = allowedRoleIds;
+    if (schema.approverRoles) data.approverRoleIds = approverRoleIds;
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
@@ -345,6 +363,29 @@ function CommandSettingsModal({ title, commandKey, guildId, channels, onClose }:
                 which renders as a clickable link to that channel, wherever you place it in the text.
               </p>
             </div>
+          )}
+          {schema.allowedRoles && (
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Allowed subject roles</p>
+              <p className="text-xs text-zinc-500 mt-0.5 mb-2">
+                Only these roles can be self-assigned via /pridatpredmet - everything else is blocked. Also filters what the command's autocomplete suggests. Empty = nothing is allowed yet.
+              </p>
+              <MultiPicker options={roles} selected={allowedRoleIds} onChange={setAllowedRoleIds} placeholder="Select Role" />
+            </div>
+          )}
+          {schema.approverRoles && (
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Who can approve/reject requests</p>
+              <p className="text-xs text-zinc-500 mt-0.5 mb-2">
+                Members with one of these roles (plus server Administrators) can approve or reject 3rd+ requests. Empty = only Administrators can.
+              </p>
+              <MultiPicker options={roles} selected={approverRoleIds} onChange={setApproverRoleIds} placeholder="Select Role" />
+            </div>
+          )}
+          {schema.allowedRoles && schema.approverRoles && (allowedRoleIds.length === 0 || approverRoleIds.length === 0) && (
+            <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">
+              /pridatpredmet will refuse to run until both allowed subject roles and approvers are set.
+            </p>
           )}
         </div>
       )}
@@ -548,7 +589,8 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
   const [modal, setModal] = useState<"auth" | "settings" | "logs" | null>(null);
   const [toggling, setToggling] = useState(false);
   const { toast } = useToast();
-  const logEventTypes = CMD_LOG_EVENT_TYPES[cmd.name.replace("/", "")];
+  const commandKey = cmd.name.replace("/", "");
+  const logEventTypes = CMD_LOG_EVENT_TYPES[commandKey];
 
   const handleToggle = async (v: boolean) => {
     if (!guildId || toggling) return;
@@ -670,7 +712,7 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
           eventTypes={logEventTypes}
           guildId={guildId}
           onClose={() => setModal(null)}
-          combined={CMD_LOG_COMBINED.has(cmd.name.replace("/", ""))}
+          combined={CMD_LOG_COMBINED.has(commandKey)}
         />
       )}
 
@@ -678,7 +720,7 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
         <PermissionsModal
           title={`Authorization (${cmd.name})`}
           guildId={guildId}
-          commandKey={cmd.name.replace("/", "")}
+          commandKey={commandKey}
           roles={roles}
           channels={channels}
           onClose={() => setModal(null)}
@@ -688,8 +730,9 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
       {modal === "settings" && guildId && (
         <CommandSettingsModal
           title={`Settings (${cmd.name})`}
-          commandKey={cmd.name.replace("/", "")}
+          commandKey={commandKey}
           guildId={guildId}
+          roles={roles}
           channels={channels}
           onClose={() => setModal(null)}
         />

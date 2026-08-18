@@ -2,6 +2,7 @@ package sk.gkanocz.aisauth.discordbot;
 
 import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.events.GenericEvent;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
@@ -47,6 +48,9 @@ public class GuildAllowlistEventManager implements IEventManager {
             return e.getGuild() == null ? null : e.getGuild().getId();
         }
         if (event instanceof StringSelectInteractionEvent e) {
+            return e.getGuild() == null ? null : e.getGuild().getId();
+        }
+        if (event instanceof CommandAutoCompleteInteractionEvent e) {
             return e.getGuild() == null ? null : e.getGuild().getId();
         }
         return null;

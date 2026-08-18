@@ -299,7 +299,7 @@ public class SemesterOperationService {
 
         if (!resume) {
             // A genuinely new switch (not resuming a failed/partial one) marks the semester boundary
-            // that /addpredmet's auto-grant-vs-hold-for-approval counter resets against.
+            // that /pridatpredmet's auto-grant-vs-hold-for-approval counter resets against.
             subjectRoleService.resetSemester(guildId);
         }
 

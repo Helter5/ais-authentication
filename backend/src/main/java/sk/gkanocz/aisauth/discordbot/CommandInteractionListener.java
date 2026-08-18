@@ -30,7 +30,7 @@ import java.util.Set;
 class CommandInteractionListener extends ListenerAdapter {
 
     private static final Set<String> KNOWN_COMMANDS = Set.of(
-            "verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "addpredmet");
+            "verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
     private static final Set<String> REDACT_OPTIONS = Set.of("email");
 

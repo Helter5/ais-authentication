@@ -59,6 +59,7 @@ public class DiscordBotService implements ApplicationRunner {
     private final RoleMenuInteractionListener roleMenuInteractionListener;
     private final VerifyConfirmationButtonListener verifyConfirmationButtonListener;
     private final SubjectRoleButtonListener subjectRoleButtonListener;
+    private final SubjectRoleAutoCompleteListener subjectRoleAutoCompleteListener;
     private final GuildAllowlistEventManager guildAllowlistEventManager;
     private final DatabaseSyncService databaseSyncService;
 
@@ -94,7 +95,7 @@ public class DiscordBotService implements ApplicationRunner {
                 .setEventManager(guildAllowlistEventManager)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
                         autoMentionListener, hackedAccountTrapListener, roleMenuInteractionListener,
-                        verifyConfirmationButtonListener, subjectRoleButtonListener)
+                        verifyConfirmationButtonListener, subjectRoleButtonListener, subjectRoleAutoCompleteListener)
                 .build()
                 .awaitReady();
 
@@ -151,9 +152,12 @@ public class DiscordBotService implements ApplicationRunner {
                 slash("user", "Show detailed info about a server member")
                         .addOption(OptionType.USER, "user", "Member to inspect", true)
                         .setDefaultPermissions(ADMIN_ONLY),
-                slash("addpredmet", "Priraď si rolu predmetu, ktorý opakuješ alebo máš navyše zapísaný")
-                        .addOption(OptionType.STRING, "predmety",
-                                "Kódy predmetov oddelené medzerou alebo čiarkou (napr. mat1 zfi)", true)
+                slash("pridatpredmet", "Priraď si rolu predmetu, ktorý opakuješ alebo máš navyše zapísaný")
+                        .addOption(OptionType.STRING, "predmet1", "Rola predmetu (piš pre návrhy)", true, true)
+                        .addOption(OptionType.STRING, "predmet2", "Ďalšia rola predmetu (voliteľné)", false, true)
+                        .addOption(OptionType.STRING, "predmet3", "Ďalšia rola predmetu (voliteľné)", false, true)
+                        .addOption(OptionType.STRING, "predmet4", "Ďalšia rola predmetu (voliteľné)", false, true)
+                        .addOption(OptionType.STRING, "predmet5", "Ďalšia rola predmetu (voliteľné)", false, true)
         );
     }
 

@@ -27,6 +27,7 @@ public class SubjectRoleRequest {
     @Column(name = "discord_id", nullable = false, length = 32)
     private String discordId;
 
+    /** Discord role ID (picked via a ROLE-type slash command option, never typed text). */
     @Column(name = "subject_code", nullable = false, length = 64)
     private String subjectCode;
 

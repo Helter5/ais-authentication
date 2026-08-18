@@ -49,6 +49,7 @@ class DiscordBotServiceTest {
                 mock(AutoMentionListener.class), mock(HackedAccountTrapListener.class),
                 mock(RoleMenuInteractionListener.class),
                 mock(VerifyConfirmationButtonListener.class), mock(SubjectRoleButtonListener.class),
+                mock(SubjectRoleAutoCompleteListener.class),
                 mock(GuildAllowlistEventManager.class), mock(DatabaseSyncService.class));
     }
 
@@ -98,7 +99,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands).extracting(SlashCommandData::getName)
-                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "addpredmet");
+                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet");
     }
 
     @Test
@@ -132,7 +133,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands.stream()
-                        .filter(c -> List.of("verify", "code", "find", "mywarns", "addpredmet").contains(c.getName())))
+                        .filter(c -> List.of("verify", "code", "find", "mywarns", "pridatpredmet").contains(c.getName())))
                 .allSatisfy(c -> assertThat(c.getDefaultPermissions().getPermissionsRaw())
                         .isEqualTo(DefaultMemberPermissions.ENABLED.getPermissionsRaw()));
     }
