@@ -122,7 +122,9 @@ services:
     # TLS in front of it. Add a port mapping back in a local dev-override file for direct access.
 
   caddy:
-    image: caddy:2-alpine
+    # Digest-pinned, same reasoning as postgres/backend base images above -
+    # re-pin deliberately when picking up new patches: `docker buildx imagetools inspect caddy:2-alpine`.
+    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: ais-auth-caddy
     restart: unless-stopped
     ports:

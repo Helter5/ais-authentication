@@ -101,12 +101,24 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
             return;
         }
 
-        guild.addRoleToMember(target, role).reason("/pridatpredmet approved by " + admin.getId()).queue();
-        subjectRoleService.decide(request, SubjectRoleRequestStatus.APPROVED, admin.getId());
-        finalizeMessage(event, request, true, admin);
-        logDecision(guild, request, "approved", admin);
-        dmBestEffort(guild, request.getDiscordId(), "Tvoja žiadosť o rolu predmetu **" + role.getName()
-                + "** bola schválená administrátorom <@" + admin.getId() + ">.");
+        guild.addRoleToMember(target, role).reason("/pridatpredmet approved by " + admin.getId()).queue(
+                success -> {
+                    subjectRoleService.decide(request, SubjectRoleRequestStatus.APPROVED, admin.getId());
+                    finalizeMessage(event, request, true, admin);
+                    logDecision(guild, request, "approved", admin);
+                    dmBestEffort(guild, request.getDiscordId(), "Tvoja žiadosť o rolu predmetu **" + role.getName()
+                            + "** bola schválená administrátorom <@" + admin.getId() + ">.");
+                },
+                failure -> {
+                    // Request stays PENDING (not decided) so the buttons remain clickable for a retry -
+                    // marking it APPROVED here would tell the DB and the student the role was granted
+                    // when the Discord call actually failed (role moved above the bot, rate limit, ...).
+                    log.warn("Guild {}: failed to grant role {} to {} for request {}",
+                            guild.getId(), role.getId(), target.getId(), request.getId(), failure);
+                    event.getHook().sendMessage(
+                                    "Nepodarilo sa prideliť rolu (skontroluj, či je rola nižšie ako najvyššia rola bota), skús to znova.")
+                            .setEphemeral(true).queue();
+                });
     }
 
     private boolean canDecide(Member admin, String guildId) {
