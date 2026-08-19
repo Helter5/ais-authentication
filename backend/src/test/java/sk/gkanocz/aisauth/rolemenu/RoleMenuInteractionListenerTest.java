@@ -67,7 +67,7 @@ class RoleMenuInteractionListenerTest {
 
     private RoleMenuConfig config(String messageType, boolean requireVerified, Integer maxSelectable, RoleMenuOption... options) {
         RoleMenuConfig config = new RoleMenuConfig(
-                "guild-1", "channel-1", "Pick a role", "desc", "BUTTONS", messageType, requireVerified,
+                "guild-1", "channel-1", null, "Pick a role", "desc", "BUTTONS", messageType, requireVerified,
                 roleMenuService.writeOptions(List.of(options)),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of()), maxSelectable);
         org.springframework.test.util.ReflectionTestUtils.setField(config, "id", 1L);
@@ -162,7 +162,7 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDoesNothingWhenConfigBelongsToADifferentGuild() {
         RoleMenuConfig other = new RoleMenuConfig(
-                "other-guild", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
+                "other-guild", "channel-1", null, "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of()), null);
         when(roleMenuConfigRepository.findById(1L)).thenReturn(Optional.of(other));
@@ -195,7 +195,7 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDeniesWhenMemberHasABlockedRole() {
         RoleMenuConfig cfg = new RoleMenuConfig(
-                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
+                "guild-1", "channel-1", null, "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of("blocked-role")), null);
         org.springframework.test.util.ReflectionTestUtils.setField(cfg, "id", 1L);
@@ -215,7 +215,7 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDeniesWhenMemberLacksAnAllowedRole() {
         RoleMenuConfig cfg = new RoleMenuConfig(
-                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
+                "guild-1", "channel-1", null, "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of("required-role")), roleMenuService.writeRoleIds(List.of()), null);
         org.springframework.test.util.ReflectionTestUtils.setField(cfg, "id", 1L);

@@ -15,6 +15,7 @@ type Draft = Omit<RoleMenuConfig, "id" | "guild_id" | "message_id">;
 
 const DEFAULT_DRAFT: Draft = {
   channel_id: "",
+  config_name: null,
   title: "",
   description: "",
   ui_type: "SELECT_MENU",
@@ -104,6 +105,7 @@ export function RoleMenuModule() {
     setSelectedId(cfg.id);
     setDraft({
       channel_id: cfg.channel_id,
+      config_name: cfg.config_name,
       title: cfg.title,
       description: cfg.description,
       ui_type: cfg.ui_type,
@@ -203,7 +205,7 @@ export function RoleMenuModule() {
             onNew={newCfg}
             newLabel="New Menu"
             emptyLabel="No role menus configured"
-            renderTitle={cfg => cfg.title || "Untitled menu"}
+            renderTitle={cfg => cfg.config_name || cfg.title || "Untitled menu"}
             renderSubtitle={cfg => (
               <>
                 <Hash className="w-2.5 h-2.5" />{channels.find(c => c.id === cfg.channel_id)?.name ?? cfg.channel_id}
@@ -227,6 +229,13 @@ export function RoleMenuModule() {
                   <h2 className="text-sm font-bold text-zinc-100">Message</h2>
                 </div>
                 <div className="px-4 py-4 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Config Name</p>
+                    <input value={draft.config_name ?? ""} onChange={e => upd("config_name", e.target.value || null)}
+                      placeholder="e.g. Enrollment year menu"
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />
+                    <p className="text-[11px] text-zinc-600 mt-1">Optional. Shown in the sidebar list instead of the title - never posted to Discord. Falls back to the title when left blank.</p>
+                  </div>
                   <div>
                     <p className="text-xs font-semibold text-zinc-400 mb-1.5">Channel</p>
                     <ChannelPicker channels={channels} value={draft.channel_id} onChange={v => upd("channel_id", v ?? "")} />

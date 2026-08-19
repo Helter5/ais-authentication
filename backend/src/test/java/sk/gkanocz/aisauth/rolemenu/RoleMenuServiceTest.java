@@ -48,7 +48,7 @@ class RoleMenuServiceTest {
 
     private RoleMenuConfig buttonConfig(String channelId) {
         return new RoleMenuConfig(
-                "guild-1", channelId, "Pick a role", "desc", "BUTTONS", "NORMAL", false,
+                "guild-1", channelId, null, "Pick a role", "desc", "BUTTONS", "NORMAL", false,
                 service.writeOptions(List.of(option("role-1"), option("role-2"))),
                 service.writeRoleIds(List.of()), service.writeRoleIds(List.of()), null);
     }

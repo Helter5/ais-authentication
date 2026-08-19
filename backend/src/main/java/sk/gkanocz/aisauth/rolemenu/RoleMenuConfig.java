@@ -30,6 +30,12 @@ public class RoleMenuConfig {
     @Column(name = "message_id", length = 32)
     private String messageId;
 
+    /** Dashboard-only label for the sidebar list - never sent to Discord (that's what {@link #title}
+     *  is for). Nullable; the sidebar falls back to the title when this is blank so existing configs
+     *  keep showing something meaningful. */
+    @Column(name = "config_name", length = 256)
+    private String configName;
+
     @Column(nullable = false, length = 256)
     private String title;
 
@@ -74,11 +80,12 @@ public class RoleMenuConfig {
     }
 
     public RoleMenuConfig(
-            String guildId, String channelId, String title, String description,
+            String guildId, String channelId, String configName, String title, String description,
             String uiType, String messageType, boolean requireVerified, String options,
             String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.guildId = guildId;
         this.channelId = channelId;
+        this.configName = configName;
         this.title = title;
         this.description = description;
         this.uiType = uiType;
@@ -92,10 +99,11 @@ public class RoleMenuConfig {
     }
 
     public void update(
-            String channelId, String title, String description,
+            String channelId, String configName, String title, String description,
             String uiType, String messageType, boolean requireVerified, String options,
             String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.channelId = channelId;
+        this.configName = configName;
         this.title = title;
         this.description = description;
         this.uiType = uiType;

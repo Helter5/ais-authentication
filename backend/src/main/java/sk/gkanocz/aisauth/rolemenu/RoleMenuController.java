@@ -71,7 +71,7 @@ public class RoleMenuController {
         validate(request);
         RoleMenuConfig config = new RoleMenuConfig(
                 request.guildId(), request.channelId(),
-                request.title(), request.description(),
+                request.configName(), request.title(), request.description(),
                 request.uiType(), request.messageType(),
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
@@ -98,7 +98,7 @@ public class RoleMenuController {
         String previousChannelId = config.getChannelId();
         String previousMessageId = config.getMessageId();
         config.update(
-                request.channelId(), request.title(), request.description(),
+                request.channelId(), request.configName(), request.title(), request.description(),
                 request.uiType(), request.messageType(),
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
@@ -166,7 +166,7 @@ public class RoleMenuController {
     private RoleMenuConfigResponse toResponse(RoleMenuConfig config) {
         return new RoleMenuConfigResponse(
                 config.getId(), config.getGuildId(), config.getChannelId(), config.getMessageId(),
-                config.getTitle(), config.getDescription(), config.getUiType(), config.getMessageType(),
+                config.getConfigName(), config.getTitle(), config.getDescription(), config.getUiType(), config.getMessageType(),
                 config.isRequireVerified(), roleMenuService.readOptions(config.getOptions()),
                 roleMenuService.readRoleIds(config.getAllowedRoleIds()),
                 roleMenuService.readRoleIds(config.getBlockedRoleIds()),
@@ -179,6 +179,7 @@ public class RoleMenuController {
     public record RoleMenuConfigRequest(
             String guildId,
             @JsonProperty("channel_id") String channelId,
+            @JsonProperty("config_name") String configName,
             String title,
             String description,
             @JsonProperty("ui_type") String uiType,
@@ -195,6 +196,7 @@ public class RoleMenuController {
             @JsonProperty("guild_id") String guildId,
             @JsonProperty("channel_id") String channelId,
             @JsonProperty("message_id") String messageId,
+            @JsonProperty("config_name") String configName,
             String title,
             String description,
             @JsonProperty("ui_type") String uiType,
