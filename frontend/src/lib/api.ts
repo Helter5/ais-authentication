@@ -186,6 +186,18 @@ export interface RoleMenuConfig {
   max_selectable: number | null;
 }
 
+export interface ThesisCounterConfig {
+  id: number;
+  guild_id: string;
+  channel_id: string;
+  label: 'BP' | 'DP';
+  target_date: string; // ISO yyyy-MM-dd
+  active: boolean;
+  days_remaining: number;
+  name_format: string | null;
+  today_format: string | null;
+}
+
 export const adminApi = {
   getAdminAccess: async (): Promise<{ allowed: boolean }> => {
     const res = await api.get('/admin/access');
@@ -605,6 +617,36 @@ export const adminApi = {
 
   setRoleMenuEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
     const res = await api.post('/rolemenu/enabled', { guildId, enabled });
+    return res.data;
+  },
+
+  getThesisCounters: async (guildId: string): Promise<ThesisCounterConfig[]> => {
+    const res = await api.get('/thesiscounter', { params: { guildId } });
+    return res.data;
+  },
+
+  createThesisCounter: async (guildId: string, data: { channel_id: string; label: string; target_date: string; name_format: string | null; today_format: string | null }): Promise<ThesisCounterConfig> => {
+    const res = await api.post('/thesiscounter', { guildId, ...data });
+    return res.data;
+  },
+
+  updateThesisCounter: async (id: number, guildId: string, data: { channel_id: string; label: string; target_date: string; name_format: string | null; today_format: string | null }): Promise<ThesisCounterConfig> => {
+    const res = await api.patch(`/thesiscounter/${id}`, { guildId, ...data });
+    return res.data;
+  },
+
+  deleteThesisCounter: async (id: number, guildId: string): Promise<{ success: boolean }> => {
+    const res = await api.delete(`/thesiscounter/${id}`, { params: { guildId } });
+    return res.data;
+  },
+
+  getThesisCounterEnabled: async (guildId: string): Promise<{ enabled: boolean }> => {
+    const res = await api.get('/thesiscounter/enabled', { params: { guildId } });
+    return res.data;
+  },
+
+  setThesisCounterEnabled: async (guildId: string, enabled: boolean): Promise<{ success: boolean }> => {
+    const res = await api.post('/thesiscounter/enabled', { guildId, enabled });
     return res.data;
   },
 };

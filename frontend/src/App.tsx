@@ -18,6 +18,7 @@ const SwitchSemesterModule = lazy(() => import("@/pages/SwitchSemester").then(mo
 const AutoDeleteModule = lazy(() => import("@/pages/AutoDelete").then(module => ({ default: module.AutoDeleteModule })));
 const RoleMenuModule = lazy(() => import("@/pages/RoleMenu").then(module => ({ default: module.RoleMenuModule })));
 const AutoMentionsModule = lazy(() => import("@/pages/AutoMentions").then(module => ({ default: module.AutoMentionsModule })));
+const ThesisCounterModule = lazy(() => import("@/pages/ThesisCounter").then(module => ({ default: module.ThesisCounterModule })));
 const Settings = lazy(() => import("@/pages/Settings").then(module => ({ default: module.Settings })));
 const Wipe = lazy(() => import("@/pages/Wipe").then(module => ({ default: module.Wipe })));
 const SelectServer = lazy(() => import("@/pages/SelectServer").then(module => ({ default: module.SelectServer })));
@@ -57,6 +58,7 @@ function App() {
                   <Route path="/modules/autodelete" element={<AutoDeleteModule />} />
                   <Route path="/modules/rolemenu" element={<RoleMenuModule />} />
                   <Route path="/modules/automentions" element={<AutoMentionsModule />} />
+                  <Route path="/modules/thesiscounter" element={<ThesisCounterModule />} />
                   <Route path="/commands/switchsemester" element={<SwitchSemesterModule />} />
                   {/* legacy redirect handled by duplicate route above */}
                   <Route path="/commands" element={<Commands />} />

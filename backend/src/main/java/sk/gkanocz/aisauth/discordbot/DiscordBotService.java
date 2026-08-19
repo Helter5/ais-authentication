@@ -8,8 +8,10 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Icon;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
@@ -157,7 +159,22 @@ public class DiscordBotService implements ApplicationRunner {
                         .addOption(OptionType.STRING, "predmet2", "Ďalšia rola predmetu (voliteľné)", false, true)
                         .addOption(OptionType.STRING, "predmet3", "Ďalšia rola predmetu (voliteľné)", false, true)
                         .addOption(OptionType.STRING, "predmet4", "Ďalšia rola predmetu (voliteľné)", false, true)
-                        .addOption(OptionType.STRING, "predmet5", "Ďalšia rola predmetu (voliteľné)", false, true)
+                        .addOption(OptionType.STRING, "predmet5", "Ďalšia rola predmetu (voliteľné)", false, true),
+                slash("odpocet", "Sprav si odpočet do obhajoby (BP/DP) v konkrétnej miestnosti")
+                        .addSubcommands(
+                                new SubcommandData("add", "Pridaj nový odpočet do obhajoby na túto miestnosť")
+                                        .addOptions(
+                                                new OptionData(OptionType.CHANNEL, "miestnost", "Miestnosť, ktorej sa bude meniť názov", true)
+                                                        .setChannelTypes(ChannelType.TEXT),
+                                                new OptionData(OptionType.STRING, "typ", "Typ práce", true)
+                                                        .addChoice("BP", "BP").addChoice("DP", "DP"),
+                                                new OptionData(OptionType.STRING, "datum", "Dátum obhajoby vo formáte dd.MM.yyyy", true),
+                                                new OptionData(OptionType.STRING, "format",
+                                                        "Vlastný formát názvu (voliteľné). Placeholdery: {days} {days_word} {label} {target_date}", false),
+                                                new OptionData(OptionType.STRING, "format_dnes",
+                                                        "Formát názvu pre deň D (voliteľné, default dnes-{label})", false)),
+                                new SubcommandData("list", "Zobraz odpočty na tomto serveri"))
+                        .setDefaultPermissions(ADMIN_ONLY)
         );
     }
 

@@ -115,6 +115,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   Utility: [
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
     { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
+    { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module.", settingsHref: "/modules/thesiscounter" },
   ],
 };
 

@@ -86,6 +86,9 @@ export function Modules() {
   const [amEnabled, setAmEnabled] = useState<boolean | null>(null);
   const [amToggling, setAmToggling] = useState(false);
   const [amError, setAmError] = useState<string | null>(null);
+  const [tcEnabled, setTcEnabled] = useState<boolean | null>(null);
+  const [tcToggling, setTcToggling] = useState(false);
+  const [tcError, setTcError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -99,6 +102,8 @@ export function Modules() {
     setRmError(null);
     setAmEnabled(null);
     setAmError(null);
+    setTcEnabled(null);
+    setTcError(null);
     if (!guildId) return () => { cancelled = true; };
     adminApi.getHackedAccountTrap(guildId)
       .then(data => { if (!cancelled) setTrapSettings(data); })
@@ -117,6 +122,9 @@ export function Modules() {
       .catch(error => { if (!cancelled) console.error(error); });
     adminApi.getAutoMentionEnabled(guildId)
       .then(r => { if (!cancelled) setAmEnabled(r.enabled); })
+      .catch(error => { if (!cancelled) console.error(error); });
+    adminApi.getThesisCounterEnabled(guildId)
+      .then(r => { if (!cancelled) setTcEnabled(r.enabled); })
       .catch(error => { if (!cancelled) console.error(error); });
     return () => { cancelled = true; };
   }, [guildId]);
@@ -193,6 +201,21 @@ export function Modules() {
     }
   };
 
+  const toggleTC = async (enabled: boolean) => {
+    setTcError(null);
+    setTcToggling(true);
+    setTcEnabled(enabled);
+    try {
+      await adminApi.setThesisCounterEnabled(guildId, enabled);
+      toast(enabled ? "Thesis Countdown enabled." : "Thesis Countdown disabled.");
+    } catch (err: unknown) {
+      setTcEnabled(prev => prev !== null ? !prev : prev);
+      setTcError(apiErrorMessage(err, "Failed to change the module state."));
+    } finally {
+      setTcToggling(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 md:pl-64">
       <div className="px-4 sm:px-6 pt-5">
@@ -247,6 +270,17 @@ export function Modules() {
               toggling={amToggling}
               loading={amEnabled === null}
               error={amError}
+              guildId={guildId}
+            />
+            <ModuleCard
+              name="Thesis Countdown"
+              description="Renames a room's channel name daily to count down the days left until a BP/DP defense date."
+              href="/modules/thesiscounter"
+              enabled={tcEnabled ?? false}
+              onToggle={toggleTC}
+              toggling={tcToggling}
+              loading={tcEnabled === null}
+              error={tcError}
               guildId={guildId}
             />
           </div>

@@ -43,6 +43,8 @@ class CommandInteractionListenerTest {
     @Mock
     private SubjectRoleSlashCommandListener subjectRoleCommandHandler;
     @Mock
+    private ThesisCounterSlashCommandListener thesisCounterCommandHandler;
+    @Mock
     private AdminSettingsService adminSettingsService;
     @Mock
     private AuditLogService auditLogService;
@@ -64,7 +66,7 @@ class CommandInteractionListenerTest {
     void setUp() {
         listener = new CommandInteractionListener(
                 verificationCommandHandler, warnCommandHandler, utilityCommandHandler, subjectRoleCommandHandler,
-                adminSettingsService, auditLogService);
+                thesisCounterCommandHandler, adminSettingsService, auditLogService);
 
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(event.getName()).thenReturn("verify");
