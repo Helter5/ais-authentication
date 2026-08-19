@@ -142,7 +142,7 @@ class OAuth2LoginSuccessHandlerTest {
     }
 
     @Test
-    void clientIpTrustsTheLastForwardedForSegmentNginxAppendedNotTheClientSuppliedFirstOne() throws Exception {
+    void clientIpTrustsTheSecondToLastForwardedForSegmentCaddyAppendedNotNginxsOwnLastOneOrTheClientSpoofedFirstOne() throws Exception {
         when(discordBotService.jda()).thenReturn(Optional.of(mock(JDA.class)));
         when(authentication.getPrincipal()).thenReturn(discordUser("discord-1"));
         when(eligibleGuildsResolver.computeEligibleGuildIds("discord-1", false)).thenReturn(List.of("guild-1"));
@@ -151,9 +151,11 @@ class OAuth2LoginSuccessHandlerTest {
         when(refreshTokenService.issue(any(), any(), any(), anyBoolean(), any())).thenReturn("r");
 
         MockHttpServletRequest request = new MockHttpServletRequest();
-        // nginx's $proxy_add_x_forwarded_for appends the real peer last - "203.0.113.5" here is a
-        // spoofed value an attacker put on the wire; "10.0.0.1" is what nginx itself vouches for.
-        request.addHeader("X-Forwarded-For", "203.0.113.5, 10.0.0.1");
+        // Two trusted hops in front of the backend (see infra/Caddyfile, frontend/nginx.conf):
+        // Caddy is the edge and appends the real client address it saw ("198.51.100.9"); nginx
+        // then appends its own upstream peer, i.e. Caddy's container IP ("172.29.0.7"). The first
+        // segment, "203.0.113.5", is attacker-supplied and must never be trusted either.
+        request.addHeader("X-Forwarded-For", "203.0.113.5, 198.51.100.9, 172.29.0.7");
         request.setRemoteAddr("172.17.0.1");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -162,6 +164,6 @@ class OAuth2LoginSuccessHandlerTest {
         ArgumentCaptor<sk.gkanocz.aisauth.admin.AccessLog> captor =
                 ArgumentCaptor.forClass(sk.gkanocz.aisauth.admin.AccessLog.class);
         verify(accessLogRepository).save(captor.capture());
-        assertThat(captor.getValue().getIp()).isEqualTo("10.0.0.1");
+        assertThat(captor.getValue().getIp()).isEqualTo("198.51.100.9");
     }
 }
