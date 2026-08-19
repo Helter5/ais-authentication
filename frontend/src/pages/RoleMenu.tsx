@@ -1,16 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
+import { useState } from "react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw,
-  Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
-  useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, computeDropPosition,
+  useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, EmojiPickerButton,
   ModulePageHeader, ConfigSidebar, EmptyConfigSelection,
 } from "@/components/modules/shared";
 
@@ -39,77 +36,6 @@ const MESSAGE_TYPES: { value: RoleMenuConfig["message_type"]; label: string; des
 
 function emptyOption(): RoleMenuOption {
   return { role_ids: [], label: "", emoji: null, description: null };
-}
-
-// ─── Emoji picker (Discord custom emoji + unicode, with search) ─────────────
-
-const EMOJI_PICKER_WIDTH = 320;
-const EMOJI_PICKER_HEIGHT = 430;
-
-function EmojiPickerButton({ value, onChange, guildEmojis }: {
-  value: string | null;
-  onChange: (value: string | null) => void;
-  guildEmojis: DiscordEmoji[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (dropRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  const customEmojis = useMemo(
-    () => guildEmojis.map(e => ({ names: [e.name], imgUrl: e.url, id: e.mention })),
-    [guildEmojis]
-  );
-  const customPreview = value ? guildEmojis.find(e => e.mention.toLowerCase() === value.toLowerCase()) : undefined;
-
-  const handleOpen = () => {
-    if (triggerRef.current) setPos(computeDropPosition(triggerRef.current.getBoundingClientRect(), EMOJI_PICKER_WIDTH, EMOJI_PICKER_HEIGHT));
-    setOpen(o => !o);
-  };
-
-  return (
-    <>
-      <button ref={triggerRef} type="button" onClick={handleOpen}
-        className="w-14 h-[30px] flex-shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded text-sm hover:border-zinc-500 transition-colors">
-        {customPreview
-          ? <img src={customPreview.url} alt={customPreview.name} className="w-4 h-4" />
-          : value
-            ? <span>{value}</span>
-            : <Smile className="w-4 h-4 text-zinc-500" />}
-      </button>
-      {open && pos && createPortal(
-        <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}>
-          <EmojiPicker
-            theme={EmojiTheme.DARK}
-            emojiStyle={EmojiStyle.NATIVE}
-            customEmojis={customEmojis}
-            onEmojiClick={data => { onChange(data.emoji); setOpen(false); }}
-            previewConfig={{ showPreview: false }}
-            width={EMOJI_PICKER_WIDTH}
-            height={380}
-          />
-          {value && (
-            <button type="button" onClick={() => { onChange(null); setOpen(false); }}
-              className="mt-1.5 w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors">
-              Clear emoji
-            </button>
-          )}
-        </div>,
-        document.body
-      )}
-    </>
-  );
 }
 
 export function RoleMenuModule() {
@@ -430,7 +356,8 @@ export function RoleMenuModule() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="w-4 flex-shrink-0" />
-                          <EmojiPickerButton value={option.emoji} onChange={v => updOption(i, { emoji: v })} guildEmojis={guildEmojis} />
+                          <EmojiPickerButton value={option.emoji} guildEmojis={guildEmojis}
+                            onSelect={v => updOption(i, { emoji: v })} onClear={() => updOption(i, { emoji: null })} />
                           <input value={option.label} onChange={e => updOption(i, { label: e.target.value })}
                             placeholder={option.role_ids.length > 1 ? "e.g. 2. ROCNIK + API" : "Label shown to members"}
                             className="flex-1 min-w-0 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />

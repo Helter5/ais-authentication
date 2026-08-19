@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
+import { useRef, useState } from "react";
 import { adminApi, apiErrorMessage, type ThesisCounterConfig } from "@/lib/api";
-import { AlertCircle, CalendarClock, CheckCircle2, Hash, Loader2, Smile, Trash2 } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Hash, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import {
-  useSelectedGuildId, ChannelPicker, ModulePageHeader, ConfigSidebar, EmptyConfigSelection, computeDropPosition,
+  useSelectedGuildId, ChannelPicker, ModulePageHeader, ConfigSidebar, EmptyConfigSelection, EmojiPickerButton,
 } from "@/components/modules/shared";
 
 type Draft = { channel_id: string; label: "BP" | "DP"; target_date: string; name_format: string; today_format: string };
@@ -20,38 +18,15 @@ function sanitizeChannelNameLike(value: string): string {
   return value.replace(/ /g, "-").toLowerCase();
 }
 
-const EMOJI_PICKER_WIDTH = 320;
-const EMOJI_PICKER_HEIGHT = 430;
-
 /** Text input for a channel-name template: live space-to-hyphen/lowercase like Discord's own
- *  rename box, plus a unicode emoji picker inserted at the cursor (custom Discord emoji don't
- *  render in channel names, so only unicode emoji are offered here). */
+ *  rename box, plus an emoji picker inserted at the cursor (custom Discord emoji don't render in
+ *  channel names, so the shared picker's unicode-only mode is used - no guildEmojis passed). */
 function TemplateInput({ value, onChange, placeholder }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (dropRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  const handleOpen = () => {
-    if (triggerRef.current) setPos(computeDropPosition(triggerRef.current.getBoundingClientRect(), EMOJI_PICKER_WIDTH, EMOJI_PICKER_HEIGHT));
-    setOpen(o => !o);
-  };
 
   const insertEmoji = (emoji: string) => {
     const el = inputRef.current;
@@ -59,7 +34,6 @@ function TemplateInput({ value, onChange, placeholder }: {
     const end = el?.selectionEnd ?? value.length;
     const next = sanitizeChannelNameLike(value.slice(0, start) + emoji + value.slice(end));
     onChange(next);
-    setOpen(false);
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(start + emoji.length, start + emoji.length);
@@ -71,23 +45,8 @@ function TemplateInput({ value, onChange, placeholder }: {
       <input ref={inputRef} value={value} onChange={e => onChange(sanitizeChannelNameLike(e.target.value))}
         placeholder={placeholder}
         className="flex-1 min-w-0 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 font-mono outline-none focus:border-indigo-500 transition-colors" />
-      <button ref={triggerRef} type="button" onClick={handleOpen}
-        className="w-9 h-[38px] flex-shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded hover:border-zinc-500 transition-colors">
-        <Smile className="w-4 h-4 text-zinc-500" />
-      </button>
-      {open && pos && createPortal(
-        <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}>
-          <EmojiPicker
-            theme={EmojiTheme.DARK}
-            emojiStyle={EmojiStyle.NATIVE}
-            onEmojiClick={data => insertEmoji(data.emoji)}
-            previewConfig={{ showPreview: false }}
-            width={EMOJI_PICKER_WIDTH}
-            height={380}
-          />
-        </div>,
-        document.body
-      )}
+      <EmojiPickerButton onSelect={insertEmoji}
+        buttonClassName="w-9 h-[38px] flex-shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded hover:border-zinc-500 transition-colors" />
     </div>
   );
 }
