@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ldap.CommunicationException;
 import org.springframework.ldap.core.AttributesMapper;
 import org.springframework.ldap.core.LdapTemplate;
 import org.springframework.ldap.query.LdapQuery;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -96,6 +98,33 @@ class LdapStudentDirectoryServiceTest {
         Map<String, StudentRecord> result = service.findByAisIds(List.of("111", "222", "333"));
 
         assertThat(result).containsOnly(Map.entry("111", a), Map.entry("222", b));
+    }
+
+    // See LdapStudentDirectoryService.searchWithRetry: retries once on CommunicationException to
+    // ride out the university VPN's ~2-minute ping-restart cycle - the real retry backoff (2s) is
+    // exercised here rather than mocked out, so these two tests are deliberately slower.
+
+    @Test
+    void findByAisIdRetriesOnceOnCommunicationExceptionThenSucceeds() {
+        StudentRecord record = new StudentRecord("12345", "a@b.sk", List.of(), List.of(), "A", "B", "A B", "cn");
+        when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class)))
+                .thenThrow(new CommunicationException(new javax.naming.CommunicationException("read timed out")))
+                .thenReturn(List.of(record));
+
+        Optional<StudentRecord> result = service.findByAisId("12345");
+
+        assertThat(result).contains(record);
+        verify(ldapTemplate, times(2)).search(any(LdapQuery.class), any(AttributesMapper.class));
+    }
+
+    @Test
+    void findByAisIdThrowsAfterExhaustingRetries() {
+        CommunicationException failure =
+                new CommunicationException(new javax.naming.CommunicationException("read timed out"));
+        when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class))).thenThrow(failure);
+
+        assertThatThrownBy(() -> service.findByAisId("12345")).isSameAs(failure);
+        verify(ldapTemplate, times(2)).search(any(LdapQuery.class), any(AttributesMapper.class));
     }
 
     @SuppressWarnings("unchecked")
