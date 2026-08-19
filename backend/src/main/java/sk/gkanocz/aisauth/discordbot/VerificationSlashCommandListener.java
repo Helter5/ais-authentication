@@ -114,6 +114,11 @@ class VerificationSlashCommandListener {
             return;
         }
 
+        // Sent immediately, before the submit() below, so a caller stuck behind a full
+        // verifyExecutor pool (see its javadoc) gets feedback right away instead of silently
+        // sitting on Discord's default "thinking..." indicator until a worker thread frees up.
+        event.getHook().sendMessage(VERIFY_IN_PROGRESS_MESSAGE).queue();
+
         // Throttle + LDAP lookup off the JDA dispatch thread - see verifyExecutor's javadoc.
         verifyExecutor.submit(() -> {
             if (!verificationProperties.testingMode()) {
@@ -125,7 +130,6 @@ class VerificationSlashCommandListener {
                 }
             }
 
-            event.getHook().sendMessage(VERIFY_IN_PROGRESS_MESSAGE).queue();
             try {
                 // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only
                 // actually created and the email only actually sent once Confirm is clicked
