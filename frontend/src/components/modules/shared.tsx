@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Loader2, Plus, Search, Trash2, X, ChevronDown as ChevDown } from "lucide-react";
+import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
+import { ArrowLeft, CheckCircle2, Loader2, Plus, Search, Smile, Trash2, X, ChevronDown as ChevDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { adminApi, apiErrorMessage } from "@/lib/api";
+import { adminApi, apiErrorMessage, type DiscordEmoji } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
 
@@ -331,6 +332,88 @@ export function computeDropPosition(rect: DOMRect, dropWidth: number, dropHeight
   const maxLeft = Math.max(margin, window.innerWidth - dropWidth - margin);
   const left = Math.min(Math.max(margin, rect.left), maxLeft);
   return { top, left };
+}
+
+// ─── Emoji picker (Discord custom emoji + unicode, with search) ─────────────
+
+const EMOJI_PICKER_WIDTH = 320;
+const EMOJI_PICKER_HEIGHT = 430;
+
+/**
+ * Trigger button + popup Discord-style emoji picker, shared by every module that lets an admin
+ * attach an emoji to something (Role Menu options, Thesis Countdown's channel-name template).
+ * `guildEmojis` is optional - omit it where custom Discord emoji can't actually render
+ * (e.g. inside a Discord channel name), leaving unicode-only. `value`/`onClear` are optional too:
+ * pass them for a "this button represents one emoji slot" field (shows a preview, offers "Clear
+ * emoji"); omit both for a plain "insert an emoji" trigger (always shows the generic smile icon,
+ * `onSelect` receiving each pick - e.g. inserting at a text cursor).
+ */
+export function EmojiPickerButton({ value, onSelect, onClear, guildEmojis, buttonClassName }: {
+  value?: string | null;
+  onSelect: (emoji: string) => void;
+  onClear?: () => void;
+  guildEmojis?: DiscordEmoji[];
+  buttonClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const customEmojis = useMemo(
+    () => (guildEmojis ?? []).map(e => ({ names: [e.name], imgUrl: e.url, id: e.mention })),
+    [guildEmojis]
+  );
+  const customPreview = value && guildEmojis ? guildEmojis.find(e => e.mention.toLowerCase() === value.toLowerCase()) : undefined;
+
+  const handleOpen = () => {
+    if (triggerRef.current) setPos(computeDropPosition(triggerRef.current.getBoundingClientRect(), EMOJI_PICKER_WIDTH, EMOJI_PICKER_HEIGHT));
+    setOpen(o => !o);
+  };
+
+  return (
+    <>
+      <button ref={triggerRef} type="button" onClick={handleOpen}
+        className={buttonClassName ?? "w-14 h-[30px] flex-shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded text-sm hover:border-zinc-500 transition-colors"}>
+        {customPreview
+          ? <img src={customPreview.url} alt={customPreview.name} className="w-4 h-4" />
+          : value
+            ? <span>{value}</span>
+            : <Smile className="w-4 h-4 text-zinc-500" />}
+      </button>
+      {open && pos && createPortal(
+        <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}>
+          <EmojiPicker
+            theme={EmojiTheme.DARK}
+            emojiStyle={EmojiStyle.NATIVE}
+            customEmojis={customEmojis}
+            onEmojiClick={data => { onSelect(data.emoji); setOpen(false); }}
+            previewConfig={{ showPreview: false }}
+            width={EMOJI_PICKER_WIDTH}
+            height={380}
+          />
+          {onClear && value && (
+            <button type="button" onClick={() => { onClear(); setOpen(false); }}
+              className="mt-1.5 w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors">
+              Clear emoji
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 // ─── Role picker (single-select, Discord-colored) ────────────────────────────
