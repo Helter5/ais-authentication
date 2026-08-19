@@ -25,6 +25,9 @@ spring:
     base: ${LDAP_BASE:ou=People,dc=stuba,dc=sk}
     username: ${LDAP_USERNAME:}
     password: ${LDAP_PASSWORD:}
+    base-environment:
+      com.sun.jndi.ldap.connect.timeout: 5000 # bez timeoutu vie vypadok VPN tunela k univerzitnemu LDAP zablokovat request navzdy
+      com.sun.jndi.ldap.read.timeout: 8000
 
   mail:
     host: ${MAIL_HOST:localhost}

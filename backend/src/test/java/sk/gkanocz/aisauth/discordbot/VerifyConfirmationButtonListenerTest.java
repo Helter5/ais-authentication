@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -149,7 +150,8 @@ class VerifyConfirmationButtonListenerTest {
         listener.onButtonInteraction(event);
 
         verify(pendingVerificationStore).remove("token-1");
-        verify(eventLogEmbedSender).send(any(Guild.class), any(), any());
+        // initiateAndNotify now runs on confirmExecutor, off the calling thread - wait for it.
+        verify(eventLogEmbedSender, timeout(1000)).send(any(Guild.class), any(), any());
         verify(hook).editOriginal("Verifikačný email poslaný! Pozri si STUBA mail a potvrď kód cez `/code <kód>`. Kód platí 15 minút.");
     }
 
@@ -171,7 +173,7 @@ class VerifyConfirmationButtonListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(hook).editOriginal("**TESTING MODE** — email sending vypnuté. Tvoj kód: `654321`\nPouži `/code 654321`. Kód platí 15 minút.");
+        verify(hook, timeout(1000)).editOriginal("**TESTING MODE** — email sending vypnuté. Tvoj kód: `654321`\nPouži `/code 654321`. Kód platí 15 minút.");
     }
 
     @Test
@@ -188,7 +190,7 @@ class VerifyConfirmationButtonListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(hook).editOriginal("Invalid AIS ID");
+        verify(hook, timeout(1000)).editOriginal("Invalid AIS ID");
         verify(eventLogEmbedSender, never()).send(any(), any(), any());
     }
 
@@ -206,6 +208,6 @@ class VerifyConfirmationButtonListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(hook).editOriginal("Nastala neočakávaná chyba, skús to prosím neskôr.");
+        verify(hook, timeout(1000)).editOriginal("Nastala neočakávaná chyba, skús to prosím neskôr.");
     }
 }

@@ -23,6 +23,8 @@ import java.awt.Color;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +51,16 @@ class VerificationSlashCommandListener {
     private final VerificationProperties verificationProperties;
     private final PendingVerificationStore pendingVerificationStore;
     private final AdminSettingsService adminSettingsService;
+
+    /**
+     * /verify's LDAP round-trip (throttled to 1 req/sec by LdapRequestThrottle, and now bounded by
+     * an LDAP connect/read timeout) runs here instead of on JDA's own event-dispatch thread. Without
+     * this, a slow or hung LDAP call (e.g. the university VPN tunnel resetting mid-request) would
+     * tie up a JDA dispatch thread for its whole duration; with only a handful of those threads and
+     * every /verify call serialized behind the same throttle, a burst of ~10+ concurrent /verify
+     * calls could starve the pool and make the *entire* bot stop responding, not just /verify.
+     */
+    private final ExecutorService verifyExecutor = Executors.newFixedThreadPool(4);
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -93,39 +105,42 @@ class VerificationSlashCommandListener {
             return;
         }
 
-        if (!verificationProperties.testingMode()) {
-            Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
-            if (waitMinutes.isPresent()) {
-                event.getHook().sendMessage(
-                        "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.").queue();
-                return;
+        // Throttle + LDAP lookup off the JDA dispatch thread - see verifyExecutor's javadoc.
+        verifyExecutor.submit(() -> {
+            if (!verificationProperties.testingMode()) {
+                Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
+                if (waitMinutes.isPresent()) {
+                    event.getHook().sendMessage(
+                            "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.").queue();
+                    return;
+                }
             }
-        }
 
-        try {
-            // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only
-            // actually created and the email only actually sent once Confirm is clicked
-            // (VerifyConfirmationButtonListener), so a fat-fingered AIS ID can be caught here first.
-            String email = verificationService.checkEligibility(discordId, guildId, aisId);
-            String token = pendingVerificationStore.create(discordId, guildId, aisId);
+            try {
+                // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only
+                // actually created and the email only actually sent once Confirm is clicked
+                // (VerifyConfirmationButtonListener), so a fat-fingered AIS ID can be caught here first.
+                String email = verificationService.checkEligibility(discordId, guildId, aisId);
+                String token = pendingVerificationStore.create(discordId, guildId, aisId);
 
-            EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(new Color(0x6366F1))
-                    .setTitle("Potvrdenie verifikácie")
-                    .setDescription("Chystáš sa verifikovať s AIS ID: **" + aisId + "**\n"
-                            + "Email bude poslaný na: **" + email + "**");
+                EmbedBuilder embed = new EmbedBuilder()
+                        .setColor(new Color(0x6366F1))
+                        .setTitle("Potvrdenie verifikácie")
+                        .setDescription("Chystáš sa verifikovať s AIS ID: **" + aisId + "**\n"
+                                + "Email bude poslaný na: **" + email + "**");
 
-            event.getHook().sendMessageEmbeds(embed.build())
-                    .addActionRow(
-                            Button.success("verify_confirm:" + token, "Confirm"),
-                            Button.danger("verify_cancel:" + token, "Cancel"))
-                    .queue();
-        } catch (DomainException e) {
-            event.getHook().sendMessage(e.getMessage()).queue();
-        } catch (Exception e) {
-            log.error("Verify command failed", e);
-            event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
-        }
+                event.getHook().sendMessageEmbeds(embed.build())
+                        .addActionRow(
+                                Button.success("verify_confirm:" + token, "Confirm"),
+                                Button.danger("verify_cancel:" + token, "Cancel"))
+                        .queue();
+            } catch (DomainException e) {
+                event.getHook().sendMessage(e.getMessage()).queue();
+            } catch (Exception e) {
+                log.error("Verify command failed", e);
+                event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
+            }
+        });
     }
 
     private void handleCode(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {

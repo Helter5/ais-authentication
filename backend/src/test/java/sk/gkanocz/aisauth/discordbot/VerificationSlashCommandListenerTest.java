@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -224,7 +225,8 @@ class VerificationSlashCommandListenerTest {
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage(contains("Vyčerpal"));
+        // Throttle + LDAP path now runs on verifyExecutor, off the calling thread - wait for it.
+        verify(hook, timeout(1000)).sendMessage(contains("Vyčerpal"));
         verify(verificationService, never()).checkEligibility(any(), any(), any());
     }
 
@@ -245,6 +247,8 @@ class VerificationSlashCommandListenerTest {
 
         listener.dispatch(event, null);
 
+        // Wait for verifyExecutor to reach the point where it would (not) call the rate limiter.
+        verify(pendingVerificationStore, timeout(1000)).create(any(), any(), any());
         verify(verifyRateLimiter, never()).checkAndRecordAttempt(any(), any());
     }
 
@@ -262,7 +266,7 @@ class VerificationSlashCommandListenerTest {
         listener.dispatch(event, null);
 
         ArgumentCaptor<ItemComponent[]> captor = ArgumentCaptor.forClass(ItemComponent[].class);
-        verify(action).addActionRow(captor.capture());
+        verify(action, timeout(1000)).addActionRow(captor.capture());
         List<Button> buttons = List.of((Button) captor.getValue()[0], (Button) captor.getValue()[1]);
         assertThat(buttons).extracting(Button::getId).containsExactly("verify_confirm:token-1", "verify_cancel:token-1");
     }
@@ -280,7 +284,7 @@ class VerificationSlashCommandListenerTest {
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1").getMessage());
+        verify(hook, timeout(1000)).sendMessage(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1").getMessage());
         verify(pendingVerificationStore, never()).create(any(), any(), any());
     }
 
@@ -296,7 +300,7 @@ class VerificationSlashCommandListenerTest {
 
         listener.dispatch(event, null);
 
-        verify(hook).sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.");
+        verify(hook, timeout(1000)).sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.");
     }
 
     // ---- /code ----

@@ -15,6 +15,8 @@ import sk.gkanocz.aisauth.verification.VerificationFacade;
 import java.awt.Color;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Handles the verify_confirm:<token> / verify_cancel:<token> buttons posted alongside /verify's
@@ -32,6 +34,10 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
     private final VerificationFacade verificationFacade;
     private final EventLogEmbedSender eventLogEmbedSender;
     private final VerificationProperties verificationProperties;
+
+    // Confirm hits LDAP again (throttled, same as /verify) - keep it off JDA's dispatch thread for
+    // the same reason as VerificationSlashCommandListener.verifyExecutor.
+    private final ExecutorService confirmExecutor = Executors.newFixedThreadPool(4);
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -66,26 +72,28 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
         }
 
         event.deferEdit().queue();
-        try {
-            VerificationCode verificationCode = verificationFacade.initiateAndNotify(
-                    pending.discordId(), pending.guildId(), pending.aisId());
+        confirmExecutor.submit(() -> {
+            try {
+                VerificationCode verificationCode = verificationFacade.initiateAndNotify(
+                        pending.discordId(), pending.guildId(), pending.aisId());
 
-            eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFY_REQUESTED, new EmbedBuilder()
-                    .setColor(new Color(0x6366F1))
-                    .setTitle("Verification Requested")
-                    .addField("User", "<@" + pending.discordId() + ">", true)
-                    .addField("AIS ID", pending.aisId(), true));
+                eventLogEmbedSender.send(event.getGuild(), LogEventType.VERIFY_REQUESTED, new EmbedBuilder()
+                        .setColor(new Color(0x6366F1))
+                        .setTitle("Verification Requested")
+                        .addField("User", "<@" + pending.discordId() + ">", true)
+                        .addField("AIS ID", pending.aisId(), true));
 
-            String message = verificationProperties.testingMode()
-                    ? "**TESTING MODE** — email sending vypnuté. Tvoj kód: `" + verificationCode.getCode()
-                            + "`\nPouži `/code " + verificationCode.getCode() + "`. Kód platí 15 minút."
-                    : "Verifikačný email poslaný! Pozri si STUBA mail a potvrď kód cez `/code <kód>`. Kód platí 15 minút.";
-            event.getHook().editOriginal(message).setEmbeds(List.of()).setComponents(List.of()).queue();
-        } catch (DomainException e) {
-            event.getHook().editOriginal(e.getMessage()).setEmbeds(List.of()).setComponents(List.of()).queue();
-        } catch (Exception e) {
-            log.error("Verify confirmation failed", e);
-            event.getHook().editOriginal(GENERIC_ERROR_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
-        }
+                String message = verificationProperties.testingMode()
+                        ? "**TESTING MODE** — email sending vypnuté. Tvoj kód: `" + verificationCode.getCode()
+                                + "`\nPouži `/code " + verificationCode.getCode() + "`. Kód platí 15 minút."
+                        : "Verifikačný email poslaný! Pozri si STUBA mail a potvrď kód cez `/code <kód>`. Kód platí 15 minút.";
+                event.getHook().editOriginal(message).setEmbeds(List.of()).setComponents(List.of()).queue();
+            } catch (DomainException e) {
+                event.getHook().editOriginal(e.getMessage()).setEmbeds(List.of()).setComponents(List.of()).queue();
+            } catch (Exception e) {
+                log.error("Verify confirmation failed", e);
+                event.getHook().editOriginal(GENERIC_ERROR_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
+            }
+        });
     }
 }
