@@ -243,6 +243,7 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verificationService.checkEligibility("discord-1", "guild-1", "12345")).thenReturn("student@stuba.sk");
         when(pendingVerificationStore.create(any(), any(), any())).thenReturn("token-1");
+        stubTextReply(); // the "⏳ Overujem..." in-progress message, sent before the embed reply
         stubEmbedReply();
 
         listener.dispatch(event, null);
@@ -261,6 +262,7 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verificationService.checkEligibility("discord-1", "guild-1", "12345")).thenReturn("student@stuba.sk");
         when(pendingVerificationStore.create("discord-1", "guild-1", "12345")).thenReturn("token-1");
+        stubTextReply(); // the "⏳ Overujem..." in-progress message, sent before the embed reply
         WebhookMessageCreateAction<Message> action = stubEmbedReply();
 
         listener.dispatch(event, null);

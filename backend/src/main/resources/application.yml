@@ -27,7 +27,10 @@ spring:
     password: ${LDAP_PASSWORD:}
     base-environment:
       com.sun.jndi.ldap.connect.timeout: 5000 # bez timeoutu vie vypadok VPN tunela k univerzitnemu LDAP zablokovat request navzdy
-      com.sun.jndi.ldap.read.timeout: 8000
+      # 90s - namerane vypadky spojenia na univerzitnu siet trvaju az ~65s (opakovany cyklus, nie
+      # ojedinely blip), pricom spojenie sa samo obnovi bez zahodenia - kratky read timeout ho zabije
+      # skor nez sa stihne opravit. 90s prekryje pozorovany najhorsi pripad s rezervou.
+      com.sun.jndi.ldap.read.timeout: 90000
 
   mail:
     host: ${MAIL_HOST:localhost}

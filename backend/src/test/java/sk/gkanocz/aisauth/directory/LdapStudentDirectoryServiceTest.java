@@ -100,9 +100,9 @@ class LdapStudentDirectoryServiceTest {
         assertThat(result).containsOnly(Map.entry("111", a), Map.entry("222", b));
     }
 
-    // See LdapStudentDirectoryService.searchWithRetry: retries once on CommunicationException to
-    // ride out the university VPN's ~2-minute ping-restart cycle - the real retry backoff (2s) is
-    // exercised here rather than mocked out, so these two tests are deliberately slower.
+    // See LdapStudentDirectoryService.searchWithRetry: one immediate retry on
+    // CommunicationException, relying on the 90s read timeout (application.yml) to outlast the
+    // measured ~60-65s dead window rather than a backoff loop.
 
     @Test
     void findByAisIdRetriesOnceOnCommunicationExceptionThenSucceeds() {
@@ -124,8 +124,8 @@ class LdapStudentDirectoryServiceTest {
         when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class))).thenThrow(failure);
 
         assertThatThrownBy(() -> service.findByAisId("12345")).isSameAs(failure);
-        // 1 initial attempt + 3 retries = 4 total (see LdapStudentDirectoryService.MAX_ATTEMPTS)
-        verify(ldapTemplate, times(4)).search(any(LdapQuery.class), any(AttributesMapper.class));
+        // 1 initial attempt + 1 retry = 2 total (see LdapStudentDirectoryService.MAX_ATTEMPTS)
+        verify(ldapTemplate, times(2)).search(any(LdapQuery.class), any(AttributesMapper.class));
     }
 
     @SuppressWarnings("unchecked")

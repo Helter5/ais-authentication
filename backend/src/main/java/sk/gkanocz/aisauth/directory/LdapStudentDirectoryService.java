@@ -13,7 +13,6 @@ import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,8 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 class LdapStudentDirectoryService implements StudentDirectoryService {
 
-    private static final int MAX_ATTEMPTS = 4; // 1 initial attempt + 3 retries
-    private static final Duration RETRY_BACKOFF = Duration.ofSeconds(2);
+    private static final int MAX_ATTEMPTS = 2; // 1 initial attempt + 1 retry
 
     private final LdapTemplate ldapTemplate;
     private final LdapRequestThrottle ldapRequestThrottle;
@@ -57,13 +55,15 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
     }
 
     /**
-     * Up to {@value #MAX_ATTEMPTS} - 1 retries, 2s apart, on CommunicationException - the
-     * university VPN tunnel restarts every ~2 minutes (STU-pushed ping-restart policy over an
-     * unreliable network path), and a search that lands mid-restart fails with a read timeout
-     * even though the tunnel is healthy again a couple seconds later. Retrying turns that into a
-     * slightly slower search instead of a user-visible /verify failure. This all happens after
-     * VerifyRateLimiter has already recorded the attempt, so retries here don't cost the user
-     * extra /verify attempts.
+     * One retry, immediately, on CommunicationException - measured outages against the university
+     * LDAP path are a recurring ~60-65s dead / ~50s alive cycle, not a brief blip, and the
+     * underlying connection recovers on its own without being torn down (confirmed with a plain
+     * ldapsearch: it just sits there until traffic resumes, then succeeds). The 90s read timeout
+     * (see application.yml) is sized to outlast the dead window on its own, so a single retry is
+     * only a safety net for the rare longer outage - no backoff needed, since by the time the
+     * first 90s attempt gives up, the dead window has almost certainly already ended. This all
+     * happens after VerifyRateLimiter has already recorded the attempt, so a retry here doesn't
+     * cost the user an extra /verify attempt.
      */
     private List<StudentRecord> searchWithRetry(LdapQuery query) {
         CommunicationException lastFailure;
@@ -76,14 +76,8 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
                 if (attempt >= MAX_ATTEMPTS) {
                     break;
                 }
-                log.warn("LDAP search failed (attempt {}/{}), retrying in {} - likely mid VPN ping-restart: {}",
-                        attempt, MAX_ATTEMPTS, RETRY_BACKOFF, e.getMessage());
-                try {
-                    Thread.sleep(RETRY_BACKOFF.toMillis());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
+                log.warn("LDAP search failed (attempt {}/{}), retrying immediately: {}",
+                        attempt, MAX_ATTEMPTS, e.getMessage());
                 attempt++;
             }
         }
