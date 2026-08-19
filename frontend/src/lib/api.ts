@@ -175,6 +175,8 @@ export interface RoleMenuConfig {
   guild_id: string;
   channel_id: string;
   message_id: string | null;
+  /** Dashboard-only label for the sidebar list - never sent to Discord (that's what `title` is for). */
+  config_name: string | null;
   title: string;
   description: string;
   ui_type: 'BUTTONS' | 'SELECT_MENU';
