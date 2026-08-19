@@ -44,11 +44,13 @@ type CmdSettingsData = {
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 const DEFAULT_BLOCKED_SUBJECT_MESSAGE = "🚫 Nie je v zozname povolených predmetov: {predmety}";
+const DEFAULT_FAQ_MESSAGE = "FAQ nie je nastavené, kontaktuj administrátora.";
 
 /** Per-command label/placeholder/token-hints for the schema.message textarea - it's the same UI, just different content per command. */
 const CMD_MESSAGE_FIELD: Record<string, { label: string; tokens: string[] }> = {
   code:         { label: "Success message", tokens: ["{user}", "{server}", "{ais_id}"] },
   pridatpredmet: { label: "Blocked-subject message", tokens: ["{user}", "{server}", "{predmety}"] },
+  faq:          { label: "Custom message (optional)", tokens: [] },
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -67,6 +69,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   info:         { ephemeral: true },
   user:         { ephemeral: true },
   pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true },
+  faq:          { message: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
@@ -80,6 +83,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   info:         { ephemeral: true },
   user:         { ephemeral: false },
   pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIds: [], approverRoleIds: [] },
+  faq:          { message: DEFAULT_FAQ_MESSAGE },
 };
 
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
@@ -116,6 +120,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
     { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
     { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module.", settingsHref: "/modules/thesiscounter" },
+    { name: "/faq", description: "Ephemeral FAQ reply. The whole message is configured below - write out the commands/info you want students to see.", hasSettings: true },
   ],
 };
 
