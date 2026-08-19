@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
@@ -27,7 +28,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -136,10 +136,12 @@ class VerificationSlashCommandListener {
         int position = verifyInFlight.incrementAndGet();
         // Every later outcome (rate-limited / eligible / error) edits *this* message by id instead
         // of sending a new followup, so the user sees one message update in place rather than a
-        // fresh "Confirm/Cancel" embed appearing below the now-stale "Overujem..." text.
-        AtomicReference<String> progressMessageId = new AtomicReference<>();
-        event.getHook().sendMessage(verifyProgressMessage(position))
-                .queue(message -> progressMessageId.set(message.getId()));
+        // fresh "Confirm/Cancel" embed appearing below the now-stale "Overujem..." text. Blocks
+        // (.complete()) rather than .queue(callback) - checkEligibility below can finish faster
+        // than the async send round-trip when LDAP responds quickly (the common case, not the
+        // rare one), which raced editMessageById(...) against a still-null id.
+        Message progressMessage = event.getHook().sendMessage(verifyProgressMessage(position)).complete();
+        String progressMessageId = progressMessage.getId();
 
         // Throttle + LDAP lookup off the JDA dispatch thread - see verifyExecutor's javadoc.
         verifyExecutor.submit(() -> {
@@ -165,7 +167,7 @@ class VerificationSlashCommandListener {
                         .setDescription("Chystáš sa verifikovať s AIS ID: **" + aisId + "**\n"
                                 + "Email bude poslaný na: **" + email + "**");
 
-                event.getHook().editMessageById(progressMessageId.get(), "")
+                event.getHook().editMessageById(progressMessageId, "")
                         .setEmbeds(embed.build())
                         .setActionRow(
                                 Button.success("verify_confirm:" + token, "Confirm"),
@@ -185,8 +187,8 @@ class VerificationSlashCommandListener {
     /** Replaces the "⏳ Overujem..." progress message in place with a plain-text result, clearing
      * any embed/buttons it might have had (there aren't any yet at this point, but keeps the
      * method safe to reuse if that ever changes). */
-    private void replaceProgressMessage(SlashCommandInteractionEvent event, AtomicReference<String> progressMessageId, String content) {
-        event.getHook().editMessageById(progressMessageId.get(), content)
+    private void replaceProgressMessage(SlashCommandInteractionEvent event, String progressMessageId, String content) {
+        event.getHook().editMessageById(progressMessageId, content)
                 .setEmbeds(List.of())
                 .setComponents(List.of())
                 .queue();
