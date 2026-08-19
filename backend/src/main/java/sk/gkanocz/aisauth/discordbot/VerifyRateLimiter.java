@@ -12,14 +12,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
- * Per-user /verify cooldown - Java port of the old bot's in-memory verifyAttempts Map (max 2
- * attempts per hour per user per guild). Purely in-memory like the original, so it resets on
- * restart; that's an acceptable trade-off for an abuse guard, not a security boundary.
+ * Per-user /verify cooldown - Java port of the old bot's in-memory verifyAttempts Map, raised
+ * from the original 2 to 3 attempts per hour per user per guild since a mistimed LDAP request
+ * (VPN ping-restart) can now legitimately cost a user one of their attempts even with retries.
+ * Purely in-memory like the original, so it resets on restart; that's an acceptable trade-off for
+ * an abuse guard, not a security boundary.
  */
 @Component
 public class VerifyRateLimiter {
 
-    private static final int MAX_ATTEMPTS = 2;
+    private static final int MAX_ATTEMPTS = 3;
     private static final Duration WINDOW = Duration.ofHours(1);
 
     private final Map<String, Deque<Instant>> attemptsByKey = new ConcurrentHashMap<>();
