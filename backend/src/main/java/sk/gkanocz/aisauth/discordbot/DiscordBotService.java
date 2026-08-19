@@ -17,6 +17,7 @@ import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.ClassPathResource;
@@ -92,6 +93,11 @@ public class DiscordBotService implements ApplicationRunner {
 
         jda = JDABuilder.createLight(discordBotProperties.token())
                 .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.MESSAGE_CONTENT)
+                // createLight() disables every CacheFlag by default - without this, guild.getEmojis()
+                // (DiscordResourcesController's /api/discord/emojis, feeding the dashboard's emoji
+                // picker) always comes back empty, even though the guild has custom emoji. Also
+                // auto-enables its required intent (GUILD_EXPRESSIONS).
+                .enableCache(CacheFlag.EMOJI)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .setChunkingFilter(ChunkingFilter.ALL)
                 .setEventManager(guildAllowlistEventManager)
