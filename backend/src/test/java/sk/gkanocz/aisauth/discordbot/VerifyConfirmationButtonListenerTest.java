@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -209,5 +210,23 @@ class VerifyConfirmationButtonListenerTest {
         listener.onButtonInteraction(event);
 
         verify(hook, timeout(1000)).editOriginal("Nastala neočakávaná chyba, skús to prosím neskôr.");
+    }
+
+    // ---- confirmProgressMessage ----
+
+    @Test
+    void confirmProgressMessageOmitsQueueNoteWhenPositionFitsInThePool() {
+        assertThat(listener.confirmProgressMessage(1)).doesNotContain("fronte");
+        assertThat(listener.confirmProgressMessage(10)).doesNotContain("fronte");
+    }
+
+    @Test
+    void confirmProgressMessageSaysFirstInQueueWhenOneOverPoolSize() {
+        assertThat(listener.confirmProgressMessage(11)).contains("si na rade ako prvý");
+    }
+
+    @Test
+    void confirmProgressMessageCountsOthersAheadWhenFurtherBackInQueue() {
+        assertThat(listener.confirmProgressMessage(13)).contains("2 pred tebou");
     }
 }
