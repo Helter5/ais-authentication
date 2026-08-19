@@ -63,13 +63,19 @@ const CMD_SUBCOMMANDS: Record<string, { key: string; label: string }[]> = {
     { key: "add", label: "/odpocet add" },
     { key: "list", label: "/odpocet list" },
   ],
+  warn: [
+    { key: "add", label: "/warn add" },
+    { key: "list", label: "/warn list" },
+    { key: "remove", label: "/warn remove" },
+    { key: "clearall", label: "/warn clearall" },
+  ],
 };
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
   allowedRoles?: boolean; approverRoles?: boolean; subcommandEphemeral?: boolean;
 }> = {
-  warn:         { ephemeral: true },
+  warn:         { subcommandEphemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
   verify:       { ephemeral: true },
   code:         { message: true },
@@ -84,7 +90,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
-  warn:         { ephemeral: false },
+  warn:         { subcommandEphemeral: { add: false, list: true, remove: false, clearall: false } },
   wipe:         { dmUser: false, ephemeral: false },
   verify:       { ephemeral: true },
   code:         { message: DEFAULT_CODE_MESSAGE },
@@ -118,7 +124,7 @@ const CATEGORY_ICONS: Record<CmdCategory, React.ElementType> = {
 
 const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   Moderation: [
-    { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list. Settings also configure auto-punishment thresholds.", hasSettings: true },
+    { name: "/warn",          description: "Manage warnings for a user: add, remove, clearall, list. Settings also configure auto-punishment thresholds and ephemeral response per subcommand.", hasSettings: true },
     { name: "/manualverify",  description: "Manually verify a user by Discord ID and email.", hasSettings: true },
     { name: "/user",          description: "Show detailed Discord info, verification status, and warn history for a member.", hasSettings: true },
   ],

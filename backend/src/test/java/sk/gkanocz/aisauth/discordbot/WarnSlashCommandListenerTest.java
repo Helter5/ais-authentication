@@ -16,15 +16,18 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
 import sk.gkanocz.aisauth.warn.WarnThreshold;
+import tools.jackson.core.type.TypeReference;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +52,8 @@ class WarnSlashCommandListenerTest {
     private EventLogEmbedSender eventLogEmbedSender;
     @Mock
     private LogRoutingService logRoutingService;
+    @Mock
+    private AdminSettingsService adminSettingsService;
 
     @Mock
     private SlashCommandInteractionEvent event;
@@ -62,8 +67,9 @@ class WarnSlashCommandListenerTest {
     private WarnSlashCommandListener listener;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
-        listener = new WarnSlashCommandListener(warnService, auditLogService, moderationService, eventLogEmbedSender, logRoutingService);
+        listener = new WarnSlashCommandListener(warnService, auditLogService, moderationService, eventLogEmbedSender, logRoutingService, adminSettingsService);
 
         Mockito.lenient().when(logRoutingService.channelIdFor(anyString(), any(LogEventType.class))).thenReturn(Optional.of("log-channel-1"));
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
@@ -73,6 +79,8 @@ class WarnSlashCommandListenerTest {
         Mockito.lenient().when(actor.getId()).thenReturn("mod-1");
         Mockito.lenient().when(event.getHook()).thenReturn(hook);
         Mockito.lenient().when(event.deferReply(org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(mock(ReplyCallbackAction.class));
+        Mockito.lenient().when(adminSettingsService.get(eq("cmd_settings_guild-1_warn"), any(TypeReference.class), any()))
+                .thenReturn(Map.of());
     }
 
     @SuppressWarnings("unchecked")
@@ -419,5 +427,47 @@ class WarnSlashCommandListenerTest {
 
         verify(hook).sendMessage("Log kanál pre tento príkaz nie je nastavený. Kontaktuj administrátora.");
         verify(warnService, never()).clearWarns(any(), any());
+    }
+
+    // ---- per-subcommand ephemeral table ----
+
+    @Test
+    void warnAddDefersNonEphemeralByDefault() {
+        Member target = targetMember("user-1", "Alice");
+        stubWarnCommand(target, "spam");
+        when(warnService.countWarns("user-1", "guild-1")).thenReturn(0L, 1L);
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(event).deferReply(false);
+    }
+
+    @Test
+    void warnListDefersEphemeralByDefault() {
+        when(event.getName()).thenReturn("warn");
+        when(event.getSubcommandName()).thenReturn("list");
+        when(event.getOption("user")).thenReturn(null);
+        when(warnService.getGuildWarns("guild-1")).thenReturn(List.of());
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(event).deferReply(true);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void honorsThePerSubcommandEphemeralTable() {
+        when(adminSettingsService.get(eq("cmd_settings_guild-1_warn"), any(TypeReference.class), any()))
+                .thenReturn(Map.of("subcommandEphemeral", Map.of("add", true, "clearall", true)));
+        Member target = targetMember("user-1", "Alice");
+        stubWarnCommand(target, "spam");
+        when(warnService.countWarns("user-1", "guild-1")).thenReturn(0L, 1L);
+        stubHookSendMessage();
+
+        listener.dispatch(event, null);
+
+        verify(event).deferReply(true);
     }
 }

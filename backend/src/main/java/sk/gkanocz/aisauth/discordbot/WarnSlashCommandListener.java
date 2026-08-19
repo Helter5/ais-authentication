@@ -9,12 +9,14 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
 import sk.gkanocz.aisauth.warn.WarnThreshold;
+import tools.jackson.core.type.TypeReference;
 
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
@@ -35,7 +37,18 @@ class WarnSlashCommandListener {
     private final DiscordModerationService moderationService;
     private final EventLogEmbedSender eventLogEmbedSender;
     private final LogRoutingService logRoutingService;
+    private final AdminSettingsService adminSettingsService;
 
+    /**
+     * {@code warn} has four subcommands (add/list/remove/clearall) with independently useful
+     * ephemeral defaults - one shared {@code ephemeralOverride} boolean (the convention every
+     * other command's Settings modal uses) can't express all four, so this reads its own
+     * {@code subcommandEphemeral: {add, list, remove, clearall}} object out of the same
+     * {@code cmd_settings_<guildId>_warn} blob instead (small per-subcommand table on the
+     * dashboard's /warn Settings modal, same pattern as /odpocet). The central
+     * {@code ephemeralOverride} param is intentionally unused for "warn" itself - "mywarns" is a
+     * separate command and keeps using it as-is.
+     */
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         if ("mywarns".equals(event.getName())) {
             handleMyWarns(event, ephemeralOverride);
@@ -44,18 +57,27 @@ class WarnSlashCommandListener {
         if (!"warn".equals(event.getName())) {
             return;
         }
+        Map<String, Object> settings = adminSettingsService.get(
+                "cmd_settings_" + event.getGuild().getId() + "_warn", new TypeReference<Map<String, Object>>() { }, Map.of());
+        Object rawSubcommandEphemeral = settings.get("subcommandEphemeral");
+        Map<?, ?> subcommandEphemeral = rawSubcommandEphemeral instanceof Map<?, ?> m ? m : Map.of();
+        boolean ephemeralAdd = subcommandEphemeral.get("add") instanceof Boolean b ? b : false;
+        boolean ephemeralList = subcommandEphemeral.get("list") instanceof Boolean b ? b : true;
+        boolean ephemeralRemove = subcommandEphemeral.get("remove") instanceof Boolean b ? b : false;
+        boolean ephemeralClearall = subcommandEphemeral.get("clearall") instanceof Boolean b ? b : false;
+
         switch (event.getSubcommandName()) {
-            case "add" -> handleWarn(event, ephemeralOverride);
-            case "list" -> handleWarns(event, ephemeralOverride);
-            case "remove" -> handleRemoveWarn(event, ephemeralOverride);
-            case "clearall" -> handleClearWarns(event, ephemeralOverride);
+            case "add" -> handleWarn(event, ephemeralAdd);
+            case "list" -> handleWarns(event, ephemeralList);
+            case "remove" -> handleRemoveWarn(event, ephemeralRemove);
+            case "clearall" -> handleClearWarns(event, ephemeralClearall);
             default -> {
             }
         }
     }
 
-    private void handleWarn(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
+    private void handleWarn(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
 
         Member target = event.getOption("user").getAsMember();
         String reason = event.getOption("reason").getAsString();
@@ -151,8 +173,8 @@ class WarnSlashCommandListener {
     private record PunishmentOutcome(String action, boolean success, String detail) {
     }
 
-    private void handleWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
+    private void handleWarns(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
 
         OptionMapping userOption = event.getOption("user");
         String guildId = event.getGuild().getId();
@@ -174,8 +196,8 @@ class WarnSlashCommandListener {
         event.getHook().sendMessage(formatWarnList("Your warnings", warns, false)).queue();
     }
 
-    private void handleRemoveWarn(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
+    private void handleRemoveWarn(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
         long warnId = event.getOption("id").getAsLong();
         String guildId = event.getGuild().getId();
         if (!requireLogChannel(event, guildId, LogEventType.WARN_REMOVED)) {
@@ -197,8 +219,8 @@ class WarnSlashCommandListener {
         }
     }
 
-    private void handleClearWarns(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
+    private void handleClearWarns(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
         User target = event.getOption("user").getAsUser();
         String guildId = event.getGuild().getId();
         if (!requireLogChannel(event, guildId, LogEventType.WARNS_CLEARED)) {
