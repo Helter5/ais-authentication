@@ -37,7 +37,6 @@ import tools.jackson.core.type.TypeReference;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -121,16 +120,13 @@ class VerificationSlashCommandListenerTest {
     private WebhookMessageCreateAction<Message> stubTextReply() {
         WebhookMessageCreateAction<Message> action = mock(WebhookMessageCreateAction.class, Mockito.RETURNS_SELF);
         Mockito.lenient().when(hook.sendMessage(anyString())).thenReturn(action);
-        // /verify's "⏳ Overujem..." progress message captures its own id via queue(Consumer<Message>)
-        // (see VerificationSlashCommandListener.handleVerify) so it can later be edited in place -
-        // mimic that callback here so those editMessageById(...) calls have a real id to target.
-        Mockito.lenient().doAnswer(invocation -> {
-            Consumer<Message> consumer = invocation.getArgument(0);
-            Message message = mock(Message.class);
-            Mockito.lenient().when(message.getId()).thenReturn(PROGRESS_MESSAGE_ID);
-            consumer.accept(message);
-            return null;
-        }).when(action).queue(any(Consumer.class));
+        // /verify's "⏳ Overujem..." progress message is sent with .complete() (see
+        // VerificationSlashCommandListener.handleVerify - blocking, not queue(callback), to avoid
+        // racing editMessageById(...) against a not-yet-assigned id) so its id can later be used
+        // to edit it in place - mimic that here.
+        Message message = mock(Message.class);
+        Mockito.lenient().when(message.getId()).thenReturn(PROGRESS_MESSAGE_ID);
+        Mockito.lenient().when(action.complete()).thenReturn(message);
         return action;
     }
 
