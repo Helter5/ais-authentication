@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage, type ThesisCounterConfig } from "@/lib/api";
 import { AlertCircle, CalendarClock, CheckCircle2, Hash, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
