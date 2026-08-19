@@ -21,11 +21,13 @@ import tools.jackson.core.type.TypeReference;
 
 import java.awt.Color;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,7 +92,12 @@ class VerificationSlashCommandListener {
     }
 
     private void handleVerify(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
+        boolean ephemeral = ephemeralOverride == null ? true : ephemeralOverride;
+        event.deferReply(ephemeral).queue();
+        // deferReply's ephemeral flag only covers the initial "thinking..." placeholder - every
+        // hook.sendMessage(...) followup below is a separate message that does NOT inherit it on
+        // its own. This makes the hook itself default new followups to the same visibility.
+        event.getHook().setEphemeral(ephemeral);
 
         String discordId = event.getUser().getId();
         String guildId = event.getGuild().getId();
@@ -127,7 +134,12 @@ class VerificationSlashCommandListener {
         // position counts this call itself, so position <= VERIFY_POOL_SIZE means "you get a
         // worker thread right away" and only a larger position is actually queued behind others.
         int position = verifyInFlight.incrementAndGet();
-        event.getHook().sendMessage(verifyProgressMessage(position)).queue();
+        // Every later outcome (rate-limited / eligible / error) edits *this* message by id instead
+        // of sending a new followup, so the user sees one message update in place rather than a
+        // fresh "Confirm/Cancel" embed appearing below the now-stale "Overujem..." text.
+        AtomicReference<String> progressMessageId = new AtomicReference<>();
+        event.getHook().sendMessage(verifyProgressMessage(position))
+                .queue(message -> progressMessageId.set(message.getId()));
 
         // Throttle + LDAP lookup off the JDA dispatch thread - see verifyExecutor's javadoc.
         verifyExecutor.submit(() -> {
@@ -135,8 +147,8 @@ class VerificationSlashCommandListener {
                 if (!verificationProperties.testingMode()) {
                     Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
                     if (waitMinutes.isPresent()) {
-                        event.getHook().sendMessage(
-                                "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.").queue();
+                        replaceProgressMessage(event, progressMessageId,
+                                "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.");
                         return;
                     }
                 }
@@ -153,20 +165,31 @@ class VerificationSlashCommandListener {
                         .setDescription("Chystáš sa verifikovať s AIS ID: **" + aisId + "**\n"
                                 + "Email bude poslaný na: **" + email + "**");
 
-                event.getHook().sendMessageEmbeds(embed.build())
-                        .addActionRow(
+                event.getHook().editMessageById(progressMessageId.get(), "")
+                        .setEmbeds(embed.build())
+                        .setActionRow(
                                 Button.success("verify_confirm:" + token, "Confirm"),
                                 Button.danger("verify_cancel:" + token, "Cancel"))
                         .queue();
             } catch (DomainException e) {
-                event.getHook().sendMessage(e.getMessage()).queue();
+                replaceProgressMessage(event, progressMessageId, e.getMessage());
             } catch (Exception e) {
                 log.error("Verify command failed", e);
-                event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
+                replaceProgressMessage(event, progressMessageId, GENERIC_ERROR_MESSAGE);
             } finally {
                 verifyInFlight.decrementAndGet();
             }
         });
+    }
+
+    /** Replaces the "⏳ Overujem..." progress message in place with a plain-text result, clearing
+     * any embed/buttons it might have had (there aren't any yet at this point, but keeps the
+     * method safe to reuse if that ever changes). */
+    private void replaceProgressMessage(SlashCommandInteractionEvent event, AtomicReference<String> progressMessageId, String content) {
+        event.getHook().editMessageById(progressMessageId.get(), content)
+                .setEmbeds(List.of())
+                .setComponents(List.of())
+                .queue();
     }
 
     // Package-private (not private) purely so the message-formatting logic is directly unit
@@ -181,7 +204,9 @@ class VerificationSlashCommandListener {
     }
 
     private void handleCode(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
+        boolean ephemeral = ephemeralOverride == null ? true : ephemeralOverride;
+        event.deferReply(ephemeral).queue();
+        event.getHook().setEphemeral(ephemeral); // see handleVerify - followups don't inherit deferReply's flag
 
         String code = event.getOption("code").getAsString();
         String discordId = event.getUser().getId();
@@ -257,7 +282,9 @@ class VerificationSlashCommandListener {
     }
 
     private void handleFind(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
+        boolean ephemeral = ephemeralOverride == null ? true : ephemeralOverride;
+        event.deferReply(ephemeral).queue();
+        event.getHook().setEphemeral(ephemeral); // see handleVerify - followups don't inherit deferReply's flag
 
         String aisId = event.getOption("ais_id").getAsString();
         String guildId = event.getGuild().getId();
@@ -275,7 +302,9 @@ class VerificationSlashCommandListener {
     }
 
     private void handleManualVerify(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? true : ephemeralOverride).queue();
+        boolean ephemeral = ephemeralOverride == null ? true : ephemeralOverride;
+        event.deferReply(ephemeral).queue();
+        event.getHook().setEphemeral(ephemeral); // see handleVerify - followups don't inherit deferReply's flag
 
         Member target = event.getOption("user").getAsMember();
         String aisId = event.getOption("ais_id").getAsString();

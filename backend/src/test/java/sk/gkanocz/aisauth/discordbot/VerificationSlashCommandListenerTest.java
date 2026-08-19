@@ -3,7 +3,6 @@ package sk.gkanocz.aisauth.discordbot;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
@@ -14,6 +13,7 @@ import net.dv8tion.jda.api.interactions.components.ItemComponent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.restaction.AuditableRestAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +37,7 @@ import tools.jackson.core.type.TypeReference;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +56,9 @@ class VerificationSlashCommandListenerTest {
 
     private static final VerificationProperties TESTING_MODE_OFF =
             new VerificationProperties(List.of("fei-stud"), "student:active", false);
+    /** id handed back by the "⏳ Overujem..." progress message's send callback (see stubTextReply) -
+     * handleVerify targets it with editMessageById(...) for every later outcome. */
+    private static final String PROGRESS_MESSAGE_ID = "progress-msg-1";
 
     @Mock
     private VerificationService verificationService;
@@ -117,13 +121,23 @@ class VerificationSlashCommandListenerTest {
     private WebhookMessageCreateAction<Message> stubTextReply() {
         WebhookMessageCreateAction<Message> action = mock(WebhookMessageCreateAction.class, Mockito.RETURNS_SELF);
         Mockito.lenient().when(hook.sendMessage(anyString())).thenReturn(action);
+        // /verify's "⏳ Overujem..." progress message captures its own id via queue(Consumer<Message>)
+        // (see VerificationSlashCommandListener.handleVerify) so it can later be edited in place -
+        // mimic that callback here so those editMessageById(...) calls have a real id to target.
+        Mockito.lenient().doAnswer(invocation -> {
+            Consumer<Message> consumer = invocation.getArgument(0);
+            Message message = mock(Message.class);
+            Mockito.lenient().when(message.getId()).thenReturn(PROGRESS_MESSAGE_ID);
+            consumer.accept(message);
+            return null;
+        }).when(action).queue(any(Consumer.class));
         return action;
     }
 
     @SuppressWarnings("unchecked")
-    private WebhookMessageCreateAction<Message> stubEmbedReply() {
-        WebhookMessageCreateAction<Message> action = mock(WebhookMessageCreateAction.class, Mockito.RETURNS_SELF);
-        Mockito.lenient().when(hook.sendMessageEmbeds(any(MessageEmbed.class))).thenReturn(action);
+    private WebhookMessageEditAction<Message> stubEditMessage() {
+        WebhookMessageEditAction<Message> action = mock(WebhookMessageEditAction.class, Mockito.RETURNS_SELF);
+        Mockito.lenient().when(hook.editMessageById(anyString(), anyString())).thenReturn(action);
         return action;
     }
 
@@ -222,11 +236,14 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verifyRateLimiter.checkAndRecordAttempt("discord-1", "guild-1")).thenReturn(Optional.of(5L));
         stubTextReply();
+        stubEditMessage();
 
         listener.dispatch(event, null);
 
         // Throttle + LDAP path now runs on verifyExecutor, off the calling thread - wait for it.
-        verify(hook, timeout(1000)).sendMessage(contains("Vyčerpal"));
+        // The rate-limit outcome edits the "⏳ Overujem..." progress message in place rather than
+        // sending a new followup - see handleVerify's replaceProgressMessage.
+        verify(hook, timeout(1000)).editMessageById(eq(PROGRESS_MESSAGE_ID), contains("Vyčerpal"));
         verify(verificationService, never()).checkEligibility(any(), any(), any());
     }
 
@@ -243,8 +260,8 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verificationService.checkEligibility("discord-1", "guild-1", "12345")).thenReturn("student@stuba.sk");
         when(pendingVerificationStore.create(any(), any(), any())).thenReturn("token-1");
-        stubTextReply(); // the "⏳ Overujem..." in-progress message, sent before the embed reply
-        stubEmbedReply();
+        stubTextReply(); // the "⏳ Overujem..." in-progress message, edited in place below
+        stubEditMessage();
 
         listener.dispatch(event, null);
 
@@ -262,13 +279,16 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verificationService.checkEligibility("discord-1", "guild-1", "12345")).thenReturn("student@stuba.sk");
         when(pendingVerificationStore.create("discord-1", "guild-1", "12345")).thenReturn("token-1");
-        stubTextReply(); // the "⏳ Overujem..." in-progress message, sent before the embed reply
-        WebhookMessageCreateAction<Message> action = stubEmbedReply();
+        stubTextReply(); // the "⏳ Overujem..." in-progress message, edited into the embed below
+        WebhookMessageEditAction<Message> action = stubEditMessage();
 
         listener.dispatch(event, null);
 
+        // Success edits the progress message in place (editMessageById) rather than sending a
+        // separate followup - see handleVerify.
+        verify(hook, timeout(1000)).editMessageById(eq(PROGRESS_MESSAGE_ID), eq(""));
         ArgumentCaptor<ItemComponent[]> captor = ArgumentCaptor.forClass(ItemComponent[].class);
-        verify(action, timeout(1000)).addActionRow(captor.capture());
+        verify(action, timeout(1000)).setActionRow(captor.capture());
         List<Button> buttons = List.of((Button) captor.getValue()[0], (Button) captor.getValue()[1]);
         assertThat(buttons).extracting(Button::getId).containsExactly("verify_confirm:token-1", "verify_cancel:token-1");
     }
@@ -283,10 +303,12 @@ class VerificationSlashCommandListenerTest {
         when(verificationService.checkEligibility("discord-1", "guild-1", "12345"))
                 .thenThrow(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1"));
         stubTextReply();
+        stubEditMessage();
 
         listener.dispatch(event, null);
 
-        verify(hook, timeout(1000)).sendMessage(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1").getMessage());
+        verify(hook, timeout(1000)).editMessageById(eq(PROGRESS_MESSAGE_ID),
+                eq(AlreadyVerifiedException.discordUserAlreadyVerified("discord-1").getMessage()));
         verify(pendingVerificationStore, never()).create(any(), any(), any());
     }
 
@@ -299,10 +321,11 @@ class VerificationSlashCommandListenerTest {
         stubStringOption("ais_id", "12345");
         when(verificationService.checkEligibility(any(), any(), any())).thenThrow(new RuntimeException("boom"));
         stubTextReply();
+        stubEditMessage();
 
         listener.dispatch(event, null);
 
-        verify(hook, timeout(1000)).sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.");
+        verify(hook, timeout(1000)).editMessageById(eq(PROGRESS_MESSAGE_ID), eq("Nastala neočakávaná chyba, skús to prosím neskôr."));
     }
 
     // ---- /code ----
@@ -592,6 +615,68 @@ class VerificationSlashCommandListenerTest {
         listener.dispatch(event, null);
 
         verify(event, never()).deferReply(anyBoolean());
+    }
+
+    // ---- ephemeral ----
+    // deferReply(ephemeral) only covers the initial "thinking..." placeholder - every later
+    // hook.sendMessage(...)/editMessageById(...) followup is a separate message that does NOT
+    // inherit it on its own, so each handle* method must also call hook.setEphemeral(ephemeral).
+
+    @Test
+    void verifySetsHookEphemeralToConfiguredOverride() {
+        disableVerification();
+        stubTextReply();
+
+        listener.dispatch(event, false);
+
+        verify(hook).setEphemeral(false);
+    }
+
+    @Test
+    void verifyDefaultsHookEphemeralToTrueWhenOverrideIsNull() {
+        disableVerification();
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(hook).setEphemeral(true);
+    }
+
+    @Test
+    void codeSetsHookEphemeralToConfiguredOverride() {
+        asCommand("code");
+        disableVerification();
+        stubStringOption("code", "ABC123");
+        stubTextReply();
+
+        listener.dispatch(event, false);
+
+        verify(hook).setEphemeral(false);
+    }
+
+    @Test
+    void findSetsHookEphemeralToConfiguredOverride() {
+        asCommand("find");
+        stubStringOption("ais_id", "99999");
+        when(verificationService.findVerifiedUser("99999", "guild-1")).thenReturn(Optional.empty());
+        stubTextReply();
+
+        listener.dispatch(event, false);
+
+        verify(hook).setEphemeral(false);
+    }
+
+    @Test
+    void manualVerifySetsHookEphemeralToConfiguredOverride() {
+        asCommand("manualverify");
+        stubMemberOption("user", null);
+        stubStringOption("ais_id", "12345");
+        stubStringOption("email", "s@stuba.sk");
+        stubTextReply();
+
+        listener.dispatch(event, false);
+
+        verify(hook).setEphemeral(false);
     }
 
     // ---- verifyProgressMessage ----
