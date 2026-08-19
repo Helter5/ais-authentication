@@ -40,6 +40,7 @@ type CmdSettingsData = {
   message?: string;
   allowedRoleIds?: string[];
   approverRoleIds?: string[];
+  subcommandEphemeral?: Record<string, boolean>;
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
@@ -55,9 +56,18 @@ const CMD_MESSAGE_FIELD: Record<string, { label: string; tokens: string[] }> = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+/** Commands whose ephemeral behavior differs per subcommand - rendered as a small table in the
+ *  Settings modal instead of the single "Ephemeral response" toggle. */
+const CMD_SUBCOMMANDS: Record<string, { key: string; label: string }[]> = {
+  odpocet: [
+    { key: "add", label: "/odpocet add" },
+    { key: "list", label: "/odpocet list" },
+  ],
+};
+
 const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
-  allowedRoles?: boolean; approverRoles?: boolean;
+  allowedRoles?: boolean; approverRoles?: boolean; subcommandEphemeral?: boolean;
 }> = {
   warn:         { ephemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
@@ -69,7 +79,8 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   info:         { ephemeral: true },
   user:         { ephemeral: true },
   pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true },
-  faq:          { message: true },
+  faq:          { ephemeral: true, message: true },
+  odpocet:      { subcommandEphemeral: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
@@ -83,7 +94,8 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   info:         { ephemeral: true },
   user:         { ephemeral: false },
   pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIds: [], approverRoleIds: [] },
-  faq:          { message: DEFAULT_FAQ_MESSAGE },
+  faq:          { ephemeral: true, message: DEFAULT_FAQ_MESSAGE },
+  odpocet:      { subcommandEphemeral: { add: false, list: true } },
 };
 
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
@@ -119,7 +131,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   Utility: [
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
     { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
-    { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module.", settingsHref: "/modules/thesiscounter" },
+    { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module, ephemeral response per subcommand below.", hasSettings: true, settingsHref: "/modules/thesiscounter" },
     { name: "/faq", description: "Ephemeral FAQ reply. The whole message is configured below - write out the commands/info you want students to see.", hasSettings: true },
   ],
 };
@@ -247,6 +259,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
   const [message, setMessage] = useState(defaults.message ?? "");
   const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(defaults.allowedRoleIds ?? []);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
+  const [subcommandEphemeral, setSubcommandEphemeral] = useState<Record<string, boolean>>(defaults.subcommandEphemeral ?? {});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -268,6 +281,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
         if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
         if (schema.allowedRoles) setAllowedRoleIds(data.allowedRoleIds ?? defaults.allowedRoleIds ?? []);
         if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
+        if (schema.subcommandEphemeral) setSubcommandEphemeral({ ...defaults.subcommandEphemeral, ...data.subcommandEphemeral });
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -280,12 +294,14 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     schema.message,
     schema.allowedRoles,
     schema.approverRoles,
+    schema.subcommandEphemeral,
     defaults.dmUser,
     defaults.ephemeral,
     defaults.includeBots,
     defaults.message,
     defaults.allowedRoleIds,
     defaults.approverRoleIds,
+    defaults.subcommandEphemeral,
   ]);
 
   /** Inserts a {channel=<id>} token at the cursor (or end, if the textarea isn't focused) - lets one
@@ -313,6 +329,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     if (schema.message)     data.message = message;
     if (schema.allowedRoles) data.allowedRoleIds = allowedRoleIds;
     if (schema.approverRoles) data.approverRoleIds = approverRoleIds;
+    if (schema.subcommandEphemeral) data.subcommandEphemeral = subcommandEphemeral;
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
       setSaved(true);
@@ -340,6 +357,23 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
             <CmdSettingsRow label="Ephemeral response" hint="Only visible to the user who ran the command">
               <Toggle enabled={ephemeral} onChange={setEphemeral} />
             </CmdSettingsRow>
+          )}
+          {schema.subcommandEphemeral && (
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Ephemeral response</p>
+              <p className="text-xs text-zinc-500 mt-0.5 mb-2">Only visible to the user who ran the command - set per subcommand.</p>
+              <div className="rounded-lg border border-zinc-700 divide-y divide-zinc-700/50 overflow-hidden">
+                {(CMD_SUBCOMMANDS[commandKey] ?? []).map(sc => (
+                  <div key={sc.key} className="flex items-center justify-between gap-3 px-3 py-2 bg-zinc-800/60">
+                    <span className="text-xs font-mono text-zinc-300">{sc.label}</span>
+                    <Toggle
+                      enabled={subcommandEphemeral[sc.key] ?? false}
+                      onChange={v => setSubcommandEphemeral(s => ({ ...s, [sc.key]: v }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           {schema.dmUser && (
             <div className="space-y-3">
@@ -708,8 +742,8 @@ function CmdCard({ cmd, guildId, roles, channels, enabled, onToggle, allowedRole
         )}
         {cmd.settingsHref && (
           <Link to={cmd.settingsHref}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider bg-indigo-700/80 hover:bg-indigo-600 text-white transition-colors">
-            <SlidersHorizontal className="w-3 h-3" /> Settings
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider bg-zinc-700/80 hover:bg-zinc-600 text-white transition-colors">
+            <SlidersHorizontal className="w-3 h-3" /> Manage Countdowns
           </Link>
         )}
         {logEventTypes && (

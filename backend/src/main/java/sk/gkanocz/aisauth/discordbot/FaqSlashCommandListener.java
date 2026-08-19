@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
  * whole description is the admin-configured text, same {@code cmd_settings_<guildId>_faq} ->
  * "message" convention every other command's Settings modal already saves through (see
  * {@code VerificationSlashCommandListener}'s {@code codeSuccessMessage}) - nothing hardcoded here,
- * the dashboard is the only source of content. Always ephemeral, regardless of the dashboard's
- * per-command ephemeral override - it's a personal cheat-sheet, not a channel announcement.
+ * the dashboard is the only source of content. Ephemeral by default (it's a personal cheat-sheet,
+ * not a channel announcement) but toggleable via the same Settings modal as every other command.
  */
 @Component
 @RequiredArgsConstructor
@@ -33,7 +33,8 @@ class FaqSlashCommandListener {
         if (!"faq".equals(event.getName())) {
             return;
         }
-        event.replyEmbeds(buildEmbed(event.getGuild().getId())).setEphemeral(true).queue();
+        boolean ephemeral = ephemeralOverride == null ? true : ephemeralOverride;
+        event.replyEmbeds(buildEmbed(event.getGuild().getId())).setEphemeral(ephemeral).queue();
     }
 
     private MessageEmbed buildEmbed(String guildId) {
