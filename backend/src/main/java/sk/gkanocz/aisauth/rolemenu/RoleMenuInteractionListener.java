@@ -23,6 +23,12 @@ import java.util.Set;
  * Handles clicks on a role menu's buttons/select-menu (posted by RoleMenuService). Not gated
  * through CommandInteractionListener since these are component interactions, not slash commands -
  * the guild allowlist check happens one layer up in GuildAllowlistEventManager instead.
+ *
+ * <p>Each {@link RoleMenuOption} may bundle several Discord roles under one button/select entry
+ * (e.g. "2. ROCNIK + API" granting two roles at once) - {@link #hasOption} treats "has this
+ * option" as holding every one of its (still-existing) roles, and {@link #applyOption} adds/
+ * removes whichever of the bundle's roles the member is missing/holding, skipping roles that no
+ * longer exist on the server rather than failing the whole bundle.
  */
 @Slf4j
 @Component
@@ -47,10 +53,11 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             return;
         }
         Long configId = parseId(parts[0]);
-        if (configId == null) {
+        Long optionIndexRaw = parseId(parts[1]);
+        if (configId == null || optionIndexRaw == null) {
             return;
         }
-        String clickedRoleId = parts[1];
+        int optionIndex = optionIndexRaw.intValue();
 
         withConfig(event.getGuild(), configId, config -> {
             String denied = accessDeniedReason(event.getGuild(), event.getMember(), config);
@@ -62,55 +69,121 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             Guild guild = event.getGuild();
             Member member = event.getMember();
             List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
-            if (options.stream().noneMatch(option -> option.roleId().equals(clickedRoleId))) {
-                event.reply("That role isn't part of this menu.").setEphemeral(true).queue();
+            if (optionIndex < 0 || optionIndex >= options.size()) {
+                event.reply("That role isn't part of this menu anymore.").setEphemeral(true).queue();
                 return;
             }
-            Role clickedRole = guild.getRoleById(clickedRoleId);
-            if (clickedRole == null) {
-                event.reply("That role no longer exists.").setEphemeral(true).queue();
-                return;
-            }
-            if (!canManageRole(guild, clickedRole)) {
-                event.reply("I can't manage that role right now - contact a moderator.").setEphemeral(true).queue();
-                return;
-            }
+            RoleMenuOption clicked = options.get(optionIndex);
 
             List<String> added = new ArrayList<>();
             List<String> removed = new ArrayList<>();
-            boolean single = "SINGLE".equals(config.getSelectionMode());
+            List<String> blocked = new ArrayList<>();
+            boolean alreadyHas = hasOption(guild, member, clicked);
+            String messageType = config.getMessageType();
 
-            if (single) {
-                for (RoleMenuOption option : options) {
-                    if (option.roleId().equals(clickedRoleId)) {
-                        continue;
+            switch (messageType) {
+                case "UNIQUE" -> {
+                    // Always grants the clicked option rather than toggling it off - a bundle can
+                    // share a role with a sibling option (e.g. "2. ROCNIK + API" vs "API"), so
+                    // "alreadyHas" is ambiguous about which option the member actually picked.
+                    // Roles the clicked option itself wants are protected from the sibling-clear
+                    // pass below, so an overlapping role never gets removed then re-added.
+                    Set<String> keep = new HashSet<>(clicked.roleIds());
+                    for (int i = 0; i < options.size(); i++) {
+                        if (i != optionIndex) {
+                            applyOption(guild, member, options.get(i), false, keep, added, removed, blocked);
+                        }
                     }
-                    Role sibling = guild.getRoleById(option.roleId());
-                    if (sibling != null && member.getRoles().contains(sibling) && canManageRole(guild, sibling)) {
-                        guild.removeRoleFromMember(member, sibling).queue();
-                        removed.add(sibling.getName());
+                    applyOption(guild, member, clicked, true, Set.of(), added, removed, blocked);
+                }
+                case "VERIFY" -> {
+                    if (alreadyHas) {
+                        event.reply("You already have this role.").setEphemeral(true).queue();
+                        return;
                     }
+                    if (config.getMaxSelectable() != null && countHeld(guild, member, options) >= config.getMaxSelectable()) {
+                        event.reply("You can only have up to " + config.getMaxSelectable()
+                                + " role(s) from this menu.").setEphemeral(true).queue();
+                        return;
+                    }
+                    applyOption(guild, member, clicked, true, Set.of(), added, removed, blocked);
+                }
+                case "DROP" -> {
+                    if (!alreadyHas) {
+                        event.reply("You don't have this role.").setEphemeral(true).queue();
+                        return;
+                    }
+                    applyOption(guild, member, clicked, false, Set.of(), added, removed, blocked);
+                }
+                case "BINDING" -> {
+                    if (options.stream().anyMatch(o -> hasOption(guild, member, o))) {
+                        event.reply("Your choice from this menu is final and can't be changed.").setEphemeral(true).queue();
+                        return;
+                    }
+                    applyOption(guild, member, clicked, true, Set.of(), added, removed, blocked);
+                }
+                default -> { // NORMAL
+                    if (!alreadyHas && config.getMaxSelectable() != null
+                            && countHeld(guild, member, options) >= config.getMaxSelectable()) {
+                        event.reply("You can only have up to " + config.getMaxSelectable()
+                                + " role(s) from this menu - remove one first.").setEphemeral(true).queue();
+                        return;
+                    }
+                    applyOption(guild, member, clicked, !alreadyHas, Set.of(), added, removed, blocked);
                 }
             }
 
-            boolean alreadyHas = member.getRoles().contains(clickedRole);
-            if (!alreadyHas && !single && config.getMaxSelectable() != null
-                    && countHeld(member, guild, options) >= config.getMaxSelectable()) {
-                event.reply("You can only have up to " + config.getMaxSelectable()
-                        + " role(s) from this menu - remove one first.").setEphemeral(true).queue();
-                return;
-            }
-
-            if (alreadyHas) {
-                guild.removeRoleFromMember(member, clickedRole).queue();
-                removed.add(clickedRole.getName());
-            } else {
-                guild.addRoleToMember(member, clickedRole).queue();
-                added.add(clickedRole.getName());
-            }
-
-            event.reply(summarize(added, removed)).setEphemeral(true).queue();
+            event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
         });
+    }
+
+    /** True if the member holds every one of this option's roles that still exist on the server. */
+    private boolean hasOption(Guild guild, Member member, RoleMenuOption option) {
+        boolean anyExists = false;
+        for (String roleId : option.roleIds()) {
+            Role role = guild.getRoleById(roleId);
+            if (role == null) {
+                continue;
+            }
+            anyExists = true;
+            if (!member.getRoles().contains(role)) {
+                return false;
+            }
+        }
+        return anyExists;
+    }
+
+    /** Adds (grant=true) whichever of the option's roles the member doesn't yet have, or removes
+     *  (grant=false) whichever it does - deleted roles are skipped, unmanageable roles are reported.
+     *  {@code protectFromRemoval} is only consulted when {@code grant} is false: a role another,
+     *  currently-wanted option also bundles is never stripped away just because this call is
+     *  clearing a different (sibling/deselected) option that happens to share it. */
+    private void applyOption(Guild guild, Member member, RoleMenuOption option, boolean grant, Set<String> protectFromRemoval,
+            List<String> added, List<String> removed, List<String> blocked) {
+        for (String roleId : option.roleIds()) {
+            if (!grant && protectFromRemoval.contains(roleId)) {
+                continue;
+            }
+            Role role = guild.getRoleById(roleId);
+            if (role == null) {
+                continue;
+            }
+            boolean has = member.getRoles().contains(role);
+            if (grant == has) {
+                continue;
+            }
+            if (!canManageRole(guild, role)) {
+                blocked.add(role.getName());
+                continue;
+            }
+            if (grant) {
+                guild.addRoleToMember(member, role).queue();
+                added.add(role.getName());
+            } else {
+                guild.removeRoleFromMember(member, role).queue();
+                removed.add(role.getName());
+            }
+        }
     }
 
     @Override
@@ -133,47 +206,64 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
 
             Guild guild = event.getGuild();
             Member member = event.getMember();
-            Set<String> selected = new HashSet<>(event.getValues());
+            Set<String> selectedIndexes = new HashSet<>(event.getValues());
             List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
+            String messageType = config.getMessageType();
 
-            if ("MULTI".equals(config.getSelectionMode()) && config.getMaxSelectable() != null
-                    && selected.size() > config.getMaxSelectable()) {
-                event.reply("You can select at most " + config.getMaxSelectable() + " role(s) from this menu.")
-                        .setEphemeral(true).queue();
+            if ("BINDING".equals(messageType) && options.stream().anyMatch(o -> hasOption(guild, member, o))) {
+                event.reply("Your choice from this menu is final and can't be changed.").setEphemeral(true).queue();
                 return;
+            }
+
+            // DROP never adds; VERIFY/BINDING never remove an unselected-but-held option - the
+            // select menu's own checkboxes only express what the member is actively asking for.
+            boolean canAdd = !"DROP".equals(messageType);
+            boolean canRemove = "NORMAL".equals(messageType) || "UNIQUE".equals(messageType) || "DROP".equals(messageType);
+
+            if (canAdd && config.getMaxSelectable() != null) {
+                long currentlyHeld = countHeld(guild, member, options);
+                long newPicks = 0;
+                for (int i = 0; i < options.size(); i++) {
+                    if (selectedIndexes.contains(String.valueOf(i)) && !hasOption(guild, member, options.get(i))) {
+                        newPicks++;
+                    }
+                }
+                if (currentlyHeld + newPicks > config.getMaxSelectable()) {
+                    event.reply("You can select at most " + config.getMaxSelectable() + " role(s) from this menu.")
+                            .setEphemeral(true).queue();
+                    return;
+                }
+            }
+
+            // Roles bundled into a selected option are never stripped by a deselected sibling that
+            // happens to share them (e.g. "2. ROCNIK + API" selected while plain "API" is not).
+            Set<String> keep = new HashSet<>();
+            for (int i = 0; i < options.size(); i++) {
+                if (selectedIndexes.contains(String.valueOf(i))) {
+                    keep.addAll(options.get(i).roleIds());
+                }
             }
 
             List<String> added = new ArrayList<>();
             List<String> removed = new ArrayList<>();
             List<String> blocked = new ArrayList<>();
-            for (RoleMenuOption option : options) {
-                Role role = guild.getRoleById(option.roleId());
-                if (role == null) {
-                    continue;
-                }
-                boolean shouldHave = selected.contains(option.roleId());
-                boolean has = member.getRoles().contains(role);
+            for (int i = 0; i < options.size(); i++) {
+                RoleMenuOption option = options.get(i);
+                boolean shouldHave = selectedIndexes.contains(String.valueOf(i));
+                boolean has = hasOption(guild, member, option);
                 if (shouldHave == has) {
                     continue;
                 }
-                if (!canManageRole(guild, role)) {
-                    blocked.add(role.getName());
+                if (shouldHave && !canAdd) {
                     continue;
                 }
-                if (shouldHave) {
-                    guild.addRoleToMember(member, role).queue();
-                    added.add(role.getName());
-                } else {
-                    guild.removeRoleFromMember(member, role).queue();
-                    removed.add(role.getName());
+                if (!shouldHave && !canRemove) {
+                    continue;
                 }
+                applyOption(guild, member, option, shouldHave, keep, added, removed, blocked);
             }
 
-            String summary = summarize(added, removed);
-            if (!blocked.isEmpty()) {
-                summary += "\nCouldn't update: " + String.join(", ", blocked) + " (contact a moderator).";
-            }
-            event.reply(summary).setEphemeral(true).queue();
+            event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
         });
     }
 
@@ -215,11 +305,9 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         return null;
     }
 
-    private long countHeld(Member member, Guild guild, List<RoleMenuOption> options) {
-        return options.stream()
-                .map(o -> guild.getRoleById(o.roleId()))
-                .filter(r -> r != null && member.getRoles().contains(r))
-                .count();
+    /** Number of this menu's options the member currently holds in full. */
+    private long countHeld(Guild guild, Member member, List<RoleMenuOption> options) {
+        return options.stream().filter(o -> hasOption(guild, member, o)).count();
     }
 
     private boolean canManageRole(Guild guild, Role role) {
@@ -227,19 +315,23 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 && BotPermissionChecker.rolesAboveBot(guild, role).isEmpty();
     }
 
-    private String summarize(List<String> added, List<String> removed) {
-        if (added.isEmpty() && removed.isEmpty()) {
-            return "No changes.";
-        }
+    private String summarize(List<String> added, List<String> removed, List<String> blocked) {
         StringBuilder sb = new StringBuilder();
-        if (!added.isEmpty()) {
-            sb.append("Added: ").append(String.join(", ", added));
-        }
-        if (!removed.isEmpty()) {
-            if (sb.length() > 0) {
-                sb.append("\n");
+        if (added.isEmpty() && removed.isEmpty()) {
+            sb.append("No changes.");
+        } else {
+            if (!added.isEmpty()) {
+                sb.append("Added: ").append(String.join(", ", added));
             }
-            sb.append("Removed: ").append(String.join(", ", removed));
+            if (!removed.isEmpty()) {
+                if (sb.length() > 0) {
+                    sb.append("\n");
+                }
+                sb.append("Removed: ").append(String.join(", ", removed));
+            }
+        }
+        if (!blocked.isEmpty()) {
+            sb.append("\nCouldn't update: ").append(String.join(", ", blocked)).append(" (contact a moderator).");
         }
         return sb.toString();
     }

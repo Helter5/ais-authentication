@@ -37,7 +37,7 @@ class RoleMenuControllerIntegrationTest {
 
     private String validConfigBody(String guildId) {
         return "{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"title\":\"Pick a role\","
-                + "\"ui_type\":\"BUTTONS\",\"selection_mode\":\"SINGLE\","
+                + "\"ui_type\":\"BUTTONS\",\"message_type\":\"UNIQUE\","
                 + "\"options\":[{\"roleId\":\"role-1\",\"label\":\"One\"}]}";
     }
 
@@ -127,7 +127,7 @@ class RoleMenuControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\",\"title\":\"Pick a role\","
-                                + "\"ui_type\":\"BUTTONS\",\"selection_mode\":\"SINGLE\"}"))
+                                + "\"ui_type\":\"BUTTONS\",\"message_type\":\"UNIQUE\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Choose a channel for the role menu."));
     }
@@ -141,7 +141,7 @@ class RoleMenuControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\","
-                                + "\"ui_type\":\"BUTTONS\",\"selection_mode\":\"SINGLE\"}"))
+                                + "\"ui_type\":\"BUTTONS\",\"message_type\":\"UNIQUE\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Give the role menu a title."));
     }
@@ -155,13 +155,13 @@ class RoleMenuControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"title\":\"Pick a role\","
-                                + "\"ui_type\":\"DROPDOWN\",\"selection_mode\":\"SINGLE\"}"))
+                                + "\"ui_type\":\"DROPDOWN\",\"message_type\":\"UNIQUE\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("uiType must be BUTTONS or SELECT_MENU."));
     }
 
     @Test
-    void createRejectsInvalidSelectionMode() throws Exception {
+    void createRejectsInvalidMessageType() throws Exception {
         String guildId = "guild-rm-4";
         String token = auth.managerTokenFor(guildId);
 
@@ -169,9 +169,9 @@ class RoleMenuControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"title\":\"Pick a role\","
-                                + "\"ui_type\":\"BUTTONS\",\"selection_mode\":\"ANY\"}"))
+                                + "\"ui_type\":\"BUTTONS\",\"message_type\":\"ANY\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("selectionMode must be SINGLE or MULTI."));
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("messageType must be one of")));
     }
 
     @Test
@@ -183,7 +183,7 @@ class RoleMenuControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\",\"channel_id\":\"chan-1\",\"title\":\"Pick a role\","
-                                + "\"ui_type\":\"BUTTONS\",\"selection_mode\":\"MULTI\",\"max_selectable\":0}"))
+                                + "\"ui_type\":\"BUTTONS\",\"message_type\":\"NORMAL\",\"max_selectable\":0}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Max selectable roles must be at least 1."));
     }

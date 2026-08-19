@@ -164,7 +164,7 @@ export interface DiscordEmoji {
 }
 
 export interface RoleMenuOption {
-  role_id: string;
+  role_ids: string[];
   label: string;
   emoji: string | null;
   description: string | null;
@@ -178,7 +178,7 @@ export interface RoleMenuConfig {
   title: string;
   description: string;
   ui_type: 'BUTTONS' | 'SELECT_MENU';
-  selection_mode: 'SINGLE' | 'MULTI';
+  message_type: 'NORMAL' | 'UNIQUE' | 'VERIFY' | 'DROP' | 'BINDING';
   require_verified: boolean;
   options: RoleMenuOption[];
   allowed_role_ids: string[];

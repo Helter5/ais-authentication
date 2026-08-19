@@ -43,12 +43,12 @@ class RoleMenuServiceTest {
     }
 
     private RoleMenuOption option(String roleId) {
-        return new RoleMenuOption(roleId, "Label " + roleId, null, null);
+        return new RoleMenuOption(List.of(roleId), "Label " + roleId, null, null);
     }
 
     private RoleMenuConfig buttonConfig(String channelId) {
         return new RoleMenuConfig(
-                "guild-1", channelId, "Pick a role", "desc", "BUTTONS", "SINGLE", false,
+                "guild-1", channelId, "Pick a role", "desc", "BUTTONS", "NORMAL", false,
                 service.writeOptions(List.of(option("role-1"), option("role-2"))),
                 service.writeRoleIds(List.of()), service.writeRoleIds(List.of()), null);
     }
@@ -80,12 +80,38 @@ class RoleMenuServiceTest {
 
     @Test
     void optionsRoundTripThroughJson() {
-        List<RoleMenuOption> original = List.of(option("role-1"), new RoleMenuOption("role-2", "Two", "🎉", "desc"));
+        List<RoleMenuOption> original = List.of(option("role-1"), new RoleMenuOption(List.of("role-2"), "Two", "🎉", "desc"));
 
         String json = service.writeOptions(original);
         List<RoleMenuOption> readBack = service.readOptions(json);
 
         assertThat(readBack).isEqualTo(original);
+    }
+
+    @Test
+    void writeOptionsRejectsAnOptionWithNoRoles() {
+        assertThatThrownBy(() -> service.writeOptions(List.of(new RoleMenuOption(List.of(), "Empty", null, null))))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("at least one Discord role");
+    }
+
+    @Test
+    void optionsWithMultipleBundledRolesRoundTripThroughJson() {
+        List<RoleMenuOption> original = List.of(new RoleMenuOption(List.of("role-1", "role-2"), "2. ROCNIK + API", null, null));
+
+        String json = service.writeOptions(original);
+        List<RoleMenuOption> readBack = service.readOptions(json);
+
+        assertThat(readBack).isEqualTo(original);
+    }
+
+    @Test
+    void readOptionsAcceptsTheLegacySingleRoleIdShape() {
+        String legacyJson = "[{\"role_id\":\"role-1\",\"label\":\"One\",\"emoji\":null,\"description\":null}]";
+
+        List<RoleMenuOption> readBack = service.readOptions(legacyJson);
+
+        assertThat(readBack).containsExactly(new RoleMenuOption(List.of("role-1"), "One", null, null));
     }
 
     @Test

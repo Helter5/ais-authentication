@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Builds and (re)posts the actual Discord message for a role menu - the embed plus its buttons
@@ -33,8 +34,31 @@ public class RoleMenuService {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * Reads options via a generic Map so a pre-multi-role menu's legacy {@code {"role_id": "..."}}
+     * shape (single role per option) still loads fine as a one-role bundle, instead of every role
+     * menu saved before this feature failing to deserialize.
+     */
+    @SuppressWarnings("unchecked")
     List<RoleMenuOption> readOptions(String json) {
-        return objectMapper.readValue(json, new TypeReference<List<RoleMenuOption>>() { });
+        List<Map<String, Object>> raw = objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() { });
+        List<RoleMenuOption> options = new ArrayList<>();
+        for (Map<String, Object> node : raw) {
+            List<String> roleIds;
+            if (node.get("role_ids") instanceof List<?> list) {
+                roleIds = list.stream().map(String::valueOf).toList();
+            } else if (node.get("role_id") instanceof String single) {
+                roleIds = List.of(single);
+            } else {
+                roleIds = List.of();
+            }
+            options.add(new RoleMenuOption(
+                    roleIds,
+                    (String) node.get("label"),
+                    (String) node.get("emoji"),
+                    (String) node.get("description")));
+        }
+        return options;
     }
 
     String writeOptions(List<RoleMenuOption> options) {
@@ -43,6 +67,9 @@ public class RoleMenuService {
         }
         if (options.size() > MAX_OPTIONS) {
             throw InvalidRequestException.withMessage("A role menu can have at most " + MAX_OPTIONS + " roles.");
+        }
+        if (options.stream().anyMatch(o -> o.roleIds() == null || o.roleIds().isEmpty())) {
+            throw InvalidRequestException.withMessage("Every role option needs at least one Discord role.");
         }
         return objectMapper.writeValueAsString(options);
     }
@@ -118,27 +145,30 @@ public class RoleMenuService {
     private List<ActionRow> buildComponents(RoleMenuConfig config) {
         List<RoleMenuOption> options = readOptions(config.getOptions());
         if ("SELECT_MENU".equals(config.getUiType())) {
-            int maxValues = "MULTI".equals(config.getSelectionMode())
-                    ? Math.min(options.size(), config.getMaxSelectable() != null ? config.getMaxSelectable() : options.size())
-                    : 1;
+            boolean singlePick = "UNIQUE".equals(config.getMessageType()) || "BINDING".equals(config.getMessageType());
+            int maxValues = singlePick ? 1
+                    : Math.min(options.size(), config.getMaxSelectable() != null ? config.getMaxSelectable() : options.size());
             StringSelectMenu.Builder builder = StringSelectMenu.create("rolemenu:" + config.getId())
                     .setPlaceholder("Choose your role" + (options.size() > 1 ? "(s)" : ""))
                     .setMinValues(0)
                     .setMaxValues(maxValues);
-            for (RoleMenuOption option : options) {
+            for (int i = 0; i < options.size(); i++) {
+                RoleMenuOption option = options.get(i);
+                String value = String.valueOf(i);
                 if (option.emoji() != null && !option.emoji().isBlank()) {
-                    builder.addOption(option.label(), option.roleId(),
+                    builder.addOption(option.label(), value,
                             option.description() == null ? "" : option.description(), Emoji.fromFormatted(option.emoji()));
                 } else {
-                    builder.addOption(option.label(), option.roleId(), option.description() == null ? "" : option.description());
+                    builder.addOption(option.label(), value, option.description() == null ? "" : option.description());
                 }
             }
             return List.of(ActionRow.of(builder.build()));
         }
 
         List<Button> buttons = new ArrayList<>();
-        for (RoleMenuOption option : options) {
-            String customId = "rolemenu:" + config.getId() + ":" + option.roleId();
+        for (int i = 0; i < options.size(); i++) {
+            RoleMenuOption option = options.get(i);
+            String customId = "rolemenu:" + config.getId() + ":" + i;
             Button button = option.emoji() != null && !option.emoji().isBlank()
                     ? Button.secondary(customId, option.label()).withEmoji(Emoji.fromFormatted(option.emoji()))
                     : Button.secondary(customId, option.label());

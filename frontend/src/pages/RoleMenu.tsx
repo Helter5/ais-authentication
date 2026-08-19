@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import EmojiPicker, { Theme as EmojiTheme } from "emoji-picker-react";
+import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw,
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
-  useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, RoleSelect, computeDropPosition,
+  useSelectedGuildId, Toggle, ChannelPicker, MultiPicker, computeDropPosition,
   ModulePageHeader, ConfigSidebar, EmptyConfigSelection,
 } from "@/components/modules/shared";
 
@@ -21,7 +21,7 @@ const DEFAULT_DRAFT: Draft = {
   title: "",
   description: "",
   ui_type: "SELECT_MENU",
-  selection_mode: "SINGLE",
+  message_type: "UNIQUE",
   require_verified: false,
   options: [],
   allowed_role_ids: [],
@@ -29,8 +29,16 @@ const DEFAULT_DRAFT: Draft = {
   max_selectable: null,
 };
 
+const MESSAGE_TYPES: { value: RoleMenuConfig["message_type"]; label: string; description: string }[] = [
+  { value: "NORMAL", label: "Normal", description: "Clicking hands out or removes roles the way you'd expect - click again to take it back off." },
+  { value: "UNIQUE", label: "Unique", description: "Only one role from this menu at a time - picking a new one swaps out the old one." },
+  { value: "VERIFY", label: "Verify", description: "Roles can only be picked up here, never removed - use this for one-way opt-ins." },
+  { value: "DROP", label: "Drop", description: "Roles can only be removed here, never picked up - use this to let members opt out of a role granted elsewhere." },
+  { value: "BINDING", label: "Binding", description: "Members get exactly one pick from this menu, ever - once chosen it can't be changed." },
+];
+
 function emptyOption(): RoleMenuOption {
-  return { role_id: "", label: "", emoji: null, description: null };
+  return { role_ids: [], label: "", emoji: null, description: null };
 }
 
 // ─── Emoji picker (Discord custom emoji + unicode, with search) ─────────────
@@ -84,6 +92,7 @@ function EmojiPickerButton({ value, onChange, guildEmojis }: {
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}>
           <EmojiPicker
             theme={EmojiTheme.DARK}
+            emojiStyle={EmojiStyle.NATIVE}
             customEmojis={customEmojis}
             onEmojiClick={data => { onChange(data.emoji); setOpen(false); }}
             previewConfig={{ showPreview: false }}
@@ -172,7 +181,7 @@ export function RoleMenuModule() {
       title: cfg.title,
       description: cfg.description,
       ui_type: cfg.ui_type,
-      selection_mode: cfg.selection_mode,
+      message_type: cfg.message_type,
       require_verified: cfg.require_verified,
       options: cfg.options,
       allowed_role_ids: cfg.allowed_role_ids,
@@ -199,7 +208,7 @@ export function RoleMenuModule() {
     if (!guildId || !draft.channel_id) { toast("Select a channel first.", "error"); return; }
     if (!draft.title.trim()) { toast("Give the role menu a title.", "error"); return; }
     if (draft.options.length === 0) { toast("Add at least one role.", "error"); return; }
-    if (draft.options.some(o => !o.role_id || !o.label.trim())) { toast("Every role option needs a role and a label.", "error"); return; }
+    if (draft.options.some(o => o.role_ids.length === 0 || !o.label.trim())) { toast("Every option needs at least one role and a label.", "error"); return; }
 
     setSaving(true);
     try {
@@ -333,23 +342,22 @@ export function RoleMenuModule() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Selection mode</p>
-                    <div className="grid grid-cols-2 rounded border border-zinc-700 overflow-hidden">
-                      {(["SINGLE", "MULTI"] as const).map(m => (
-                        <button key={m} type="button" onClick={() => upd("selection_mode", m)}
-                          className={cn("py-2 text-xs font-bold uppercase tracking-wider transition-colors",
-                            draft.selection_mode === m ? "bg-indigo-600 text-white" : "bg-zinc-800 text-zinc-500 hover:text-zinc-300")}>
-                          {m === "SINGLE" ? "Single (radio)" : "Multi (checkbox)"}
+                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Message type</p>
+                    <div className="space-y-1.5">
+                      {MESSAGE_TYPES.map(mt => (
+                        <button key={mt.value} type="button" onClick={() => upd("message_type", mt.value)}
+                          className={cn("w-full text-left px-3 py-2 rounded border transition-colors",
+                            draft.message_type === mt.value
+                              ? "border-indigo-500 bg-indigo-500/10"
+                              : "border-zinc-700 bg-zinc-800 hover:border-zinc-500")}>
+                          <p className={cn("text-xs font-bold uppercase tracking-wider",
+                            draft.message_type === mt.value ? "text-indigo-300" : "text-zinc-300")}>{mt.label}</p>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">{mt.description}</p>
                         </button>
                       ))}
                     </div>
-                    <p className="text-[11px] text-zinc-600 mt-1">
-                      {draft.selection_mode === "SINGLE"
-                        ? "Picking one role removes any other role from this menu."
-                        : "Members can hold several roles from this menu at once."}
-                    </p>
                   </div>
-                  {draft.selection_mode === "MULTI" && (
+                  {(draft.message_type === "NORMAL" || draft.message_type === "VERIFY") && (
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-zinc-200">Limit selectable roles</p>
@@ -413,12 +421,19 @@ export function RoleMenuModule() {
                       <div key={i} className="px-4 py-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="w-4 flex-shrink-0 text-right text-[11px] font-mono text-zinc-600">{i + 1}</span>
-                          <RoleSelect roles={roles} value={option.role_id} onChange={v => updOption(i, { role_id: v })} />
-                          <EmojiPickerButton value={option.emoji} onChange={v => updOption(i, { emoji: v })} guildEmojis={guildEmojis} />
-                          <input value={option.label} onChange={e => updOption(i, { label: e.target.value })} placeholder="Label shown to members"
-                            className="flex-1 min-w-0 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />
+                          <div className="flex-1 min-w-0">
+                            <MultiPicker options={roles} selected={option.role_ids} onChange={v => updOption(i, { role_ids: v })}
+                              placeholder="Select role(s) this grants…" />
+                          </div>
                           <button type="button" onClick={() => removeOption(i)}
                             className="flex-shrink-0 text-zinc-600 hover:text-red-400 transition-colors"><X className="w-4 h-4" /></button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-4 flex-shrink-0" />
+                          <EmojiPickerButton value={option.emoji} onChange={v => updOption(i, { emoji: v })} guildEmojis={guildEmojis} />
+                          <input value={option.label} onChange={e => updOption(i, { label: e.target.value })}
+                            placeholder={option.role_ids.length > 1 ? "e.g. 2. ROCNIK + API" : "Label shown to members"}
+                            className="flex-1 min-w-0 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />
                         </div>
                         {draft.ui_type === "SELECT_MENU" && (
                           <div className="flex items-center gap-2">

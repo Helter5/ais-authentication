@@ -40,9 +40,9 @@ public class RoleMenuConfig {
     @Column(name = "ui_type", nullable = false, length = 16)
     private String uiType;
 
-    /** SINGLE or MULTI. */
-    @Column(name = "selection_mode", nullable = false, length = 16)
-    private String selectionMode;
+    /** NORMAL, UNIQUE, VERIFY, DROP, or BINDING - see RoleMenuInteractionListener for what each does. */
+    @Column(name = "message_type", nullable = false, length = 16)
+    private String messageType;
 
     @Column(name = "require_verified", nullable = false)
     private boolean requireVerified;
@@ -61,7 +61,8 @@ public class RoleMenuConfig {
     @Column(name = "blocked_role_ids", nullable = false)
     private String blockedRoleIds;
 
-    /** Optional cap on how many of this menu's roles a member may hold at once. MULTI mode only; null = no limit. */
+    /** Optional cap on how many of this menu's roles a member may hold at once. Only meaningful for
+     *  NORMAL/VERIFY message types (UNIQUE/BINDING already cap at one, DROP never adds); null = no limit. */
     @Column(name = "max_selectable")
     private Integer maxSelectable;
 
@@ -74,14 +75,14 @@ public class RoleMenuConfig {
 
     public RoleMenuConfig(
             String guildId, String channelId, String title, String description,
-            String uiType, String selectionMode, boolean requireVerified, String options,
+            String uiType, String messageType, boolean requireVerified, String options,
             String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.guildId = guildId;
         this.channelId = channelId;
         this.title = title;
         this.description = description;
         this.uiType = uiType;
-        this.selectionMode = selectionMode;
+        this.messageType = messageType;
         this.requireVerified = requireVerified;
         this.options = options;
         this.allowedRoleIds = allowedRoleIds;
@@ -92,13 +93,13 @@ public class RoleMenuConfig {
 
     public void update(
             String channelId, String title, String description,
-            String uiType, String selectionMode, boolean requireVerified, String options,
+            String uiType, String messageType, boolean requireVerified, String options,
             String allowedRoleIds, String blockedRoleIds, Integer maxSelectable) {
         this.channelId = channelId;
         this.title = title;
         this.description = description;
         this.uiType = uiType;
-        this.selectionMode = selectionMode;
+        this.messageType = messageType;
         this.requireVerified = requireVerified;
         this.options = options;
         this.allowedRoleIds = allowedRoleIds;

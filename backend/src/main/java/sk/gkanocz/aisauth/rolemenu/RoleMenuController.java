@@ -23,11 +23,14 @@ import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/rolemenu")
 @RequiredArgsConstructor
 public class RoleMenuController {
+
+    private static final Set<String> VALID_MESSAGE_TYPES = Set.of("NORMAL", "UNIQUE", "VERIFY", "DROP", "BINDING");
 
     private final RoleMenuConfigRepository roleMenuConfigRepository;
     private final RoleMenuService roleMenuService;
@@ -69,7 +72,7 @@ public class RoleMenuController {
         RoleMenuConfig config = new RoleMenuConfig(
                 request.guildId(), request.channelId(),
                 request.title(), request.description(),
-                request.uiType(), request.selectionMode(),
+                request.uiType(), request.messageType(),
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
                 roleMenuService.writeRoleIds(request.allowedRoleIds()),
@@ -96,7 +99,7 @@ public class RoleMenuController {
         String previousMessageId = config.getMessageId();
         config.update(
                 request.channelId(), request.title(), request.description(),
-                request.uiType(), request.selectionMode(),
+                request.uiType(), request.messageType(),
                 Boolean.TRUE.equals(request.requireVerified()),
                 roleMenuService.writeOptions(request.options()),
                 roleMenuService.writeRoleIds(request.allowedRoleIds()),
@@ -145,23 +148,25 @@ public class RoleMenuController {
         if (!"BUTTONS".equals(request.uiType()) && !"SELECT_MENU".equals(request.uiType())) {
             throw InvalidRequestException.withMessage("uiType must be BUTTONS or SELECT_MENU.");
         }
-        if (!"SINGLE".equals(request.selectionMode()) && !"MULTI".equals(request.selectionMode())) {
-            throw InvalidRequestException.withMessage("selectionMode must be SINGLE or MULTI.");
+        if (!VALID_MESSAGE_TYPES.contains(request.messageType())) {
+            throw InvalidRequestException.withMessage("messageType must be one of " + VALID_MESSAGE_TYPES + ".");
         }
         if (request.maxSelectable() != null && request.maxSelectable() < 1) {
             throw InvalidRequestException.withMessage("Max selectable roles must be at least 1.");
         }
     }
 
-    /** Only meaningful in MULTI mode - SINGLE is already an implicit max of 1, so ignore any stray value there. */
+    /** Only meaningful for NORMAL/VERIFY - UNIQUE/BINDING already cap at one and DROP never adds,
+     *  so ignore any stray value for those message types. */
     private Integer normalizeMaxSelectable(RoleMenuConfigRequest request) {
-        return "MULTI".equals(request.selectionMode()) ? request.maxSelectable() : null;
+        return "NORMAL".equals(request.messageType()) || "VERIFY".equals(request.messageType())
+                ? request.maxSelectable() : null;
     }
 
     private RoleMenuConfigResponse toResponse(RoleMenuConfig config) {
         return new RoleMenuConfigResponse(
                 config.getId(), config.getGuildId(), config.getChannelId(), config.getMessageId(),
-                config.getTitle(), config.getDescription(), config.getUiType(), config.getSelectionMode(),
+                config.getTitle(), config.getDescription(), config.getUiType(), config.getMessageType(),
                 config.isRequireVerified(), roleMenuService.readOptions(config.getOptions()),
                 roleMenuService.readRoleIds(config.getAllowedRoleIds()),
                 roleMenuService.readRoleIds(config.getBlockedRoleIds()),
@@ -177,7 +182,7 @@ public class RoleMenuController {
             String title,
             String description,
             @JsonProperty("ui_type") String uiType,
-            @JsonProperty("selection_mode") String selectionMode,
+            @JsonProperty("message_type") String messageType,
             @JsonProperty("require_verified") Boolean requireVerified,
             List<RoleMenuOption> options,
             @JsonProperty("allowed_role_ids") List<String> allowedRoleIds,
@@ -193,7 +198,7 @@ public class RoleMenuController {
             String title,
             String description,
             @JsonProperty("ui_type") String uiType,
-            @JsonProperty("selection_mode") String selectionMode,
+            @JsonProperty("message_type") String messageType,
             @JsonProperty("require_verified") boolean requireVerified,
             List<RoleMenuOption> options,
             @JsonProperty("allowed_role_ids") List<String> allowedRoleIds,

@@ -62,12 +62,12 @@ class RoleMenuInteractionListenerTest {
     }
 
     private RoleMenuOption option(String roleId) {
-        return new RoleMenuOption(roleId, "Label " + roleId, null, null);
+        return new RoleMenuOption(List.of(roleId), "Label " + roleId, null, null);
     }
 
-    private RoleMenuConfig config(String selectionMode, boolean requireVerified, Integer maxSelectable, RoleMenuOption... options) {
+    private RoleMenuConfig config(String messageType, boolean requireVerified, Integer maxSelectable, RoleMenuOption... options) {
         RoleMenuConfig config = new RoleMenuConfig(
-                "guild-1", "channel-1", "Pick a role", "desc", "BUTTONS", selectionMode, requireVerified,
+                "guild-1", "channel-1", "Pick a role", "desc", "BUTTONS", messageType, requireVerified,
                 roleMenuService.writeOptions(List.of(options)),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of()), maxSelectable);
         org.springframework.test.util.ReflectionTestUtils.setField(config, "id", 1L);
@@ -119,9 +119,9 @@ class RoleMenuInteractionListenerTest {
         verify(roleMenuConfigRepository, never()).findById(any());
     }
 
-    private ButtonInteractionEvent buttonEvent(String roleId) {
+    private ButtonInteractionEvent buttonEvent(int optionIndex) {
         ButtonInteractionEvent event = mock(ButtonInteractionEvent.class);
-        when(event.getComponentId()).thenReturn("rolemenu:1:" + roleId);
+        when(event.getComponentId()).thenReturn("rolemenu:1:" + optionIndex);
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(event.getMember()).thenReturn(member);
         return event;
@@ -130,7 +130,7 @@ class RoleMenuInteractionListenerTest {
     @Test
     void buttonDoesNothingWhenGuildIsNull() {
         ButtonInteractionEvent event = mock(ButtonInteractionEvent.class);
-        when(event.getComponentId()).thenReturn("rolemenu:1:role-1");
+        when(event.getComponentId()).thenReturn("rolemenu:1:0");
         when(event.getGuild()).thenReturn(null);
 
         listener.onButtonInteraction(event);
@@ -141,7 +141,7 @@ class RoleMenuInteractionListenerTest {
     @Test
     void buttonDoesNothingDuringMaintenanceMode() {
         when(adminSettingsService.isMaintenanceMode()).thenReturn(true);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
 
         listener.onButtonInteraction(event);
 
@@ -151,7 +151,7 @@ class RoleMenuInteractionListenerTest {
     @Test
     void buttonDoesNothingWhenRoleMenuModuleDisabled() {
         when(adminSettingsService.get("rolemenu_enabled_guild-1", Boolean.class, false)).thenReturn(false);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
 
         listener.onButtonInteraction(event);
 
@@ -162,11 +162,11 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDoesNothingWhenConfigBelongsToADifferentGuild() {
         RoleMenuConfig other = new RoleMenuConfig(
-                "other-guild", "channel-1", "Title", "desc", "BUTTONS", "SINGLE", false,
+                "other-guild", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of()), null);
         when(roleMenuConfigRepository.findById(1L)).thenReturn(Optional.of(other));
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
 
         listener.onButtonInteraction(event);
 
@@ -178,9 +178,9 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void buttonRepliesGenericErrorWhenMemberIsNull() {
-        config("SINGLE", false, null, option("role-1"));
+        config("UNIQUE", false, null, option("role-1"));
         ButtonInteractionEvent event = mock(ButtonInteractionEvent.class);
-        when(event.getComponentId()).thenReturn("rolemenu:1:role-1");
+        when(event.getComponentId()).thenReturn("rolemenu:1:0");
         when(event.getGuild()).thenReturn(guild);
         when(event.getMember()).thenReturn(null);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
@@ -195,14 +195,14 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDeniesWhenMemberHasABlockedRole() {
         RoleMenuConfig cfg = new RoleMenuConfig(
-                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "SINGLE", false,
+                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of()), roleMenuService.writeRoleIds(List.of("blocked-role")), null);
         org.springframework.test.util.ReflectionTestUtils.setField(cfg, "id", 1L);
         when(roleMenuConfigRepository.findById(1L)).thenReturn(Optional.of(cfg));
         Role blockedRole = role("blocked-role", "Blocked");
         when(member.getRoles()).thenReturn(List.of(blockedRole));
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -215,13 +215,13 @@ class RoleMenuInteractionListenerTest {
     @SuppressWarnings("unchecked")
     void buttonDeniesWhenMemberLacksAnAllowedRole() {
         RoleMenuConfig cfg = new RoleMenuConfig(
-                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "SINGLE", false,
+                "guild-1", "channel-1", "Title", "desc", "BUTTONS", "UNIQUE", false,
                 roleMenuService.writeOptions(List.of(option("role-1"))),
                 roleMenuService.writeRoleIds(List.of("required-role")), roleMenuService.writeRoleIds(List.of()), null);
         org.springframework.test.util.ReflectionTestUtils.setField(cfg, "id", 1L);
         when(roleMenuConfigRepository.findById(1L)).thenReturn(Optional.of(cfg));
         when(member.getRoles()).thenReturn(List.of());
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -233,9 +233,9 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void buttonDeniesWhenVerificationIsRequiredAndMemberIsNotVerified() {
-        config("SINGLE", true, null, option("role-1"));
+        config("UNIQUE", true, null, option("role-1"));
         when(memberVerificationChecker.isVerified(guild, member)).thenReturn(false);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -248,30 +248,32 @@ class RoleMenuInteractionListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void buttonRepliesWhenClickedRoleNoLongerExists() {
-        config("SINGLE", false, null, option("role-1"));
-        ButtonInteractionEvent event = buttonEvent("role-1");
+    void buttonReportsNoChangesWhenTheClickedOptionsRoleNoLongerExists() {
+        config("UNIQUE", false, null, option("role-1"));
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("That role no longer exists.");
+        verify(event).reply("No changes.");
+        verify(guild, never()).addRoleToMember(any(), any());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void buttonRepliesWhenBotCannotManageTheClickedRole() {
-        config("SINGLE", false, null, option("role-1"));
+        config("UNIQUE", false, null, option("role-1"));
         Role clicked = role("role-1", "Role One");
         when(self.canInteract(clicked)).thenReturn(false);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("I can't manage that role right now - contact a moderator.");
+        verify(event).reply("No changes.\nCouldn't update: Role One (contact a moderator).");
+        verify(guild, never()).addRoleToMember(any(), any());
     }
 
     // ---- onButtonInteraction: toggle behavior ----
@@ -279,12 +281,12 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void buttonAddsTheRoleWhenMemberDoesNotHaveIt() {
-        config("SINGLE", false, null, option("role-1"));
+        config("UNIQUE", false, null, option("role-1"));
         Role clicked = role("role-1", "Role One");
         when(member.getRoles()).thenReturn(List.of());
         AuditableRestAction<Void> addAction = mock(AuditableRestAction.class);
         when(guild.addRoleToMember(member, clicked)).thenReturn(addAction);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -297,12 +299,12 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void buttonRemovesTheRoleWhenMemberAlreadyHasIt() {
-        config("MULTI", false, null, option("role-1"));
+        config("NORMAL", false, null, option("role-1"));
         Role clicked = role("role-1", "Role One");
         when(member.getRoles()).thenReturn(List.of(clicked));
         AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
         when(guild.removeRoleFromMember(member, clicked)).thenReturn(removeAction);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -314,8 +316,8 @@ class RoleMenuInteractionListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void buttonSingleModeRemovesSiblingRoleBeforeAddingClickedRole() {
-        config("SINGLE", false, null, option("role-1"), option("role-2"));
+    void buttonUniqueRemovesSiblingRoleBeforeAddingClickedRole() {
+        config("UNIQUE", false, null, option("role-1"), option("role-2"));
         Role clicked = role("role-1", "Role One");
         Role sibling = role("role-2", "Role Two");
         when(member.getRoles()).thenReturn(List.of(sibling));
@@ -323,7 +325,7 @@ class RoleMenuInteractionListenerTest {
         AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
         when(guild.addRoleToMember(member, clicked)).thenReturn(addAction);
         when(guild.removeRoleFromMember(member, sibling)).thenReturn(removeAction);
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -336,12 +338,38 @@ class RoleMenuInteractionListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void buttonMultiModeRejectsWhenMaxSelectableReached() {
-        config("MULTI", false, 1, option("role-1"), option("role-2"));
+    void buttonUniqueSwitchingToASiblingThatSharesARoleKeepsTheSharedRole() {
+        // Option 0 bundles "2 ROCNIK" + "1 ROCNIK"; option 1 is just "1 ROCNIK" alone - the two
+        // overlap on role-1. Member currently holds both (picked option 0 earlier). Clicking
+        // option 1 must end up holding exactly role-1: drop role-2 (only in option 0), but never
+        // touch role-1 (it's still wanted by the newly-clicked option 1).
+        config("UNIQUE", false, null, new RoleMenuOption(List.of("role-2", "role-1"), "2 ROCNIK + 1 ROCNIK", null, null),
+                new RoleMenuOption(List.of("role-1"), "1 ROCNIK", null, null));
+        Role roleTwo = role("role-2", "2 ROCNIK");
+        Role roleOne = role("role-1", "1 ROCNIK");
+        when(member.getRoles()).thenReturn(List.of(roleTwo, roleOne));
+        AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
+        when(guild.removeRoleFromMember(member, roleTwo)).thenReturn(removeAction);
+        ButtonInteractionEvent event = buttonEvent(1);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(guild).removeRoleFromMember(member, roleTwo);
+        verify(guild, never()).removeRoleFromMember(eq(member), eq(roleOne));
+        verify(guild, never()).addRoleToMember(any(), any());
+        verify(event).reply("Removed: 2 ROCNIK");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonNormalRejectsWhenMaxSelectableReached() {
+        config("NORMAL", false, 1, option("role-1"), option("role-2"));
         Role clicked = role("role-1", "Role One");
         Role heldRole = role("role-2", "Role Two");
         when(member.getRoles()).thenReturn(List.of(heldRole));
-        ButtonInteractionEvent event = buttonEvent("role-1");
+        ButtonInteractionEvent event = buttonEvent(0);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -349,6 +377,113 @@ class RoleMenuInteractionListenerTest {
 
         verify(event).reply("You can only have up to 1 role(s) from this menu - remove one first.");
         verify(guild, never()).addRoleToMember(any(), any());
+    }
+
+    // ---- onButtonInteraction: VERIFY / DROP / BINDING message types ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonVerifyOnlyAddsAndRejectsIfAlreadyHeld() {
+        config("VERIFY", false, null, option("role-1"));
+        Role clicked = role("role-1", "Role One");
+        when(member.getRoles()).thenReturn(List.of(clicked));
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(event).reply("You already have this role.");
+        verify(guild, never()).removeRoleFromMember(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonVerifyGrantsWhenNotAlreadyHeld() {
+        config("VERIFY", false, null, option("role-1"));
+        Role clicked = role("role-1", "Role One");
+        when(member.getRoles()).thenReturn(List.of());
+        AuditableRestAction<Void> addAction = mock(AuditableRestAction.class);
+        when(guild.addRoleToMember(member, clicked)).thenReturn(addAction);
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(guild).addRoleToMember(member, clicked);
+        verify(event).reply("Added: Role One");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonDropOnlyRemovesAndRejectsIfNotHeld() {
+        config("DROP", false, null, option("role-1"));
+        role("role-1", "Role One");
+        when(member.getRoles()).thenReturn(List.of());
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(event).reply("You don't have this role.");
+        verify(guild, never()).addRoleToMember(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonDropRemovesWhenHeld() {
+        config("DROP", false, null, option("role-1"));
+        Role clicked = role("role-1", "Role One");
+        when(member.getRoles()).thenReturn(List.of(clicked));
+        AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
+        when(guild.removeRoleFromMember(member, clicked)).thenReturn(removeAction);
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(guild).removeRoleFromMember(member, clicked);
+        verify(event).reply("Removed: Role One");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonBindingGrantsFirstPick() {
+        config("BINDING", false, null, option("role-1"), option("role-2"));
+        Role clicked = role("role-1", "Role One");
+        role("role-2", "Role Two");
+        when(member.getRoles()).thenReturn(List.of());
+        AuditableRestAction<Void> addAction = mock(AuditableRestAction.class);
+        when(guild.addRoleToMember(member, clicked)).thenReturn(addAction);
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(guild).addRoleToMember(member, clicked);
+        verify(event).reply("Added: Role One");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buttonBindingRejectsOnceAPickIsAlreadyHeld() {
+        config("BINDING", false, null, option("role-1"), option("role-2"));
+        role("role-1", "Role One");
+        Role held = role("role-2", "Role Two");
+        when(member.getRoles()).thenReturn(List.of(held));
+        ButtonInteractionEvent event = buttonEvent(0);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onButtonInteraction(event);
+
+        verify(event).reply("Your choice from this menu is final and can't be changed.");
+        verify(guild, never()).addRoleToMember(any(), any());
+        verify(guild, never()).removeRoleFromMember(any(), any());
     }
 
     // ---- onStringSelectInteraction ----
@@ -376,8 +511,10 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void selectRejectsWhenMoreThanMaxSelectableAreChosen() {
-        config("MULTI", false, 1, option("role-1"), option("role-2"));
-        StringSelectInteractionEvent event = selectEvent(List.of("role-1", "role-2"));
+        config("NORMAL", false, 1, option("role-1"), option("role-2"));
+        role("role-1", "Role One");
+        role("role-2", "Role Two");
+        StringSelectInteractionEvent event = selectEvent(List.of("0", "1"));
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -390,7 +527,7 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void selectAddsAndRemovesRolesToMatchTheSelection() {
-        config("MULTI", false, null, option("role-1"), option("role-2"));
+        config("NORMAL", false, null, option("role-1"), option("role-2"));
         Role toAdd = role("role-1", "Role One");
         Role toRemove = role("role-2", "Role Two");
         when(member.getRoles()).thenReturn(List.of(toRemove));
@@ -398,7 +535,7 @@ class RoleMenuInteractionListenerTest {
         AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
         when(guild.addRoleToMember(member, toAdd)).thenReturn(addAction);
         when(guild.removeRoleFromMember(member, toRemove)).thenReturn(removeAction);
-        StringSelectInteractionEvent event = selectEvent(List.of("role-1"));
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -412,10 +549,10 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void selectReportsNoChangesWhenSelectionAlreadyMatchesHeldRoles() {
-        config("MULTI", false, null, option("role-1"));
+        config("NORMAL", false, null, option("role-1"));
         Role held = role("role-1", "Role One");
         when(member.getRoles()).thenReturn(List.of(held));
-        StringSelectInteractionEvent event = selectEvent(List.of("role-1"));
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -429,11 +566,11 @@ class RoleMenuInteractionListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     void selectReportsBlockedRolesTheBotCannotManage() {
-        config("MULTI", false, null, option("role-1"));
+        config("NORMAL", false, null, option("role-1"));
         Role clicked = role("role-1", "Role One");
         when(self.canInteract(clicked)).thenReturn(false);
         when(member.getRoles()).thenReturn(List.of());
-        StringSelectInteractionEvent event = selectEvent(List.of("role-1"));
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
         when(event.reply(anyString())).thenReturn(replyAction);
 
@@ -441,5 +578,85 @@ class RoleMenuInteractionListenerTest {
 
         verify(event).reply("No changes.\nCouldn't update: Role One (contact a moderator).");
         verify(guild, never()).addRoleToMember(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void selectVerifyNeverRemovesAnUnselectedHeldRole() {
+        config("VERIFY", false, null, option("role-1"), option("role-2"));
+        Role toAdd = role("role-1", "Role One");
+        Role held = role("role-2", "Role Two");
+        when(member.getRoles()).thenReturn(List.of(held));
+        AuditableRestAction<Void> addAction = mock(AuditableRestAction.class);
+        when(guild.addRoleToMember(member, toAdd)).thenReturn(addAction);
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onStringSelectInteraction(event);
+
+        verify(guild).addRoleToMember(member, toAdd);
+        verify(guild, never()).removeRoleFromMember(any(), any());
+        verify(event).reply("Added: Role One");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void selectDropNeverAddsAnUnheldSelectedRole() {
+        config("DROP", false, null, option("role-1"), option("role-2"));
+        role("role-1", "Role One");
+        Role toRemove = role("role-2", "Role Two");
+        when(member.getRoles()).thenReturn(List.of(toRemove));
+        AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
+        when(guild.removeRoleFromMember(member, toRemove)).thenReturn(removeAction);
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onStringSelectInteraction(event);
+
+        verify(guild, never()).addRoleToMember(any(), any());
+        verify(guild).removeRoleFromMember(member, toRemove);
+        verify(event).reply("Removed: Role Two");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void selectUniqueSwitchingToASiblingThatSharesARoleKeepsTheSharedRole() {
+        config("UNIQUE", false, null, new RoleMenuOption(List.of("role-2", "role-1"), "2 ROCNIK + 1 ROCNIK", null, null),
+                new RoleMenuOption(List.of("role-1"), "1 ROCNIK", null, null));
+        Role roleTwo = role("role-2", "2 ROCNIK");
+        Role roleOne = role("role-1", "1 ROCNIK");
+        when(member.getRoles()).thenReturn(List.of(roleTwo, roleOne));
+        AuditableRestAction<Void> removeAction = mock(AuditableRestAction.class);
+        when(guild.removeRoleFromMember(member, roleTwo)).thenReturn(removeAction);
+        StringSelectInteractionEvent event = selectEvent(List.of("1"));
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onStringSelectInteraction(event);
+
+        verify(guild).removeRoleFromMember(member, roleTwo);
+        verify(guild, never()).removeRoleFromMember(eq(member), eq(roleOne));
+        verify(guild, never()).addRoleToMember(any(), any());
+        verify(event).reply("Removed: 2 ROCNIK");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void selectBindingRejectsOnceAPickIsAlreadyHeld() {
+        config("BINDING", false, null, option("role-1"), option("role-2"));
+        role("role-1", "Role One");
+        Role held = role("role-2", "Role Two");
+        when(member.getRoles()).thenReturn(List.of(held));
+        StringSelectInteractionEvent event = selectEvent(List.of("0"));
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.reply(anyString())).thenReturn(replyAction);
+
+        listener.onStringSelectInteraction(event);
+
+        verify(event).reply("Your choice from this menu is final and can't be changed.");
+        verify(guild, never()).addRoleToMember(any(), any());
+        verify(guild, never()).removeRoleFromMember(any(), any());
     }
 }
