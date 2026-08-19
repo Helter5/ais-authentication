@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw,
@@ -125,6 +125,23 @@ export function RoleMenuModule() {
 
   const upd = <K extends keyof Draft>(key: K, val: Draft[K]) => setDraft(d => ({ ...d, [key]: val }));
 
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  /** Inserts at the cursor rather than appending, so it works mid-sentence too - typing a
+   *  ":shortcode:" by hand never renders (that's Discord client-only autocomplete; the bot posts
+   *  whatever literal text is in the description), this is the only way to get a real custom emoji
+   *  mention into the description. */
+  const insertDescriptionEmoji = (emoji: string) => {
+    const el = descriptionRef.current;
+    const start = el?.selectionStart ?? draft.description.length;
+    const end = el?.selectionEnd ?? draft.description.length;
+    const next = draft.description.slice(0, start) + emoji + draft.description.slice(end);
+    upd("description", next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
   const updOption = (index: number, patch: Partial<RoleMenuOption>) => {
     setDraft(d => ({ ...d, options: d.options.map((o, i) => i === index ? { ...o, ...patch } : o) }));
   };
@@ -247,8 +264,12 @@ export function RoleMenuModule() {
                       className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-zinc-400 mb-1.5">Description</p>
-                    <textarea value={draft.description} onChange={e => upd("description", e.target.value)} rows={3}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-semibold text-zinc-400">Description</p>
+                      <EmojiPickerButton guildEmojis={guildEmojis} onSelect={insertDescriptionEmoji}
+                        buttonClassName="w-7 h-6 flex-shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded hover:border-zinc-500 transition-colors" />
+                    </div>
+                    <textarea ref={descriptionRef} value={draft.description} onChange={e => upd("description", e.target.value)} rows={3}
                       placeholder="Pick the role that matches your year below."
                       className="w-full resize-none px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors scrollbar-thin" />
                   </div>
