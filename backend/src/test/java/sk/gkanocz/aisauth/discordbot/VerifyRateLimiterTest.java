@@ -9,20 +9,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class VerifyRateLimiterTest {
 
     @Test
-    void firstThreeAttemptsWithinTheWindowAreAllowed() {
+    void firstFiveAttemptsWithinTheWindowAreAllowed() {
         VerifyRateLimiter limiter = new VerifyRateLimiter();
 
-        assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-1")).isEmpty();
-        assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-1")).isEmpty();
-        assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-1")).isEmpty();
+        for (int i = 0; i < 5; i++) {
+            assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-1")).isEmpty();
+        }
     }
 
     @Test
-    void fourthAttemptWithinTheWindowIsBlockedWithAWaitTime() {
+    void sixthAttemptWithinTheWindowIsBlockedWithAWaitTime() {
         VerifyRateLimiter limiter = new VerifyRateLimiter();
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        for (int i = 0; i < 5; i++) {
+            limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        }
 
         Optional<Long> wait = limiter.checkAndRecordAttempt("discord-1", "guild-1");
 
@@ -33,21 +33,21 @@ class VerifyRateLimiterTest {
     @Test
     void blockingAttemptIsNotItselfRecorded() {
         VerifyRateLimiter limiter = new VerifyRateLimiter();
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1"); // blocked, 4th call
+        for (int i = 0; i < 5; i++) {
+            limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        }
+        limiter.checkAndRecordAttempt("discord-1", "guild-1"); // blocked, 6th call
 
-        // still blocked, not "un-blocked" by the 4th call having quietly incremented anything further
+        // still blocked, not "un-blocked" by the 6th call having quietly incremented anything further
         assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-1")).isPresent();
     }
 
     @Test
     void differentUsersHaveIndependentLimits() {
         VerifyRateLimiter limiter = new VerifyRateLimiter();
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        for (int i = 0; i < 5; i++) {
+            limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        }
 
         assertThat(limiter.checkAndRecordAttempt("discord-2", "guild-1")).isEmpty();
     }
@@ -55,9 +55,9 @@ class VerifyRateLimiterTest {
     @Test
     void sameUserDifferentGuildsHaveIndependentLimits() {
         VerifyRateLimiter limiter = new VerifyRateLimiter();
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
-        limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        for (int i = 0; i < 5; i++) {
+            limiter.checkAndRecordAttempt("discord-1", "guild-1");
+        }
 
         assertThat(limiter.checkAndRecordAttempt("discord-1", "guild-2")).isEmpty();
     }

@@ -29,6 +29,10 @@ import java.util.concurrent.Executors;
 public class VerifyConfirmationButtonListener extends ListenerAdapter {
 
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
+    /** See VerificationSlashCommandListener.VERIFY_IN_PROGRESS_MESSAGE - same reasoning, Confirm
+     * hits LDAP again. */
+    private static final String VERIFY_IN_PROGRESS_MESSAGE =
+            "⏳ Overujem, môže to trvať aj minútu (dočasný problém so sieťovým spojením na univerzitu).";
 
     private final PendingVerificationStore pendingVerificationStore;
     private final VerificationFacade verificationFacade;
@@ -36,8 +40,8 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
     private final VerificationProperties verificationProperties;
 
     // Confirm hits LDAP again (throttled, same as /verify) - keep it off JDA's dispatch thread for
-    // the same reason as VerificationSlashCommandListener.verifyExecutor.
-    private final ExecutorService confirmExecutor = Executors.newFixedThreadPool(4);
+    // the same reason as VerificationSlashCommandListener.verifyExecutor, and sized the same way.
+    private final ExecutorService confirmExecutor = Executors.newFixedThreadPool(10);
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -73,6 +77,7 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
 
         event.deferEdit().queue();
         confirmExecutor.submit(() -> {
+            event.getHook().editOriginal(VERIFY_IN_PROGRESS_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
             try {
                 VerificationCode verificationCode = verificationFacade.initiateAndNotify(
                         pending.discordId(), pending.guildId(), pending.aisId());

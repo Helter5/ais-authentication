@@ -37,6 +37,11 @@ class VerificationSlashCommandListener {
     private static final String VERIFICATION_DISABLED_MESSAGE =
             "Verifikácia je na tomto serveri momentálne vypnutá. Kontaktuj administrátora.";
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
+    /** Sent right before the LDAP lookup starts - university-side connection issues (see
+     * LdapStudentDirectoryService) can make this take up to ~90s, so this tells the user it's
+     * still working instead of leaving them looking at a silent "thinking..." indicator. */
+    private static final String VERIFY_IN_PROGRESS_MESSAGE =
+            "⏳ Overujem AIS ID, môže to trvať aj minútu (dočasný problém so sieťovým spojením na univerzitu).";
     private static final String DEFAULT_CODE_SUCCESS_MESSAGE = "Úspešne overené! Vitaj.";
     /** {channel=123456789012345678} - one token per referenced channel, so a single message can
      * link to as many different channels (roles, rules, welcome, ...) as an admin wants, not just one. */
@@ -59,8 +64,12 @@ class VerificationSlashCommandListener {
      * tie up a JDA dispatch thread for its whole duration; with only a handful of those threads and
      * every /verify call serialized behind the same throttle, a burst of ~10+ concurrent /verify
      * calls could starve the pool and make the *entire* bot stop responding, not just /verify.
+     * Sized at 10 rather than the LDAP throttle's 1 req/sec (a single-digit pool would be enough
+     * for that alone) so a burst of /verify calls during one of the ~60-65s LDAP dead windows -
+     * where each call can sit blocked for up to the full 90s read timeout - doesn't queue callers
+     * up behind each other on top of that wait.
      */
-    private final ExecutorService verifyExecutor = Executors.newFixedThreadPool(4);
+    private final ExecutorService verifyExecutor = Executors.newFixedThreadPool(10);
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -116,6 +125,7 @@ class VerificationSlashCommandListener {
                 }
             }
 
+            event.getHook().sendMessage(VERIFY_IN_PROGRESS_MESSAGE).queue();
             try {
                 // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only
                 // actually created and the email only actually sent once Confirm is clicked
