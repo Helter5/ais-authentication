@@ -593,4 +593,22 @@ class VerificationSlashCommandListenerTest {
 
         verify(event, never()).deferReply(anyBoolean());
     }
+
+    // ---- verifyProgressMessage ----
+
+    @Test
+    void verifyProgressMessageOmitsQueueNoteWhenPositionFitsInThePool() {
+        assertThat(listener.verifyProgressMessage(1)).doesNotContain("fronte");
+        assertThat(listener.verifyProgressMessage(10)).doesNotContain("fronte");
+    }
+
+    @Test
+    void verifyProgressMessageSaysFirstInQueueWhenOneOverPoolSize() {
+        assertThat(listener.verifyProgressMessage(11)).contains("si na rade ako prvý");
+    }
+
+    @Test
+    void verifyProgressMessageCountsOthersAheadWhenFurtherBackInQueue() {
+        assertThat(listener.verifyProgressMessage(13)).contains("2 pred tebou");
+    }
 }

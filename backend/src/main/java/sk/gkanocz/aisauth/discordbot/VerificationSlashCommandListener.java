@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,9 +38,11 @@ class VerificationSlashCommandListener {
     private static final String VERIFICATION_DISABLED_MESSAGE =
             "Verifikácia je na tomto serveri momentálne vypnutá. Kontaktuj administrátora.";
     private static final String GENERIC_ERROR_MESSAGE = "Nastala neočakávaná chyba, skús to prosím neskôr.";
-    /** Sent right before the LDAP lookup starts - university-side connection issues (see
-     * LdapStudentDirectoryService) can make this take up to ~90s, so this tells the user it's
-     * still working instead of leaving them looking at a silent "thinking..." indicator. */
+    /** Base text for the message sent right before /verify's work is queued - university-side
+     * connection issues (see LdapStudentDirectoryService) can make this take up to ~90s, so this
+     * tells the user it's still working instead of leaving them looking at a silent
+     * "thinking..." indicator. {@link #verifyProgressMessage(int)} appends queue position when
+     * there's one worth mentioning. */
     private static final String VERIFY_IN_PROGRESS_MESSAGE =
             "⏳ Overujem AIS ID, môže to trvať aj minútu (dočasný problém so sieťovým spojením na univerzitu).";
     private static final String DEFAULT_CODE_SUCCESS_MESSAGE = "Úspešne overené! Vitaj.";
@@ -64,12 +67,16 @@ class VerificationSlashCommandListener {
      * tie up a JDA dispatch thread for its whole duration; with only a handful of those threads and
      * every /verify call serialized behind the same throttle, a burst of ~10+ concurrent /verify
      * calls could starve the pool and make the *entire* bot stop responding, not just /verify.
-     * Sized at 10 rather than the LDAP throttle's 1 req/sec (a single-digit pool would be enough
-     * for that alone) so a burst of /verify calls during one of the ~60-65s LDAP dead windows -
-     * where each call can sit blocked for up to the full 90s read timeout - doesn't queue callers
-     * up behind each other on top of that wait.
+     * Sized at {@value #VERIFY_POOL_SIZE} rather than the LDAP throttle's 1 req/sec (a single-digit
+     * pool would be enough for that alone) so a burst of /verify calls during one of the ~60-65s
+     * LDAP dead windows - where each call can sit blocked for up to the full 90s read timeout -
+     * doesn't queue callers up behind each other on top of that wait.
      */
-    private final ExecutorService verifyExecutor = Executors.newFixedThreadPool(10);
+    private static final int VERIFY_POOL_SIZE = 10;
+    private final ExecutorService verifyExecutor = Executors.newFixedThreadPool(VERIFY_POOL_SIZE);
+    /** In-flight-or-queued count on {@link #verifyExecutor}, purely to tell a caller stuck behind
+     * a full pool roughly how far back they are - not a source of truth for anything else. */
+    private final AtomicInteger verifyInFlight = new AtomicInteger(0);
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         switch (event.getName()) {
@@ -117,20 +124,23 @@ class VerificationSlashCommandListener {
         // Sent immediately, before the submit() below, so a caller stuck behind a full
         // verifyExecutor pool (see its javadoc) gets feedback right away instead of silently
         // sitting on Discord's default "thinking..." indicator until a worker thread frees up.
-        event.getHook().sendMessage(VERIFY_IN_PROGRESS_MESSAGE).queue();
+        // position counts this call itself, so position <= VERIFY_POOL_SIZE means "you get a
+        // worker thread right away" and only a larger position is actually queued behind others.
+        int position = verifyInFlight.incrementAndGet();
+        event.getHook().sendMessage(verifyProgressMessage(position)).queue();
 
         // Throttle + LDAP lookup off the JDA dispatch thread - see verifyExecutor's javadoc.
         verifyExecutor.submit(() -> {
-            if (!verificationProperties.testingMode()) {
-                Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
-                if (waitMinutes.isPresent()) {
-                    event.getHook().sendMessage(
-                            "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.").queue();
-                    return;
-                }
-            }
-
             try {
+                if (!verificationProperties.testingMode()) {
+                    Optional<Long> waitMinutes = verifyRateLimiter.checkAndRecordAttempt(discordId, guildId);
+                    if (waitMinutes.isPresent()) {
+                        event.getHook().sendMessage(
+                                "Vyčerpal si limit na príkaz /verify. Skús znova o " + waitMinutes.get() + " minút.").queue();
+                        return;
+                    }
+                }
+
                 // Only a preview - runs LDAP + eligibility checks but writes nothing. The code is only
                 // actually created and the email only actually sent once Confirm is clicked
                 // (VerifyConfirmationButtonListener), so a fat-fingered AIS ID can be caught here first.
@@ -153,8 +163,21 @@ class VerificationSlashCommandListener {
             } catch (Exception e) {
                 log.error("Verify command failed", e);
                 event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
+            } finally {
+                verifyInFlight.decrementAndGet();
             }
         });
+    }
+
+    // Package-private (not private) purely so the message-formatting logic is directly unit
+    // testable without needing to force real thread-pool queueing.
+    String verifyProgressMessage(int position) {
+        if (position <= VERIFY_POOL_SIZE) {
+            return VERIFY_IN_PROGRESS_MESSAGE;
+        }
+        int othersAheadInQueue = position - VERIFY_POOL_SIZE - 1;
+        return VERIFY_IN_PROGRESS_MESSAGE + " Si vo fronte" + (othersAheadInQueue > 0
+                ? " (" + othersAheadInQueue + " pred tebou)." : ", si na rade ako prvý.");
     }
 
     private void handleCode(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {

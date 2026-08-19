@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Handles the verify_confirm:<token> / verify_cancel:<token> buttons posted alongside /verify's
@@ -41,7 +42,10 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
 
     // Confirm hits LDAP again (throttled, same as /verify) - keep it off JDA's dispatch thread for
     // the same reason as VerificationSlashCommandListener.verifyExecutor, and sized the same way.
-    private final ExecutorService confirmExecutor = Executors.newFixedThreadPool(10);
+    private static final int CONFIRM_POOL_SIZE = 10;
+    private final ExecutorService confirmExecutor = Executors.newFixedThreadPool(CONFIRM_POOL_SIZE);
+    /** See VerificationSlashCommandListener.verifyInFlight - same purpose, own counter. */
+    private final AtomicInteger confirmInFlight = new AtomicInteger(0);
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -79,7 +83,8 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
         // Sent immediately, before submit() below, so a caller stuck behind a full
         // confirmExecutor pool gets feedback right away instead of sitting on a silent "thinking..."
         // state until a worker thread frees up.
-        event.getHook().editOriginal(VERIFY_IN_PROGRESS_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
+        int position = confirmInFlight.incrementAndGet();
+        event.getHook().editOriginal(confirmProgressMessage(position)).setEmbeds(List.of()).setComponents(List.of()).queue();
         confirmExecutor.submit(() -> {
             try {
                 VerificationCode verificationCode = verificationFacade.initiateAndNotify(
@@ -101,7 +106,20 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
             } catch (Exception e) {
                 log.error("Verify confirmation failed", e);
                 event.getHook().editOriginal(GENERIC_ERROR_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
+            } finally {
+                confirmInFlight.decrementAndGet();
             }
         });
+    }
+
+    // Package-private (not private) purely so the message-formatting logic is directly unit
+    // testable without needing to force real thread-pool queueing.
+    String confirmProgressMessage(int position) {
+        if (position <= CONFIRM_POOL_SIZE) {
+            return VERIFY_IN_PROGRESS_MESSAGE;
+        }
+        int othersAheadInQueue = position - CONFIRM_POOL_SIZE - 1;
+        return VERIFY_IN_PROGRESS_MESSAGE + " Si vo fronte" + (othersAheadInQueue > 0
+                ? " (" + othersAheadInQueue + " pred tebou)." : ", si na rade ako prvý.");
     }
 }
