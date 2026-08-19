@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 class LdapStudentDirectoryService implements StudentDirectoryService {
 
-    private static final int MAX_ATTEMPTS = 2;
+    private static final int MAX_ATTEMPTS = 4; // 1 initial attempt + 3 retries
     private static final Duration RETRY_BACKOFF = Duration.ofSeconds(2);
 
     private final LdapTemplate ldapTemplate;
@@ -57,11 +57,13 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
     }
 
     /**
-     * One retry after a short backoff on CommunicationException - the university VPN tunnel
-     * restarts every ~2 minutes (STU-pushed ping-restart policy over an unreliable network path),
-     * and a search that lands mid-restart fails with a read timeout even though the tunnel is
-     * healthy again a couple seconds later. A single retry turns that into a slightly slower
-     * search instead of a user-visible /verify failure.
+     * Up to {@value #MAX_ATTEMPTS} - 1 retries, 2s apart, on CommunicationException - the
+     * university VPN tunnel restarts every ~2 minutes (STU-pushed ping-restart policy over an
+     * unreliable network path), and a search that lands mid-restart fails with a read timeout
+     * even though the tunnel is healthy again a couple seconds later. Retrying turns that into a
+     * slightly slower search instead of a user-visible /verify failure. This all happens after
+     * VerifyRateLimiter has already recorded the attempt, so retries here don't cost the user
+     * extra /verify attempts.
      */
     private List<StudentRecord> searchWithRetry(LdapQuery query) {
         CommunicationException lastFailure;

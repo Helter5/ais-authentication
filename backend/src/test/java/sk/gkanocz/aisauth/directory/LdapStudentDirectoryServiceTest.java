@@ -124,7 +124,8 @@ class LdapStudentDirectoryServiceTest {
         when(ldapTemplate.search(any(LdapQuery.class), any(AttributesMapper.class))).thenThrow(failure);
 
         assertThatThrownBy(() -> service.findByAisId("12345")).isSameAs(failure);
-        verify(ldapTemplate, times(2)).search(any(LdapQuery.class), any(AttributesMapper.class));
+        // 1 initial attempt + 3 retries = 4 total (see LdapStudentDirectoryService.MAX_ATTEMPTS)
+        verify(ldapTemplate, times(4)).search(any(LdapQuery.class), any(AttributesMapper.class));
     }
 
     @SuppressWarnings("unchecked")
