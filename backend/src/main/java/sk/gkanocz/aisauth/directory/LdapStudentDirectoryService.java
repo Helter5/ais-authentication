@@ -1,8 +1,11 @@
 package sk.gkanocz.aisauth.directory;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ldap.CommunicationException;
 import org.springframework.ldap.core.LdapTemplate;
 import org.springframework.ldap.query.ContainerCriteria;
+import org.springframework.ldap.query.LdapQuery;
 import org.springframework.ldap.query.LdapQueryBuilder;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +13,7 @@ import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,9 +23,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 class LdapStudentDirectoryService implements StudentDirectoryService {
+
+    private static final int MAX_ATTEMPTS = 2;
+    private static final Duration RETRY_BACKOFF = Duration.ofSeconds(2);
 
     private final LdapTemplate ldapTemplate;
     private final LdapRequestThrottle ldapRequestThrottle;
@@ -29,9 +37,7 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
     @Override
     public Optional<StudentRecord> findByAisId(String aisId) {
         ldapRequestThrottle.awaitTurn();
-        List<StudentRecord> results = ldapTemplate.search(
-                LdapQueryBuilder.query().where("uisId").is(aisId),
-                this::mapAttributes);
+        List<StudentRecord> results = searchWithRetry(LdapQueryBuilder.query().where("uisId").is(aisId));
 
         return results.stream().findFirst();
     }
@@ -46,8 +52,40 @@ class LdapStudentDirectoryService implements StudentDirectoryService {
         for (int i = 1; i < aisIds.size(); i++) {
             criteria = criteria.or("uisId").is(aisIds.get(i));
         }
-        List<StudentRecord> results = ldapTemplate.search(criteria, this::mapAttributes);
+        List<StudentRecord> results = searchWithRetry(criteria);
         return results.stream().collect(Collectors.toMap(StudentRecord::uisId, Function.identity(), (a, b) -> a));
+    }
+
+    /**
+     * One retry after a short backoff on CommunicationException - the university VPN tunnel
+     * restarts every ~2 minutes (STU-pushed ping-restart policy over an unreliable network path),
+     * and a search that lands mid-restart fails with a read timeout even though the tunnel is
+     * healthy again a couple seconds later. A single retry turns that into a slightly slower
+     * search instead of a user-visible /verify failure.
+     */
+    private List<StudentRecord> searchWithRetry(LdapQuery query) {
+        CommunicationException lastFailure;
+        int attempt = 1;
+        while (true) {
+            try {
+                return ldapTemplate.search(query, this::mapAttributes);
+            } catch (CommunicationException e) {
+                lastFailure = e;
+                if (attempt >= MAX_ATTEMPTS) {
+                    break;
+                }
+                log.warn("LDAP search failed (attempt {}/{}), retrying in {} - likely mid VPN ping-restart: {}",
+                        attempt, MAX_ATTEMPTS, RETRY_BACKOFF, e.getMessage());
+                try {
+                    Thread.sleep(RETRY_BACKOFF.toMillis());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                attempt++;
+            }
+        }
+        throw lastFailure;
     }
 
     private StudentRecord mapAttributes(Attributes attributes) throws NamingException {
