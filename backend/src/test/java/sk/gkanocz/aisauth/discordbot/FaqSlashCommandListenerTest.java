@@ -86,7 +86,21 @@ class FaqSlashCommandListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void ignoresEphemeralOverride() {
+    void defaultsToEphemeralWhenNoOverrideIsConfigured() {
+        when(event.getName()).thenReturn("faq");
+        when(adminSettingsService.get(eq("cmd_settings_guild-1_faq"), any(TypeReference.class), any()))
+                .thenReturn(Map.of());
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
+        when(event.replyEmbeds(any(MessageEmbed.class))).thenReturn(replyAction);
+
+        listener.dispatch(event, null);
+
+        verify(replyAction).setEphemeral(true);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void honorsTheDashboardEphemeralOverride() {
         when(event.getName()).thenReturn("faq");
         when(adminSettingsService.get(eq("cmd_settings_guild-1_faq"), any(TypeReference.class), any()))
                 .thenReturn(Map.of());
@@ -95,6 +109,6 @@ class FaqSlashCommandListenerTest {
 
         listener.dispatch(event, false);
 
-        verify(replyAction).setEphemeral(true);
+        verify(replyAction).setEphemeral(false);
     }
 }

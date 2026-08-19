@@ -6,15 +6,18 @@ import net.dv8tion.jda.api.entities.channel.unions.GuildChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.thesiscounter.ThesisCounterConfig;
 import sk.gkanocz.aisauth.thesiscounter.ThesisCounterConfigRepository;
 import sk.gkanocz.aisauth.thesiscounter.ThesisCounterService;
+import tools.jackson.core.type.TypeReference;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -26,24 +29,42 @@ class ThesisCounterSlashCommandListener {
 
     private final ThesisCounterService thesisCounterService;
     private final ThesisCounterConfigRepository thesisCounterConfigRepository;
+    private final AdminSettingsService adminSettingsService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    /**
+     * {@code odpocet} has two subcommands with independently useful ephemeral defaults ("add" is
+     * usually run in front of others so it stays non-ephemeral by default, "list" is a personal
+     * lookup so it defaults ephemeral) - one shared {@code ephemeralOverride} boolean (the
+     * convention every other command's Settings modal uses) can't express both, so this reads its
+     * own {@code subcommandEphemeral: {add, list}} object out of the same
+     * {@code cmd_settings_<guildId>_odpocet} blob instead (small per-subcommand table on the
+     * dashboard's /odpocet Settings modal). The central {@code ephemeralOverride} param is
+     * intentionally unused here.
+     */
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         if (!"odpocet".equals(event.getName())) {
             return;
         }
+        Map<String, Object> settings = adminSettingsService.get(
+                "cmd_settings_" + event.getGuild().getId() + "_odpocet", new TypeReference<Map<String, Object>>() { }, Map.of());
+        Object rawSubcommandEphemeral = settings.get("subcommandEphemeral");
+        Map<?, ?> subcommandEphemeral = rawSubcommandEphemeral instanceof Map<?, ?> m ? m : Map.of();
+        boolean ephemeralAdd = subcommandEphemeral.get("add") instanceof Boolean b ? b : false;
+        boolean ephemeralList = subcommandEphemeral.get("list") instanceof Boolean b ? b : true;
+
         switch (event.getSubcommandName()) {
-            case "add" -> handleAdd(event, ephemeralOverride);
-            case "list" -> handleList(event);
+            case "add" -> handleAdd(event, ephemeralAdd);
+            case "list" -> handleList(event, ephemeralList);
             default -> {
             }
         }
     }
 
-    private void handleAdd(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
-        event.deferReply(ephemeralOverride == null ? false : ephemeralOverride).queue();
+    private void handleAdd(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
 
         GuildChannelUnion channel = event.getOption("miestnost").getAsChannel();
         String label = event.getOption("typ").getAsString();
@@ -72,8 +93,8 @@ class ThesisCounterSlashCommandListener {
         }
     }
 
-    private void handleList(SlashCommandInteractionEvent event) {
-        event.deferReply(true).queue();
+    private void handleList(SlashCommandInteractionEvent event, boolean ephemeral) {
+        event.deferReply(ephemeral).queue();
 
         List<ThesisCounterConfig> configs = thesisCounterConfigRepository
                 .findByGuildIdOrderByCreatedAtAsc(event.getGuild().getId());
