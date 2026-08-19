@@ -76,8 +76,11 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
         }
 
         event.deferEdit().queue();
+        // Sent immediately, before submit() below, so a caller stuck behind a full
+        // confirmExecutor pool gets feedback right away instead of sitting on a silent "thinking..."
+        // state until a worker thread frees up.
+        event.getHook().editOriginal(VERIFY_IN_PROGRESS_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
         confirmExecutor.submit(() -> {
-            event.getHook().editOriginal(VERIFY_IN_PROGRESS_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
             try {
                 VerificationCode verificationCode = verificationFacade.initiateAndNotify(
                         pending.discordId(), pending.guildId(), pending.aisId());
