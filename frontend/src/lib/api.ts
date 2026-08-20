@@ -200,6 +200,8 @@ export interface ThesisCounterConfig {
   today_format: string | null;
 }
 
+export type LdapStatusRange = 'hour' | 'day' | 'week';
+
 export interface LdapStatusBucket {
   bucketStart: string;
   successCount: number;
@@ -314,8 +316,8 @@ export const adminApi = {
     return res.data;
   },
 
-  getLdapStatus: async (): Promise<LdapStatus> => {
-    const res = await api.get('/admin/ldap-status');
+  getLdapStatus: async (range: LdapStatusRange = 'day'): Promise<LdapStatus> => {
+    const res = await api.get('/admin/ldap-status', { params: { range } });
     return res.data;
   },
 

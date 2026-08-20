@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { adminApi, apiErrorMessage, type DashboardData, type LdapStatus } from "@/lib/api";
+import { adminApi, apiErrorMessage, type DashboardData } from "@/lib/api";
 import { useSelectedGuildId } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
@@ -97,39 +97,22 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showRemovedDetails, setShowRemovedDetails] = useState(false);
   const [botStatus, setBotStatus] = useState<Awaited<ReturnType<typeof adminApi.getAdminStatus>> | null>(null);
-  const [ldapStatus, setLdapStatus] = useState<LdapStatus | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const { toast } = useToast();
 
-  // Bot Status (and the LDAP Connection widget nested in it) is global (not per-guild) and
-  // super-admin-only, unlike the rest of this page - fetched once, independent of guildId, and
-  // simply skipped for regular managers (getAdminStatus/getLdapStatus would 403 for them).
+  // Bot Status (and the LDAP Connection widget nested in it, which fetches its own data) is
+  // global (not per-guild) and super-admin-only, unlike the rest of this page - fetched once,
+  // independent of guildId, and simply skipped for regular managers (getAdminStatus would 403
+  // for them).
   useEffect(() => {
     let cancelled = false;
     adminApi.getAdminAccess()
       .then(access => {
         if (cancelled || !access.allowed) return;
-        setIsSuperAdmin(true);
-        return Promise.all([adminApi.getAdminStatus(), adminApi.getLdapStatus()])
-          .then(([status, ldap]) => {
-            if (cancelled) return;
-            setBotStatus(status);
-            setLdapStatus(ldap);
-          });
+        return adminApi.getAdminStatus().then(status => { if (!cancelled) setBotStatus(status); });
       })
       .catch(() => { /* not a super admin, or bot status unavailable - just hide the section */ });
     return () => { cancelled = true; };
   }, []);
-
-  // Probe writes a new LDAP sample every 60s (see LdapUptimeProbeJob) - polling on the same
-  // cadence keeps the Up/Down badge and latency current without a page reload.
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const interval = setInterval(() => {
-      adminApi.getLdapStatus().then(setLdapStatus).catch(() => { /* keep showing the last known status */ });
-    }, 60_000);
-    return () => clearInterval(interval);
-  }, [isSuperAdmin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +187,7 @@ export function Dashboard() {
 
             <div className="mt-5 border-t border-zinc-800 pt-4">
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">LDAP Connection</p>
-              <LdapConnectionStatus status={ldapStatus} />
+              <LdapConnectionStatus />
             </div>
           </section>
         )}
