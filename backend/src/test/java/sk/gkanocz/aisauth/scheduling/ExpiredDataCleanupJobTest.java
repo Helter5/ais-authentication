@@ -4,9 +4,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import sk.gkanocz.aisauth.TestcontainersConfiguration;
 import sk.gkanocz.aisauth.auth.AdminSession;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
+import sk.gkanocz.aisauth.directory.LdapConnectionSample;
+import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
 import sk.gkanocz.aisauth.verification.VerificationCode;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
@@ -30,6 +33,10 @@ class ExpiredDataCleanupJobTest {
     private VerificationCodeRepository verificationCodeRepository;
     @Autowired
     private AdminSessionRepository adminSessionRepository;
+    @Autowired
+    private LdapConnectionSampleRepository ldapConnectionSampleRepository;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void deletesExpiredVerificationCodesAndSessionsWithoutThrowing() {
@@ -54,5 +61,20 @@ class ExpiredDataCleanupJobTest {
         expiredDataCleanupJob.cleanupExpired();
 
         assertThat(adminSessionRepository.findById("jti-2")).isPresent();
+    }
+
+    @Test
+    void deletesLdapSamplesOlderThanRetentionWindowButKeepsRecentOnes() {
+        // LdapConnectionSample always stamps sampledAt = now() on construction (it's a probe result,
+        // not a value the caller controls) - backdating it here requires going around the entity.
+        LdapConnectionSample old = ldapConnectionSampleRepository.save(new LdapConnectionSample(true, 42L, null));
+        jdbcTemplate.update("UPDATE ldap_connection_samples SET sampled_at = ? WHERE id = ?",
+                LocalDateTime.now().minusDays(31), old.getId());
+        LdapConnectionSample recent = ldapConnectionSampleRepository.save(new LdapConnectionSample(false, null, "CommunicationException"));
+
+        expiredDataCleanupJob.cleanupExpired();
+
+        assertThat(ldapConnectionSampleRepository.findById(old.getId())).isEmpty();
+        assertThat(ldapConnectionSampleRepository.findById(recent.getId())).isPresent();
     }
 }

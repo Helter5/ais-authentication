@@ -200,6 +200,21 @@ export interface ThesisCounterConfig {
   today_format: string | null;
 }
 
+export interface LdapStatusBucket {
+  bucketStart: string;
+  successCount: number;
+  failCount: number;
+  avgLatencyMs: number | null;
+}
+
+export interface LdapStatus {
+  currentlyUp: boolean;
+  lastCheckedAt: string | null;
+  lastLatencyMs: number | null;
+  uptimePercent: number;
+  buckets: LdapStatusBucket[];
+}
+
 export const adminApi = {
   getAdminAccess: async (): Promise<{ allowed: boolean }> => {
     const res = await api.get('/admin/access');
@@ -296,6 +311,11 @@ export const adminApi = {
 
   getAdminSettings: async (): Promise<{ super_admin_users: string }> => {
     const res = await api.get('/admin/settings');
+    return res.data;
+  },
+
+  getLdapStatus: async (): Promise<LdapStatus> => {
+    const res = await api.get('/admin/ldap-status');
     return res.data;
   },
 
