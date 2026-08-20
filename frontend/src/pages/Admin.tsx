@@ -1,8 +1,8 @@
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
-import { adminApi, type LdapStatus, type LdapStatusBucket } from "@/lib/api";
+import { adminApi } from "@/lib/api";
 import {
   Loader2, Save,
-  Plus, Server, Shield, Trash2, TriangleAlert, Wifi, WifiOff,
+  Plus, Server, Shield, Trash2, TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,76 +34,6 @@ function Panel({ icon: Icon, title, description, children }: {
   );
 }
 
-// ── LDAP connection uptime panel ────────────────────────────────────────────
-
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-function bucketColor(bucket: LdapStatusBucket): string {
-  const total = bucket.successCount + bucket.failCount;
-  if (total === 0) return "bg-zinc-800";
-  if (bucket.failCount === 0) return "bg-emerald-500";
-  if (bucket.successCount === 0) return "bg-red-500";
-  return "bg-amber-500"; // partial outage within the hour
-}
-
-function bucketTitle(bucket: LdapStatusBucket): string {
-  const total = bucket.successCount + bucket.failCount;
-  const time = new Date(bucket.bucketStart).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  if (total === 0) return `${time}\nNo data`;
-  const latency = bucket.avgLatencyMs !== null ? `, avg ${bucket.avgLatencyMs} ms` : "";
-  return `${time}\n${bucket.successCount} up / ${bucket.failCount} down${latency}`;
-}
-
-function LdapConnectionPanel({ status }: { status: LdapStatus | null }) {
-  if (!status) {
-    return (
-      <Panel icon={Wifi} title="LDAP Connection" description="Reachability of the university LDAP server over the last 24h.">
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...
-        </div>
-      </Panel>
-    );
-  }
-
-  const StatusIcon = status.currentlyUp ? Wifi : WifiOff;
-
-  return (
-    <Panel icon={Wifi} title="LDAP Connection" description="Reachability of the university LDAP server over the last 24h, sampled every 60s.">
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <span className={cn(
-          "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-bold uppercase",
-          status.currentlyUp ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400",
-        )}>
-          <StatusIcon className="h-3.5 w-3.5" /> {status.currentlyUp ? "Up" : "Down"}
-        </span>
-        <span className="text-xs text-zinc-500">
-          {status.lastCheckedAt ? `Last checked ${fmtTime(status.lastCheckedAt)}` : "No samples yet"}
-          {status.lastLatencyMs !== null && status.currentlyUp && ` · ${status.lastLatencyMs} ms`}
-        </span>
-        <span className="ml-auto text-xs font-semibold text-zinc-300">
-          {status.uptimePercent.toFixed(1)}% uptime (24h)
-        </span>
-      </div>
-
-      <div className="flex h-10 items-end gap-0.5">
-        {status.buckets.map(bucket => (
-          <div
-            key={bucket.bucketStart}
-            title={bucketTitle(bucket)}
-            className={cn("h-full flex-1 rounded-sm transition-opacity hover:opacity-75", bucketColor(bucket))}
-          />
-        ))}
-      </div>
-      <div className="mt-1.5 flex justify-between text-[10px] text-zinc-600">
-        <span>{status.buckets.length > 0 ? fmtTime(status.buckets[0].bucketStart) : ""}</span>
-        <span>now</span>
-      </div>
-    </Panel>
-  );
-}
-
 export function Admin() {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [guilds, setGuilds] = useState<BotGuild[]>([]);
@@ -112,7 +42,6 @@ export function Admin() {
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceDraft, setMaintenanceDraft] = useState(false);
   const [superAdminIds, setSuperAdminIds] = useState<string[]>([]);
-  const [ldapStatus, setLdapStatus] = useState<LdapStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -126,28 +55,17 @@ export function Admin() {
       adminApi.getAllowedGuilds(),
       adminApi.getMaintenance(),
       adminApi.getAdminSettings(),
-      adminApi.getLdapStatus(),
     ])
-      .then(([statusData, guildData, allowedData, maintenanceData, settingsData, ldapStatusData]) => {
+      .then(([statusData, guildData, allowedData, maintenanceData, settingsData]) => {
         setStatus(statusData);
         setGuilds(guildData);
         setAllowedGuildIds(allowedData.guildIds);
         setMaintenance(maintenanceData.enabled);
         setMaintenanceDraft(maintenanceData.enabled);
         setSuperAdminIds(settingsData.super_admin_users.split(',').map((s: string) => s.trim()).filter(Boolean));
-        setLdapStatus(ldapStatusData);
       })
       .catch(() => toast("Failed to load admin data.", "error"))
       .finally(() => setLoading(false));
-  }, []);
-
-  // Probe writes a new sample every 60s (see LdapUptimeProbeJob) - polling on the same cadence
-  // keeps the "Up/Down" badge and latency current without the admin needing to reload the page.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      adminApi.getLdapStatus().then(setLdapStatus).catch(() => { /* keep showing the last known status */ });
-    }, 60_000);
-    return () => clearInterval(interval);
   }, []);
 
   const saveAllowedGuilds = async (ids: string[]) => {
@@ -299,8 +217,6 @@ export function Admin() {
 
           </div>
         </div>
-
-        <LdapConnectionPanel status={ldapStatus} />
 
         <Panel icon={Shield} title="Super Admin" description="Configured via SUPER_ADMIN_IDS in .env — cannot be changed from the dashboard.">
           <div className="space-y-2">
