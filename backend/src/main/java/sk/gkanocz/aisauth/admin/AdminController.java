@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sk.gkanocz.aisauth.auth.AdminProperties;
@@ -39,7 +40,17 @@ import java.util.OptionalDouble;
 public class AdminController {
 
     private static final String MAINTENANCE_KEY = "maintenance_mode";
-    private static final int LDAP_STATUS_WINDOW_HOURS = 24;
+
+    /**
+     * The three windows the "LDAP Connection" widget can be switched to (see getLdapStatus) - each
+     * bucketed at a unit fine enough to give ~a screenful of bars: minute-by-minute for the last
+     * hour (each bucket is exactly one LdapUptimeProbeJob sample, so outages show at full
+     * resolution), hourly for the last day, daily for the last week.
+     */
+    private static final Map<String, LdapStatusRange> LDAP_STATUS_RANGES = Map.of(
+            "hour", new LdapStatusRange(ChronoUnit.MINUTES, 60),
+            "day", new LdapStatusRange(ChronoUnit.HOURS, 24),
+            "week", new LdapStatusRange(ChronoUnit.DAYS, 7));
 
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
@@ -81,28 +92,35 @@ public class AdminController {
     }
 
     /**
-     * Feeds the "LDAP Connection" panel on the Admin page - hourly buckets over the last
-     * {@link #LDAP_STATUS_WINDOW_HOURS}h built from {@link LdapConnectionSample} rows written by
-     * LdapUptimeProbeJob every 60s, plus the single most recent sample for the live status badge.
-     * Buckets with no samples at all (app restart, deploy gap) are included as null/no-data rather
-     * than skipped, so the dashboard can render them as gaps instead of stretching neighbors.
+     * Feeds the "LDAP Connection" widget on the main dashboard - buckets over the requested window
+     * ({@code range}: hour/day/week, see {@link #LDAP_STATUS_RANGES}) built from
+     * {@link LdapConnectionSample} rows written by LdapUptimeProbeJob every 60s, plus the single
+     * most recent sample for the live status badge. Buckets with no samples at all (app restart,
+     * deploy gap) are included as zero/no-data rather than skipped, so the widget can render them
+     * as gaps instead of stretching neighbors.
      */
     @SuperAdminAccess
     @GetMapping("/ldap-status")
-    public LdapStatusResponse getLdapStatus(@AuthenticationPrincipal Claims claims) {
+    public LdapStatusResponse getLdapStatus(
+            @AuthenticationPrincipal Claims claims, @RequestParam(defaultValue = "day") String range) {
         guildAccessService.assertSuperAdmin(claims);
 
+        LdapStatusRange config = LDAP_STATUS_RANGES.get(range);
+        if (config == null) {
+            throw InvalidRequestException.withMessage("range must be one of: " + String.join(", ", LDAP_STATUS_RANGES.keySet()));
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime windowStart = now.minusHours(LDAP_STATUS_WINDOW_HOURS - 1).truncatedTo(ChronoUnit.HOURS);
+        LocalDateTime windowStart = now.minus(config.count() - 1, config.unit()).truncatedTo(config.unit());
         List<LdapConnectionSample> samples =
                 ldapConnectionSampleRepository.findBySampledAtAfterOrderBySampledAtAsc(windowStart);
 
         Map<LocalDateTime, List<LdapConnectionSample>> byBucket = new LinkedHashMap<>();
-        for (int i = 0; i < LDAP_STATUS_WINDOW_HOURS; i++) {
-            byBucket.put(windowStart.plusHours(i), new ArrayList<>());
+        for (int i = 0; i < config.count(); i++) {
+            byBucket.put(windowStart.plus(i, config.unit()), new ArrayList<>());
         }
         for (LdapConnectionSample sample : samples) {
-            LocalDateTime bucket = sample.getSampledAt().truncatedTo(ChronoUnit.HOURS);
+            LocalDateTime bucket = sample.getSampledAt().truncatedTo(config.unit());
             byBucket.computeIfAbsent(bucket, key -> new ArrayList<>()).add(sample);
         }
 
@@ -216,5 +234,8 @@ public class AdminController {
 
     public record LdapStatusBucket(
             LocalDateTime bucketStart, int successCount, int failCount, Long avgLatencyMs) {
+    }
+
+    private record LdapStatusRange(ChronoUnit unit, int count) {
     }
 }

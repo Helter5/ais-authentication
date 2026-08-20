@@ -96,4 +96,34 @@ class AdminControllerIntegrationTest {
                 .andExpect(jsonPath("$.buckets").isArray())
                 .andExpect(jsonPath("$.buckets.length()").value(24));
     }
+
+    @Test
+    void ldapStatusDefaultsToDayRangeWith24Buckets() throws Exception {
+        mockMvc.perform(get("/api/admin/ldap-status").header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buckets.length()").value(24));
+    }
+
+    @Test
+    void ldapStatusHourRangeHas60Buckets() throws Exception {
+        mockMvc.perform(get("/api/admin/ldap-status").param("range", "hour")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buckets.length()").value(60));
+    }
+
+    @Test
+    void ldapStatusWeekRangeHas7Buckets() throws Exception {
+        mockMvc.perform(get("/api/admin/ldap-status").param("range", "week")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buckets.length()").value(7));
+    }
+
+    @Test
+    void ldapStatusRejectsUnknownRange() throws Exception {
+        mockMvc.perform(get("/api/admin/ldap-status").param("range", "month")
+                        .header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isBadRequest());
+    }
 }
