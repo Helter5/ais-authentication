@@ -40,18 +40,21 @@ type CmdSettingsData = {
   message?: string;
   allowedRoleIds?: string[];
   approverRoleIds?: string[];
+  excludeRoleIds?: string[];
   subcommandEphemeral?: Record<string, boolean>;
 };
 
 const DEFAULT_CODE_MESSAGE = "Úspešne overené! Vitaj.";
 const DEFAULT_BLOCKED_SUBJECT_MESSAGE = "🚫 Nie je v zozname povolených predmetov: {predmety}";
 const DEFAULT_FAQ_MESSAGE = "FAQ nie je nastavené, kontaktuj administrátora.";
+const DEFAULT_REFRESH_MESSAGE = "Welcome back! Restored roles: {roles}";
 
 /** Per-command label/placeholder/token-hints for the schema.message textarea - it's the same UI, just different content per command. */
 const CMD_MESSAGE_FIELD: Record<string, { label: string; tokens: string[] }> = {
   code:         { label: "Success message", tokens: ["{user}", "{server}", "{ais_id}"] },
   pridatpredmet: { label: "Blocked-subject message", tokens: ["{user}", "{server}", "{predmety}"] },
   faq:          { label: "Custom message (optional)", tokens: [] },
+  refresh:      { label: "Restore success message", tokens: ["{user}", "{server}", "{roles}"] },
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -73,7 +76,7 @@ const CMD_SUBCOMMANDS: Record<string, { key: string; label: string }[]> = {
 
 const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
-  allowedRoles?: boolean; approverRoles?: boolean; subcommandEphemeral?: boolean;
+  allowedRoles?: boolean; approverRoles?: boolean; excludeRoles?: boolean; subcommandEphemeral?: boolean;
 }> = {
   warn:         { subcommandEphemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
@@ -87,6 +90,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true },
   faq:          { ephemeral: true, message: true },
   odpocet:      { subcommandEphemeral: true },
+  refresh:      { ephemeral: true, message: true, excludeRoles: true },
 };
 
 const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
@@ -102,6 +106,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIds: [], approverRoleIds: [] },
   faq:          { ephemeral: true, message: DEFAULT_FAQ_MESSAGE },
   odpocet:      { subcommandEphemeral: { add: false, list: true } },
+  refresh:      { ephemeral: true, message: DEFAULT_REFRESH_MESSAGE, excludeRoleIds: [] },
 };
 
 /** Commands that log to a Discord channel - the "Log Channel" button on the card only shows for these. */
@@ -139,6 +144,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
     { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
     { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module, ephemeral response per subcommand below.", hasSettings: true, settingsHref: "/modules/thesiscounter" },
     { name: "/faq", description: "Ephemeral FAQ reply. The whole message is configured below - write out the commands/info you want students to see.", hasSettings: true },
+    { name: "/refresh", description: "Self-service: a returning member restores whichever of their previous roles are still trackable, from a snapshot taken when they left/were kicked/were banned (30-day retention). Roles with an elevated Discord permission are never snapshotted or restored, no matter what's configured below.", hasSettings: true },
   ],
 };
 
@@ -265,6 +271,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
   const [message, setMessage] = useState(defaults.message ?? "");
   const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(defaults.allowedRoleIds ?? []);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
+  const [excludeRoleIds, setExcludeRoleIds] = useState<string[]>(defaults.excludeRoleIds ?? []);
   const [subcommandEphemeral, setSubcommandEphemeral] = useState<Record<string, boolean>>(defaults.subcommandEphemeral ?? {});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -287,6 +294,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
         if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
         if (schema.allowedRoles) setAllowedRoleIds(data.allowedRoleIds ?? defaults.allowedRoleIds ?? []);
         if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
+        if (schema.excludeRoles) setExcludeRoleIds(data.excludeRoleIds ?? defaults.excludeRoleIds ?? []);
         if (schema.subcommandEphemeral) setSubcommandEphemeral({ ...defaults.subcommandEphemeral, ...data.subcommandEphemeral });
       })
       .catch(console.error)
@@ -300,6 +308,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     schema.message,
     schema.allowedRoles,
     schema.approverRoles,
+    schema.excludeRoles,
     schema.subcommandEphemeral,
     defaults.dmUser,
     defaults.ephemeral,
@@ -307,6 +316,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     defaults.message,
     defaults.allowedRoleIds,
     defaults.approverRoleIds,
+    defaults.excludeRoleIds,
     defaults.subcommandEphemeral,
   ]);
 
@@ -335,6 +345,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     if (schema.message)     data.message = message;
     if (schema.allowedRoles) data.allowedRoleIds = allowedRoleIds;
     if (schema.approverRoles) data.approverRoleIds = approverRoleIds;
+    if (schema.excludeRoles) data.excludeRoleIds = excludeRoleIds;
     if (schema.subcommandEphemeral) data.subcommandEphemeral = subcommandEphemeral;
     try {
       await adminApi.saveCommandSettings(guildId, commandKey, data as Record<string, unknown>);
@@ -440,6 +451,23 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
             <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">
               /pridatpredmet will refuse to run until both allowed subject roles and approvers are set.
             </p>
+          )}
+          {schema.excludeRoles && (
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Never snapshot/restore these roles</p>
+              <p className="text-xs text-zinc-500 mt-0.5 mb-2">
+                Roles picked here are never remembered on departure and never handed back by /refresh - on top of the hard floor below. Good for event roles, a muted role, or any staff role that doesn't already carry an elevated Discord permission.
+              </p>
+              <MultiPicker options={roles} selected={excludeRoleIds} onChange={setExcludeRoleIds} placeholder="Select Role" />
+              <p className="text-xs text-indigo-300 bg-indigo-400/10 border border-indigo-400/20 rounded px-3 py-2 mt-2 flex gap-2 items-start">
+                <Lock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  <strong>Always enforced, regardless of this list:</strong> any role granting Administrator, Manage Roles, Manage Server,
+                  Ban Members, Kick Members, or Manage Channels is <strong>never</strong> snapshotted or restored by /refresh. This is
+                  hardcoded and cannot be turned off from here.
+                </span>
+              </p>
+            </div>
           )}
         </div>
       )}

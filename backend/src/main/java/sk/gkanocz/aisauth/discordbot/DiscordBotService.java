@@ -181,7 +181,8 @@ public class DiscordBotService implements ApplicationRunner {
                                                         "Formát názvu pre deň D (voliteľné, default dnes-{label})", false)),
                                 new SubcommandData("list", "Zobraz odpočty na tomto serveri"))
                         .setDefaultPermissions(ADMIN_ONLY),
-                slash("faq", "Zobraz interaktívne FAQ - info o Discorde, škole a ďalšie")
+                slash("faq", "Zobraz interaktívne FAQ - info o Discorde, škole a ďalšie"),
+                slash("refresh", "Vráť si roly, ktoré si mal pred odchodom/kicknutím/bannom z tohto servera")
         );
     }
 
