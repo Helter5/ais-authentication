@@ -14,6 +14,8 @@ import sk.gkanocz.aisauth.auth.AdminProperties;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
 import sk.gkanocz.aisauth.auth.SuperAdminAccess;
+import sk.gkanocz.aisauth.directory.LdapConnectionSample;
+import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -22,8 +24,14 @@ import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import tools.jackson.core.type.TypeReference;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalDouble;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -31,6 +39,7 @@ import java.util.Map;
 public class AdminController {
 
     private static final String MAINTENANCE_KEY = "maintenance_mode";
+    private static final int LDAP_STATUS_WINDOW_HOURS = 24;
 
     private final GuildAccessService guildAccessService;
     private final DiscordBotService discordBotService;
@@ -39,6 +48,7 @@ public class AdminController {
     private final VerifiedUserRepository verifiedUserRepository;
     private final VerificationCodeRepository verificationCodeRepository;
     private final MaintenanceModeBroadcaster maintenanceModeBroadcaster;
+    private final LdapConnectionSampleRepository ldapConnectionSampleRepository;
 
     @SuperAdminAccess
     @GetMapping("/settings")
@@ -68,6 +78,61 @@ public class AdminController {
         return new StatusResponse(
                 uptimeSeconds, guildCount, verifiedCount, activeCodesCount,
                 System.getProperty("java.version"), memoryMB);
+    }
+
+    /**
+     * Feeds the "LDAP Connection" panel on the Admin page - hourly buckets over the last
+     * {@link #LDAP_STATUS_WINDOW_HOURS}h built from {@link LdapConnectionSample} rows written by
+     * LdapUptimeProbeJob every 60s, plus the single most recent sample for the live status badge.
+     * Buckets with no samples at all (app restart, deploy gap) are included as null/no-data rather
+     * than skipped, so the dashboard can render them as gaps instead of stretching neighbors.
+     */
+    @SuperAdminAccess
+    @GetMapping("/ldap-status")
+    public LdapStatusResponse getLdapStatus(@AuthenticationPrincipal Claims claims) {
+        guildAccessService.assertSuperAdmin(claims);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime windowStart = now.minusHours(LDAP_STATUS_WINDOW_HOURS - 1).truncatedTo(ChronoUnit.HOURS);
+        List<LdapConnectionSample> samples =
+                ldapConnectionSampleRepository.findBySampledAtAfterOrderBySampledAtAsc(windowStart);
+
+        Map<LocalDateTime, List<LdapConnectionSample>> byBucket = new LinkedHashMap<>();
+        for (int i = 0; i < LDAP_STATUS_WINDOW_HOURS; i++) {
+            byBucket.put(windowStart.plusHours(i), new ArrayList<>());
+        }
+        for (LdapConnectionSample sample : samples) {
+            LocalDateTime bucket = sample.getSampledAt().truncatedTo(ChronoUnit.HOURS);
+            byBucket.computeIfAbsent(bucket, key -> new ArrayList<>()).add(sample);
+        }
+
+        List<LdapStatusBucket> buckets = byBucket.entrySet().stream()
+                .map(entry -> toBucket(entry.getKey(), entry.getValue()))
+                .toList();
+
+        long successCount = samples.stream().filter(LdapConnectionSample::isSuccess).count();
+        double uptimePercent = samples.isEmpty() ? 0.0 : (100.0 * successCount / samples.size());
+
+        Optional<LdapConnectionSample> last = ldapConnectionSampleRepository.findTopByOrderBySampledAtDesc();
+        return new LdapStatusResponse(
+                last.map(LdapConnectionSample::isSuccess).orElse(false),
+                last.map(LdapConnectionSample::getSampledAt).orElse(null),
+                last.map(LdapConnectionSample::getLatencyMs).orElse(null),
+                uptimePercent,
+                buckets);
+    }
+
+    private LdapStatusBucket toBucket(LocalDateTime bucketStart, List<LdapConnectionSample> bucketSamples) {
+        int successCount = (int) bucketSamples.stream().filter(LdapConnectionSample::isSuccess).count();
+        int failCount = bucketSamples.size() - successCount;
+        OptionalDouble avg = bucketSamples.stream()
+                .filter(LdapConnectionSample::isSuccess)
+                .map(LdapConnectionSample::getLatencyMs)
+                .filter(Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .average();
+        Long avgLatencyMs = avg.isPresent() ? (long) avg.getAsDouble() : null;
+        return new LdapStatusBucket(bucketStart, successCount, failCount, avgLatencyMs);
     }
 
     @SuperAdminAccess
@@ -139,5 +204,17 @@ public class AdminController {
 
     public record BotGuildResponse(
             String id, String name, String icon, int memberCount, long verifiedCount, boolean allowed) {
+    }
+
+    public record LdapStatusResponse(
+            boolean currentlyUp,
+            LocalDateTime lastCheckedAt,
+            Long lastLatencyMs,
+            double uptimePercent,
+            List<LdapStatusBucket> buckets) {
+    }
+
+    public record LdapStatusBucket(
+            LocalDateTime bucketStart, int successCount, int failCount, Long avgLatencyMs) {
     }
 }

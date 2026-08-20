@@ -9,6 +9,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import sk.gkanocz.aisauth.TestcontainersConfiguration;
+import sk.gkanocz.aisauth.directory.LdapConnectionSample;
+import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
 import sk.gkanocz.aisauth.support.AuthenticatedRequestHelper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,6 +27,8 @@ class AdminControllerIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private AuthenticatedRequestHelper auth;
+    @Autowired
+    private LdapConnectionSampleRepository ldapConnectionSampleRepository;
 
     @Test
     void accessReflectsSuperAdminFlagForSuperAdmin() throws Exception {
@@ -70,5 +74,26 @@ class AdminControllerIntegrationTest {
         mockMvc.perform(get("/api/admin/settings").header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.super_admin_users").exists());
+    }
+
+    @Test
+    void ldapStatusIsForbiddenForRegularManager() throws Exception {
+        String token = auth.managerTokenFor("some-guild");
+
+        mockMvc.perform(get("/api/admin/ldap-status").header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ldapStatusReflectsMostRecentSampleForSuperAdmin() throws Exception {
+        ldapConnectionSampleRepository.save(new LdapConnectionSample(true, 40L, null));
+        ldapConnectionSampleRepository.save(new LdapConnectionSample(true, 55L, null));
+
+        mockMvc.perform(get("/api/admin/ldap-status").header(HttpHeaders.AUTHORIZATION, auth.bearer(auth.superAdminToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentlyUp").value(true))
+                .andExpect(jsonPath("$.lastLatencyMs").value(55))
+                .andExpect(jsonPath("$.buckets").isArray())
+                .andExpect(jsonPath("$.buckets.length()").value(24));
     }
 }

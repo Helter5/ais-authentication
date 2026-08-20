@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
 import sk.gkanocz.aisauth.auth.RefreshTokenRepository;
+import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
 import java.time.LocalDateTime;
@@ -17,9 +18,13 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class ExpiredDataCleanupJob {
 
+    /** LDAP uptime probes run every 60s (see LdapUptimeProbeJob) - 30 days is ~43k rows, plenty for the dashboard's uptime graph without growing the table unbounded. */
+    private static final int LDAP_SAMPLE_RETENTION_DAYS = 30;
+
     private final VerificationCodeRepository verificationCodeRepository;
     private final AdminSessionRepository adminSessionRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final LdapConnectionSampleRepository ldapConnectionSampleRepository;
 
     @Scheduled(fixedRate = 15, timeUnit = TimeUnit.MINUTES)
     @Transactional
@@ -28,6 +33,7 @@ public class ExpiredDataCleanupJob {
         verificationCodeRepository.deleteByExpiresAtBefore(now);
         adminSessionRepository.deleteByExpiresAtBefore(now);
         refreshTokenRepository.deleteByExpiresAtBefore(now);
-        log.debug("Cleaned up expired verification codes, admin sessions, and refresh tokens");
+        ldapConnectionSampleRepository.deleteBySampledAtBefore(now.minusDays(LDAP_SAMPLE_RETENTION_DAYS));
+        log.debug("Cleaned up expired verification codes, admin sessions, refresh tokens, and old LDAP samples");
     }
 }
