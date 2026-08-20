@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.rolesnapshot.RoleSnapshotService;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.verification.VerificationService;
@@ -30,6 +31,7 @@ class GuildLifecycleListener extends ListenerAdapter {
     private final GuildSettingsService guildSettingsService;
     private final VerifiedUserRepository verifiedUserRepository;
     private final EventLogEmbedSender eventLogEmbedSender;
+    private final RoleSnapshotService roleSnapshotService;
 
     @Override
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {
@@ -37,6 +39,15 @@ class GuildLifecycleListener extends ListenerAdapter {
         String discordId = event.getUser().getId();
         String aisId = verifiedUserRepository.findByDiscordIdAndGuildId(discordId, guildId)
                 .map(VerifiedUser::getAisId).orElse(null);
+
+        // Kick/ban/leave all fire this same event - event.getMember() is still the cached member
+        // (with their roles) at this point, since MemberCachePolicy.ALL keeps it populated right
+        // up until removal. /refresh reads this snapshot back if they return within its retention.
+        try {
+            roleSnapshotService.snapshot(event.getGuild(), event.getMember());
+        } catch (Exception e) {
+            log.error("Failed to snapshot roles for departed member {}", discordId, e);
+        }
 
         try {
             verificationService.cleanupDepartedMember(discordId, guildId);

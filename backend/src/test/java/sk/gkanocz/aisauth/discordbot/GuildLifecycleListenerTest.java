@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import sk.gkanocz.aisauth.audit.AuditLogService;
+import sk.gkanocz.aisauth.rolesnapshot.RoleSnapshotService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
@@ -46,6 +47,8 @@ class GuildLifecycleListenerTest {
     private VerifiedUserRepository verifiedUserRepository;
     @Mock
     private EventLogEmbedSender eventLogEmbedSender;
+    @Mock
+    private RoleSnapshotService roleSnapshotService;
 
     @Mock
     private Guild guild;
@@ -57,7 +60,8 @@ class GuildLifecycleListenerTest {
     @BeforeEach
     void setUp() {
         listener = new GuildLifecycleListener(
-                verificationService, auditLogService, guildSettingsService, verifiedUserRepository, eventLogEmbedSender);
+                verificationService, auditLogService, guildSettingsService, verifiedUserRepository,
+                eventLogEmbedSender, roleSnapshotService);
 
         Mockito.lenient().when(guild.getId()).thenReturn("guild-1");
         Mockito.lenient().when(guild.getName()).thenReturn("My Guild");

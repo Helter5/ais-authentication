@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
 import sk.gkanocz.aisauth.auth.RefreshTokenRepository;
 import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
+import sk.gkanocz.aisauth.rolesnapshot.RoleSnapshotRepository;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class ExpiredDataCleanupJob {
     private final AdminSessionRepository adminSessionRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final LdapConnectionSampleRepository ldapConnectionSampleRepository;
+    private final RoleSnapshotRepository roleSnapshotRepository;
 
     @Scheduled(fixedRate = 15, timeUnit = TimeUnit.MINUTES)
     @Transactional
@@ -34,6 +36,7 @@ public class ExpiredDataCleanupJob {
         adminSessionRepository.deleteByExpiresAtBefore(now);
         refreshTokenRepository.deleteByExpiresAtBefore(now);
         ldapConnectionSampleRepository.deleteBySampledAtBefore(now.minusDays(LDAP_SAMPLE_RETENTION_DAYS));
-        log.debug("Cleaned up expired verification codes, admin sessions, refresh tokens, and old LDAP samples");
+        roleSnapshotRepository.deleteByExpiresAtBefore(now);
+        log.debug("Cleaned up expired verification codes, admin sessions, refresh tokens, old LDAP samples, and expired role snapshots");
     }
 }

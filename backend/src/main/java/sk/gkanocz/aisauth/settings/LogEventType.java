@@ -16,7 +16,8 @@ public enum LogEventType {
     VERIFIED_ROLE_ADDED_WITHOUT_VERIFY("/verify", "Verified role added to a member without going through /verify or /manualverify"),
     VERIFIED_USER_REMOVED("/verify", "User removed from the Users Directory (left/kicked/banned, or Verified role removed)"),
     SUBJECT_ROLE_PENDING_APPROVAL("/pridatpredmet", "Subject role request needs admin approval (3rd+ this semester) - also shows the final approved/rejected outcome, edited in place"),
-    SUBJECT_ROLE_MISSING_ROLE("/pridatpredmet", "Requested subject role does not exist or the bot cannot assign it");
+    SUBJECT_ROLE_MISSING_ROLE("/pridatpredmet", "Requested subject role does not exist or the bot cannot assign it"),
+    ROLE_REFRESH_RESTORED("/refresh", "Roles restored to a returning member from their departure snapshot");
 
     private final String label;
     private final String description;

@@ -99,7 +99,7 @@ class DiscordBotServiceTest {
         List<SlashCommandData> commands = service.baseCommands();
 
         assertThat(commands).extracting(SlashCommandData::getName)
-                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet", "odpocet", "faq");
+                .containsExactly("verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet", "odpocet", "faq", "refresh");
     }
 
     @Test
