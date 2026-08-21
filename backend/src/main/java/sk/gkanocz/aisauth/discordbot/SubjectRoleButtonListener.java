@@ -8,10 +8,12 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
-import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.interactions.components.text.TextInput;
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
+import net.dv8tion.jda.api.interactions.modals.Modal;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
@@ -40,17 +42,8 @@ import java.util.Set;
 public class SubjectRoleButtonListener extends ListenerAdapter {
 
     private static final String PREFIX = "subjrole:";
-    private static final String REJECT_REASON_PREFIX = "subjrole:rejectreason:";
-
-    /** Preset rejection reasons shown in the dropdown - kept short and fixed rather than free text,
-     *  since a modal can't hold a select menu and this covers what actually comes up in practice. */
-    private static final Map<String, String> REJECT_REASONS = new LinkedHashMap<>();
-    static {
-        REJECT_REASONS.put("duplicate", "Duplicitná žiadosť / rolu už máš");
-        REJECT_REASONS.put("not_eligible", "Nespĺňaš podmienky pre tento predmet");
-        REJECT_REASONS.put("role_gone", "Rola bola medzičasom odstránená/premenovaná");
-        REJECT_REASONS.put("other", "Iný dôvod - kontaktuj administrátora");
-    }
+    private static final String REJECT_MODAL_PREFIX = "subjrole:rejectreason:";
+    private static final String REASON_INPUT_ID = "reason";
 
     private final SubjectRoleRequestRepository subjectRoleRequestRepository;
     private final SubjectRoleService subjectRoleService;
@@ -90,13 +83,19 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
         SubjectRoleRequest request = found.get();
 
         if ("reject".equals(action)) {
-            // Doesn't decide yet - the dropdown reply below picks the reason first, and
-            // onStringSelectInteraction does the actual reject once one is chosen.
-            StringSelectMenu.Builder menu = StringSelectMenu.create(REJECT_REASON_PREFIX + requestId + ":" + event.getMessageId())
-                    .setPlaceholder("Vyber dôvod zamietnutia...");
-            REJECT_REASONS.forEach((key, label) -> menu.addOption(label, key));
-            event.reply("Vyber dôvod zamietnutia pre <@" + request.getDiscordId() + ">:")
-                    .setEphemeral(true).addActionRow(menu.build()).queue();
+            // Doesn't decide yet - onModalInteraction does the actual reject once the admin submits
+            // the reason they typed. event.getMessageId() (the original request embed) rides along
+            // in the modal's custom id since a modal submission is a separate interaction with no
+            // link back to the button that opened it.
+            TextInput reason = TextInput.create(REASON_INPUT_ID, "Dôvod zamietnutia", TextInputStyle.PARAGRAPH)
+                    .setPlaceholder("napr. duplicitná žiadosť, nespĺňa podmienky, rola už neexistuje...")
+                    .setRequired(false)
+                    .setMaxLength(300)
+                    .build();
+            Modal modal = Modal.create(REJECT_MODAL_PREFIX + requestId + ":" + event.getMessageId(), "Zamietnuť žiadosť")
+                    .addActionRow(reason)
+                    .build();
+            event.replyModal(modal).queue();
             return;
         }
         if (!"approve".equals(action)) {
@@ -138,15 +137,15 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
                 });
     }
 
-    /** Reject flow's second step - fired once the admin picks a reason from the dropdown the button
-     *  handler posted. The original request embed lives in a different (non-ephemeral) message than
-     *  this select menu's own, so it's looked up by id in the same channel and edited directly,
-     *  rather than through this interaction's own hook (which can only ever touch this ephemeral
-     *  reply, not the message the button was originally on). */
+    /** Reject flow's second step - fired once the admin submits the reason they typed into the
+     *  modal the button handler opened. The original request embed lives in a different (non-
+     *  ephemeral) message than this modal submission, so it's looked up by id in the same channel
+     *  and edited directly, rather than through this interaction's own hook (which can only ever
+     *  touch a reply to this submission, not the message the button was originally on). */
     @Override
-    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
-        String componentId = event.getComponentId();
-        if (!componentId.startsWith(REJECT_REASON_PREFIX)) {
+    public void onModalInteraction(ModalInteractionEvent event) {
+        String modalId = event.getModalId();
+        if (!modalId.startsWith(REJECT_MODAL_PREFIX)) {
             return;
         }
         Guild guild = event.getGuild();
@@ -159,7 +158,7 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
             return;
         }
 
-        String[] parts = componentId.substring(REJECT_REASON_PREFIX.length()).split(":", 2);
+        String[] parts = modalId.substring(REJECT_MODAL_PREFIX.length()).split(":", 2);
         long requestId;
         try {
             requestId = Long.parseLong(parts[0]);
@@ -170,24 +169,25 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
 
         Optional<SubjectRoleRequest> found = subjectRoleRequestRepository.findByIdAndGuildId(requestId, guild.getId());
         if (found.isEmpty() || found.get().getStatus() != SubjectRoleRequestStatus.PENDING) {
-            event.editMessage("Táto žiadosť už bola vybavená.").setComponents(List.of()).queue();
+            event.reply("Táto žiadosť už bola vybavená.").setEphemeral(true).queue();
             return;
         }
         SubjectRoleRequest request = found.get();
-        String reasonKey = event.getValues().isEmpty() ? "other" : event.getValues().get(0);
-        String reasonLabel = REJECT_REASONS.getOrDefault(reasonKey, REJECT_REASONS.get("other"));
+        String typedReason = event.getValue(REASON_INPUT_ID) == null ? "" : event.getValue(REASON_INPUT_ID).getAsString().trim();
+        String reason = typedReason.isEmpty() ? null : typedReason;
 
         subjectRoleService.decide(request, SubjectRoleRequestStatus.REJECTED, admin.getId());
-        event.editMessage("Zamietnuté (" + reasonLabel + ").").setComponents(List.of()).queue();
+        event.reply(reason != null ? "Zamietnuté (" + reason + ")." : "Zamietnuté.").setEphemeral(true).queue();
         if (originalMessageId != null) {
             event.getChannel().retrieveMessageById(originalMessageId).queue(
-                    msg -> msg.editMessageEmbeds(buildDecisionEmbed(request, false, admin, reasonLabel)).setComponents(List.of()).queue(
+                    msg -> msg.editMessageEmbeds(buildDecisionEmbed(request, false, admin, reason)).setComponents(List.of()).queue(
                             s -> { }, f -> { }),
                     f -> log.warn("Guild {}: couldn't find original request embed {} to update", guild.getId(), originalMessageId));
         }
-        logDecision(guild, request, "rejected", admin, reasonLabel);
+        logDecision(guild, request, "rejected", admin, reason);
         dmBestEffort(guild, request.getDiscordId(), "Tvoja žiadosť o rolu predmetu **" + roleDisplayName(guild, request.getSubjectCode())
-                + "** bola zamietnutá administrátorom <@" + admin.getId() + ">.\nDôvod: " + reasonLabel);
+                + "** bola zamietnutá administrátorom <@" + admin.getId() + ">."
+                + (reason != null ? "\nDôvod: " + reason : ""));
     }
 
     private boolean canDecide(Member admin, String guildId) {
