@@ -241,7 +241,7 @@ public class SemesterPlanService {
             }
 
             dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran semester plan", Map.of(
-                    "planId", plan.id(), "planName", plan.name(), "steps", steps.size(),
+                    "planId", plan.id(), "planName", plan.name(), "steps", steps.size(), "migrationId", migrationId,
                     "status", finalStatus, "incompleteSteps", incompleteLabels, "log", tracker.logsSnapshot()));
 
             logRoutingService.channelIdFor(guildId, LogEventType.SEMESTER_RECAP).ifPresent(recapChannelId ->

@@ -55,7 +55,7 @@ public class SemesterRollbackService {
 
     public record MigrationGroup(
             String groupKey, String roleFromId, String roleToId, boolean keptFromRole,
-            int totalMembers, int remainingMembers, boolean rolledBack) {
+            int totalMembers, int remainingMembers, boolean rolledBack, List<String> discordIds) {
     }
 
     public record VisibilityRow(
@@ -106,7 +106,8 @@ public class SemesterRollbackService {
                 long remaining = group.stream().filter(r -> !r.isRolledBack()).count();
                 roleGroups.add(new MigrationGroup(
                         groupKey(first), first.getRoleFromId(), first.getRoleToId(), first.isKeptFromRole(),
-                        group.size(), (int) remaining, remaining == 0));
+                        group.size(), (int) remaining, remaining == 0,
+                        group.stream().map(SemesterRoleMigration::getDiscordId).toList()));
             }
 
             List<VisibilityRow> visibilityRows = visRows.stream()

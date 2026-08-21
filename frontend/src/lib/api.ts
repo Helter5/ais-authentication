@@ -89,6 +89,7 @@ export interface MigrationGroup {
   totalMembers: number;
   remainingMembers: number;
   rolledBack: boolean;
+  discordIds: string[];
 }
 
 export interface VisibilityRow {

@@ -212,8 +212,17 @@ public class WipeService {
             state.log("Wipe complete — " + processed + " checked, " + inactive + " inactive removed, " + errors + " errors", "success");
 
             List<String> logLines = state.logs.stream().map(e -> "[" + e.time() + "] " + e.msg()).toList();
+            List<Map<String, Object>> removedUsers = inactiveEntries.stream().map(entry -> {
+                Map<String, Object> row = new java.util.LinkedHashMap<>();
+                row.put("discordId", entry.user().getDiscordId());
+                row.put("username", entry.member() == null ? null : entry.member().getUser().getName());
+                row.put("aisId", entry.user().getAisId());
+                row.put("wasInServer", entry.member() != null);
+                return row;
+            }).toList();
             dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran inactive-user wipe", Map.of(
-                    "processed", processed, "inactive", inactive, "errors", errors, "log", logLines));
+                    "processed", processed, "inactive", inactive, "errors", errors,
+                    "removedUsers", removedUsers, "log", logLines));
 
             sendRecapChannel(guild, processed, inactive, errors, state);
         } catch (Exception e) {

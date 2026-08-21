@@ -252,7 +252,7 @@ public class SemesterOperationService {
 
             dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran semester setup", Map.of(
                     "semesterName", semesterName, "visible", visible, "everyoneViewChannel", everyoneViewChannel,
-                    "clearRoles", clearRoles, "status", finalStatus, "log", tracker.logsSnapshot()));
+                    "clearRoles", clearRoles, "status", finalStatus, "migrationId", migrationId, "log", tracker.logsSnapshot()));
 
             postRecap(guild, recapChannelId,
                     "**Semester Setup " + (completed ? "Complete" : "Finished With Errors") + "** — `"

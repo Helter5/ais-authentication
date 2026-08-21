@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
-  AlertCircle, Bot, Command, Gauge, History, Info, Loader2, LogIn, Settings2,
-  ShieldAlert, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck,
+  AlertCircle, Bot, Command, Gauge, Hash, History, Info, Loader2, LogIn, Settings2,
+  ShieldAlert, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck, Users,
 } from "lucide-react";
-import { adminApi, apiErrorMessage, type AuditLog } from "@/lib/api";
+import { adminApi, apiErrorMessage, type AuditLog, type MigrationDetail, type MigrationGroup, type VisibilityRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId } from "@/components/modules/shared";
 import {
@@ -149,7 +149,7 @@ function isScalarArray(value: unknown[]): boolean {
 // position when nothing id-like is present (fine for ordered lists like steps).
 function itemKey(item: unknown, index: number): string {
   if (isPlainObject(item)) {
-    const candidate = item.id ?? item.channelId ?? item.name ?? item.channelName;
+    const candidate = item.id ?? item.channelId ?? item.discordId ?? item.name ?? item.channelName ?? item.username;
     if (typeof candidate === "string" || typeof candidate === "number") return String(candidate);
   }
   return `#${index}`;
@@ -157,7 +157,7 @@ function itemKey(item: unknown, index: number): string {
 
 function itemLabel(item: unknown): string | null {
   if (!isPlainObject(item)) return null;
-  const candidate = item.name ?? item.channelName;
+  const candidate = item.name ?? item.channelName ?? item.username ?? item.discordId;
   return typeof candidate === "string" ? candidate : null;
 }
 
@@ -679,6 +679,162 @@ function useIdNameMap(guildId: string | null): IdResolver {
   return useMemo(() => (id: string) => map.get(id) ?? null, [map]);
 }
 
+// ── Operation detail modal ───────────────────────────────────────────────────
+
+type OpSubTab = "users" | "rooms" | "log";
+
+function RoleMappingRow({ group, resolve }: { group: MigrationGroup; resolve: IdResolver }) {
+  return (
+    <div className="rounded border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
+      <p className="font-semibold text-zinc-200">
+        @{resolve(group.roleFromId) ?? group.roleFromId}
+        <span className="mx-1.5 text-zinc-600">→</span>
+        {group.roleToId ? `@${resolve(group.roleToId) ?? group.roleToId}` : <span className="text-zinc-500">removed, nothing granted</span>}
+        {group.keptFromRole && <span className="ml-1.5 text-[11px] text-zinc-500">(kept old role too)</span>}
+      </p>
+      <p className="mt-1 text-[11px] text-zinc-500">
+        {group.totalMembers} member{group.totalMembers === 1 ? "" : "s"}
+        {group.rolledBack && <span className="ml-1.5 text-amber-400">— rolled back</span>}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {group.discordIds.map(id => (
+          <span key={id} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">{id}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VisibilityRoomRow({ row, resolve }: { row: VisibilityRow; resolve: IdResolver }) {
+  return (
+    <div className="flex items-center justify-between rounded border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
+      <span className="flex items-center gap-1.5 text-zinc-200">
+        <Hash className="h-3.5 w-3.5 text-zinc-500" />
+        {row.categoryName ?? resolve(row.categoryId) ?? row.categoryId}
+        {row.isChannel && <span className="text-[11px] text-sky-400">(channel)</span>}
+      </span>
+      <span className="flex items-center gap-2 text-xs">
+        <span className={row.direction === "show" ? "text-emerald-400" : "text-red-400"}>
+          {row.direction === "show" ? "Shown" : "Hidden"}
+        </span>
+        <span className="text-zinc-500">@everyone: {row.everyoneViewChannel ? "True" : "False"}</span>
+        {row.rolledBack && <span className="text-amber-400">rolled back</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Every step of a semester plan/setup/rollback run, each with its role-mapping groups (exactly
+ *  which members moved from which role to which) and per-room visibility changes. */
+function MigrationStepsView({ detail, resolve }: { detail: MigrationDetail; resolve: IdResolver }) {
+  return (
+    <div className="space-y-3">
+      {detail.steps.map(step => (
+        <div key={step.stepIndex}>
+          {step.stepLabel && <p className="mb-1 text-xs font-semibold text-zinc-400">Step {step.stepIndex + 1}: {step.stepLabel}</p>}
+          <div className="space-y-1.5">
+            {step.roleGroups.map(g => <RoleMappingRow key={g.groupKey} group={g} resolve={resolve} />)}
+            {step.visibilityRows.map(v => <VisibilityRoomRow key={v.id} row={v} resolve={resolve} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OperationDetailModal({ log, guildId, resolve }: {
+  log: AuditLog; guildId: string; resolve: IdResolver;
+}) {
+  const [migrationDetail, setMigrationDetail] = useState<MigrationDetail | null>(null);
+  const migrationId = typeof log.details?.migrationId === "string" ? log.details.migrationId : null;
+
+  useEffect(() => {
+    setMigrationDetail(null);
+    if (!migrationId) return;
+    let cancelled = false;
+    adminApi.getMigrationDetail(guildId, migrationId).then(d => { if (!cancelled) setMigrationDetail(d); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [guildId, migrationId]);
+
+  const removedUsers = Array.isArray(log.details?.removedUsers) ? log.details.removedUsers as Record<string, unknown>[] : null;
+  const logLines = Array.isArray(log.details?.log) ? (log.details.log as unknown[]).filter((l): l is string => typeof l === "string") : [];
+  const hasRoleOrRoomData = migrationDetail?.steps.some(s => s.roleGroups.length > 0 || s.visibilityRows.length > 0) ?? false;
+
+  const availableTabs: { id: OpSubTab; label: string; icon: ElementType }[] = [
+    ...(hasRoleOrRoomData || removedUsers ? [{ id: "users" as const, label: "Users", icon: Users }] : []),
+    ...(hasRoleOrRoomData ? [{ id: "rooms" as const, label: "Rooms", icon: Hash }] : []),
+    ...(logLines.length > 0 ? [{ id: "log" as const, label: "Log", icon: History }] : []),
+  ];
+  const [subTab, setSubTab] = useState<OpSubTab | null>(null);
+  const activeSubTab = subTab ?? availableTabs[0]?.id ?? null;
+
+  // Summary fields shown up top regardless of sub-tab - everything except the plumbing
+  // (migrationId) and what already gets its own tab (log, removedUsers).
+  const summary = Object.fromEntries(
+    Object.entries(log.details ?? {}).filter(([k]) => !["migrationId", "log", "removedUsers"].includes(k)));
+
+  return (
+    <DialogContent className="max-w-2xl border-zinc-700 bg-zinc-900 text-zinc-100">
+      <DialogHeader>
+        <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
+          <History className="h-5 w-5" />
+        </div>
+        <DialogTitle>{log.action}</DialogTitle>
+        <DialogDescription className="leading-relaxed text-zinc-400">
+          {fmt(log.created_at)} · {log.username ?? "Unknown user"}
+          {log.user_id && <span className="ml-1 font-mono text-[11px] text-zinc-600">({log.user_id})</span>}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1 text-sm scrollbar-thin">
+        {Object.keys(summary).length > 0 && <DetailsView details={summary} resolve={resolve} />}
+
+        {availableTabs.length > 0 && (
+          <div className="flex gap-1.5 border-t border-zinc-800 pt-3">
+            {availableTabs.map(t => {
+              const Icon = t.icon;
+              return (
+                <button key={t.id} onClick={() => setSubTab(t.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    activeSubTab === t.id
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200",
+                  )}>
+                  <Icon className="h-3.5 w-3.5" /> {t.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {activeSubTab === "users" && (
+          migrationDetail
+            ? <MigrationStepsView
+                detail={{ steps: migrationDetail.steps.map(s => ({ ...s, visibilityRows: [] })) }}
+                resolve={resolve} />
+            : removedUsers && (
+              <div className="space-y-1.5">
+                {removedUsers.map((u, i) => (
+                  <div key={i} className="rounded border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
+                    <p className="font-semibold text-zinc-200">{String(u.username ?? "Unknown")}</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+                      {String(u.discordId)} · AIS {String(u.aisId)} · {u.wasInServer ? "was in server" : "already gone"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )
+        )}
+        {activeSubTab === "rooms" && migrationDetail && (
+          <MigrationStepsView detail={{ steps: migrationDetail.steps.map(s => ({ ...s, roleGroups: [] })) }} resolve={resolve} />
+        )}
+        {activeSubTab === "log" && <LogLinesView lines={logLines} />}
+      </div>
+    </DialogContent>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function Logs() {
@@ -1010,27 +1166,9 @@ export function Logs() {
       </div>
 
       <Dialog open={selectedOperation !== null} onOpenChange={open => { if (!open) setSelectedOperation(null); }}>
-        <DialogContent className="max-w-2xl border-zinc-700 bg-zinc-900 text-zinc-100">
-          {selectedOperation && (
-            <>
-              <DialogHeader>
-                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
-                  <History className="h-5 w-5" />
-                </div>
-                <DialogTitle>{selectedOperation.action}</DialogTitle>
-                <DialogDescription className="leading-relaxed text-zinc-400">
-                  {fmt(selectedOperation.created_at)} · {selectedOperation.username ?? "Unknown user"}
-                  {selectedOperation.user_id && <span className="ml-1 font-mono text-[11px] text-zinc-600">({selectedOperation.user_id})</span>}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pr-1 text-sm">
-                {selectedOperation.details
-                  ? <DetailsView details={selectedOperation.details} resolve={resolve} />
-                  : <p className="italic text-zinc-600">No details recorded.</p>}
-              </div>
-            </>
-          )}
-        </DialogContent>
+        {selectedOperation && guildId && (
+          <OperationDetailModal log={selectedOperation} guildId={guildId} resolve={resolve} />
+        )}
       </Dialog>
 
       <Dialog open={automodInfoOpen} onOpenChange={setAutomodInfoOpen}>
