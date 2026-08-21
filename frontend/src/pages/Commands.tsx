@@ -446,14 +446,15 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
               <p className="text-sm font-bold text-zinc-200">Allowed subject roles</p>
               <p className="text-xs text-zinc-500 -mt-3">
                 Only these roles can be self-assigned via /pridatpredmet, and only during their own semester - everything else is blocked. Also filters what the command's autocomplete suggests.
+                A role picked here drops out of the other semester's list below - a subject only ever belongs to one, so this keeps both lists free of ones already placed.
               </p>
               <div>
                 <p className="text-xs font-semibold text-sky-300 mb-2">❄️ Winter (ZS)</p>
-                <MultiPicker options={roles} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role" />
+                <MultiPicker options={roles.filter(r => !allowedRoleIdsSummer.includes(r.id))} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role" />
               </div>
               <div>
                 <p className="text-xs font-semibold text-amber-300 mb-2">☀️ Summer (LS)</p>
-                <MultiPicker options={roles} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role" />
+                <MultiPicker options={roles.filter(r => !allowedRoleIdsWinter.includes(r.id))} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role" />
               </div>
             </div>
           )}
