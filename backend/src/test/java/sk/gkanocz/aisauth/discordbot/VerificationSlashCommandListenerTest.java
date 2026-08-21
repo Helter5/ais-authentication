@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettings;
@@ -75,6 +76,8 @@ class VerificationSlashCommandListenerTest {
     private PendingVerificationStore pendingVerificationStore;
     @Mock
     private AdminSettingsService adminSettingsService;
+    @Mock
+    private AuditLogService auditLogService;
 
     @Mock
     private SlashCommandInteractionEvent event;
@@ -96,7 +99,7 @@ class VerificationSlashCommandListenerTest {
         listener = new VerificationSlashCommandListener(
                 verificationService, guildSettingsService, logRoutingService, verifiedRoleResolver,
                 verifyRateLimiter, eventLogEmbedSender, TESTING_MODE_OFF, pendingVerificationStore,
-                adminSettingsService);
+                adminSettingsService, auditLogService);
 
         Mockito.lenient().when(event.deferReply(anyBoolean())).thenReturn(replyCallbackAction);
         Mockito.lenient().when(event.getHook()).thenReturn(hook);
@@ -249,7 +252,7 @@ class VerificationSlashCommandListenerTest {
         listener = new VerificationSlashCommandListener(
                 verificationService, guildSettingsService, logRoutingService, verifiedRoleResolver,
                 verifyRateLimiter, eventLogEmbedSender, testingMode, pendingVerificationStore,
-                adminSettingsService);
+                adminSettingsService, auditLogService);
         enableVerification();
         configureLogChannel();
         when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(mock(Role.class));

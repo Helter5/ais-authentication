@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.audit.AuditLogEntry;
+import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
@@ -61,6 +63,7 @@ class VerificationSlashCommandListener {
     private final VerificationProperties verificationProperties;
     private final PendingVerificationStore pendingVerificationStore;
     private final AdminSettingsService adminSettingsService;
+    private final AuditLogService auditLogService;
 
     /**
      * /verify's LDAP round-trip (throttled to 1 req/sec by LdapRequestThrottle, and now bounded by
@@ -249,6 +252,13 @@ class VerificationSlashCommandListener {
             }
             clearInactiveRole(event.getGuild(), member);
 
+            auditLogService.log(new AuditLogEntry(
+                    "verification", "Verified via /code",
+                    event.getGuild().getId(), event.getGuild().getName(),
+                    event.getChannel().getId(), event.getChannel().getName(),
+                    discordId, event.getUser().getName(),
+                    Map.of("aisId", verifiedUser.getAisId())));
+
             eventLogEmbedSender.send(event.getGuild(), LogEventType.CODE_CONFIRMED,
                     EventLogEmbedSender.base(EventLogEmbedSender.SUCCESS, "User Verified", null)
                             .addField("User", EventLogEmbedSender.userField(discordId, event.getUser().getName()), true)
@@ -343,6 +353,13 @@ class VerificationSlashCommandListener {
                 return;
             }
             clearInactiveRole(event.getGuild(), target);
+
+            auditLogService.log(new AuditLogEntry(
+                    "verification", "Verified via /manualverify",
+                    event.getGuild().getId(), event.getGuild().getName(),
+                    event.getChannel().getId(), event.getChannel().getName(),
+                    target.getId(), target.getUser().getName(),
+                    Map.of("aisId", aisId, "performedBy", event.getUser().getName() + " (" + event.getUser().getId() + ")")));
 
             eventLogEmbedSender.send(event.getGuild(), LogEventType.MANUAL_VERIFY_PERFORMED,
                     EventLogEmbedSender.base(EventLogEmbedSender.WARNING, "Manual Verification", null)
