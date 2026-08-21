@@ -211,8 +211,9 @@ public class WipeService {
             int errors = state.stats.errors.get();
             state.log("Wipe complete — " + processed + " checked, " + inactive + " inactive removed, " + errors + " errors", "success");
 
-            dashboardAuditLogger.log(actorId, actorName, guild, "Ran inactive-user wipe",
-                    Map.of("processed", processed, "inactive", inactive, "errors", errors));
+            List<String> logLines = state.logs.stream().map(e -> "[" + e.time() + "] " + e.msg()).toList();
+            dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran inactive-user wipe", Map.of(
+                    "processed", processed, "inactive", inactive, "errors", errors, "log", logLines));
 
             sendRecapChannel(guild, processed, inactive, errors, state);
         } catch (Exception e) {

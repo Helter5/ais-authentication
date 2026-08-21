@@ -32,7 +32,6 @@ class CommandInteractionListener extends ListenerAdapter {
     private static final Set<String> KNOWN_COMMANDS = Set.of(
             "verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet", "odpocet", "faq", "refresh");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
-    private static final Set<String> REDACT_OPTIONS = Set.of("email");
 
     private final VerificationSlashCommandListener verificationCommandHandler;
     private final WarnSlashCommandListener warnCommandHandler;
@@ -138,8 +137,11 @@ class CommandInteractionListener extends ListenerAdapter {
                     Map<String, Object> serialized = new LinkedHashMap<>();
                     serialized.put("name", option.getName());
                     serialized.put("type", option.getType().name());
-                    serialized.put("value",
-                            REDACT_OPTIONS.contains(option.getName()) ? "[redacted]" : option.getAsString());
+                    // Email used to be redacted here, but it's already sitting in the Users
+                    // Directory (findable by anyone who can open this same audit log) - masking it
+                    // in one place while showing it in another didn't protect anything, just made
+                    // an admin's own /manualverify log unreadable.
+                    serialized.put("value", option.getAsString());
                     return serialized;
                 })
                 .toList();

@@ -240,9 +240,9 @@ public class SemesterPlanService {
                 semesterOperationService.setCurrentPlan(guildId, plan.id());
             }
 
-            dashboardAuditLogger.log(actorId, actorName, guild, "Ran semester plan", Map.of(
+            dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran semester plan", Map.of(
                     "planId", plan.id(), "planName", plan.name(), "steps", steps.size(),
-                    "status", finalStatus, "incompleteSteps", incompleteLabels));
+                    "status", finalStatus, "incompleteSteps", incompleteLabels, "log", tracker.logsSnapshot()));
 
             logRoutingService.channelIdFor(guildId, LogEventType.SEMESTER_RECAP).ifPresent(recapChannelId ->
                     recapChannelPoster.post(guild, recapChannelId,

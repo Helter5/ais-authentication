@@ -34,18 +34,27 @@ public class DashboardAuditLogger {
 
     public void log(String actorId, String actorName, String guildId, String action, Map<String, Object> details) {
         Guild guild = discordBotService.jda().map(jda -> jda.getGuildById(guildId)).orElse(null);
-        logEntry(guildId, guild == null ? null : guild.getName(), actorId, actorName, action, details);
+        logEntry("dashboard", guildId, guild == null ? null : guild.getName(), actorId, actorName, action, details);
     }
 
     public void log(String actorId, String actorName, Guild guild, String action, Map<String, Object> details) {
-        logEntry(guild.getId(), guild.getName(), actorId, actorName, action, details);
+        logEntry("dashboard", guild.getId(), guild.getName(), actorId, actorName, action, details);
     }
 
-    private void logEntry(
+    /**
+     * Same as {@link #log}, but under the "operations" category instead of "dashboard" - for the
+     * handful of big, multi-step, structural actions (semester plan runs, rollbacks, wipes) that
+     * would otherwise get lost in the much higher-volume stream of routine settings-diff entries.
+     */
+    public void logOperation(String actorId, String actorName, Guild guild, String action, Map<String, Object> details) {
+        logEntry("operations", guild.getId(), guild.getName(), actorId, actorName, action, details);
+    }
+
+    private void logEntry(String category,
             String guildId, String guildName, String actorId, String actorName, String action, Map<String, Object> details) {
         try {
             auditLogService.log(new AuditLogEntry(
-                    "dashboard", action, guildId, guildName, null, null, actorId, actorName, details));
+                    category, action, guildId, guildName, null, null, actorId, actorName, details));
         } catch (Exception e) {
             // Best-effort audit trail; never block the underlying change on a logging failure -
             // but a persistent failure here would otherwise go completely dark (see

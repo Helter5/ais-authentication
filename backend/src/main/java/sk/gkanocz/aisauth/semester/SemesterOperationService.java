@@ -250,9 +250,9 @@ public class SemesterOperationService {
                     ? "Semester setup complete."
                     : "[WARN] Semester setup finished with unfinished step(s). Use Resume to retry them.", finalStatus);
 
-            logAudit(actorId, actorName, guild, "Ran semester setup", Map.of(
+            dashboardAuditLogger.logOperation(actorId, actorName, guild, "Ran semester setup", Map.of(
                     "semesterName", semesterName, "visible", visible, "everyoneViewChannel", everyoneViewChannel,
-                    "clearRoles", clearRoles, "status", finalStatus));
+                    "clearRoles", clearRoles, "status", finalStatus, "log", tracker.logsSnapshot()));
 
             postRecap(guild, recapChannelId,
                     "**Semester Setup " + (completed ? "Complete" : "Finished With Errors") + "** — `"

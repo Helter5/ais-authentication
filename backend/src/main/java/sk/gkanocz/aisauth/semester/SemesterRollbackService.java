@@ -198,7 +198,8 @@ public class SemesterRollbackService {
             auditDetails.put("reverted", reverted);
             auditDetails.put("visibilityReverted", visReverted);
             auditDetails.put("status", finalStatus.name());
-            dashboardAuditLogger.log(actorId, actorName, guild, "Rolled back semester run", auditDetails);
+            auditDetails.put("log", tracker.logsSnapshot());
+            dashboardAuditLogger.logOperation(actorId, actorName, guild, "Rolled back semester run", auditDetails);
 
             int revertedCount = reverted;
             int visRevertedCount = visReverted;

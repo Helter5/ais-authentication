@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
-  AlertCircle, Bot, Command, Gauge, Info, Loader2, LogIn, Settings2,
+  AlertCircle, Bot, Command, Gauge, History, Info, Loader2, LogIn, Settings2,
   ShieldAlert, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck,
 } from "lucide-react";
 import { adminApi, apiErrorMessage, type AuditLog } from "@/lib/api";
@@ -10,12 +10,13 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 
-type Tab = "dashboard" | "logins" | "warnings" | "automod" | "verification" | "commands";
+type Tab = "dashboard" | "logins" | "warnings" | "automod" | "verification" | "commands" | "operations";
 type AccessLog = Awaited<ReturnType<typeof adminApi.getAccessLogs>>[number];
 type WarningLog = Awaited<ReturnType<typeof adminApi.getAdminWarnings>>[number];
 
 const TABS: { id: Tab; label: string; icon: ElementType }[] = [
   { id: "dashboard", label: "Dashboard", icon: Gauge },
+  { id: "operations", label: "Operations", icon: History },
   { id: "logins", label: "Logins", icon: LogIn },
   { id: "warnings", label: "Warnings", icon: TriangleAlert },
   { id: "automod", label: "Automod", icon: ShieldAlert },
@@ -307,13 +308,26 @@ function DiffView({ before, after, resolve = NO_RESOLVER }: { before: unknown; a
   return <>{beforeText} <span className="text-zinc-600">→</span> {afterText}</>;
 }
 
+/** A step/member-by-step transcript (semester plan/setup/rollback runs, wipes) reads as a scrollable
+ *  monospace log, one line per entry - joining it into one comma-separated string like a normal
+ *  scalar array would defeat the point of keeping it line-by-line in the first place. */
+function LogLinesView({ lines }: { lines: string[] }) {
+  if (lines.length === 0) return <span className="text-zinc-600">none</span>;
+  return (
+    <div className="max-h-64 space-y-0.5 overflow-y-auto rounded border border-zinc-800/80 bg-zinc-950/50 px-2 py-1.5 font-mono text-[11px] text-zinc-400 scrollbar-thin">
+      {lines.map((line, i) => <p key={i} className="whitespace-pre-wrap break-words">{line}</p>)}
+    </div>
+  );
+}
+
 function DetailsView({ details, resolve = NO_RESOLVER }: { details: Record<string, unknown>; resolve?: IdResolver }) {
-  const { before, after, ...rest } = details;
+  const { before, after, log: logLines, ...rest } = details;
   const hasChange = "before" in details || "after" in details;
   const restEntries = Object.entries(rest);
   const changeNode = hasChange ? <DiffView before={before} after={after} resolve={resolve} /> : null;
+  const lines = Array.isArray(logLines) ? logLines.filter((l): l is string => typeof l === "string") : null;
 
-  if (restEntries.length === 0 && !hasChange) return null;
+  if (restEntries.length === 0 && !hasChange && !lines) return null;
   return (
     <div className="space-y-1">
       {restEntries.map(([k, v]) => (
@@ -323,6 +337,11 @@ function DetailsView({ details, resolve = NO_RESOLVER }: { details: Record<strin
         changeNode
           ? <div className={cn("space-y-1", restEntries.length > 0 && "mt-1.5 border-t border-zinc-800/60 pt-1.5")}>{changeNode}</div>
           : <p className="italic text-zinc-600">no changes</p>
+      )}
+      {lines && (
+        <FieldRow label="Log" block>
+          <LogLinesView lines={lines} />
+        </FieldRow>
       )}
     </div>
   );
@@ -597,6 +616,46 @@ function CommandsTable({ logs }: { logs: AuditLog[] }) {
   );
 }
 
+/** Short one-liner for the collapsed row - the full breakdown (per-step/per-member log, before/after)
+ *  only shows once the row is clicked, so the table itself stays scannable. */
+function summarizeOperation(log: AuditLog): string {
+  const d = log.details ?? {};
+  switch (log.action) {
+    case "Ran semester plan":
+    case "Ran semester setup":
+      return `${d.planName ?? d.semesterName ?? "?"} — ${d.status ?? "unknown"}`;
+    case "Rolled back semester run":
+      return `${d.run ?? "?"} — ${d.status ?? "unknown"} (${d.reverted ?? 0} role change(s), ${d.visibilityReverted ?? 0} categor${d.visibilityReverted === 1 ? "y" : "ies"})`;
+    case "Ran inactive-user wipe":
+      return `${d.processed ?? 0} checked, ${d.inactive ?? 0} removed, ${d.errors ?? 0} error(s)`;
+    default:
+      return "Click for details";
+  }
+}
+
+function OperationsTable({ logs, onSelect }: { logs: AuditLog[]; onSelect: (log: AuditLog) => void }) {
+  return (
+    <TableShell headers={["Time", "User", "Action", "Summary"]} empty={logs.length === 0} emptyLabel="operation logs">
+      {logs.map(log => (
+        <tr key={log.id} onClick={() => onSelect(log)}
+          className="cursor-pointer bg-zinc-950/30 align-top transition-colors hover:bg-zinc-900/70">
+          <td className="whitespace-nowrap px-4 py-3 text-xs text-zinc-400">{fmt(log.created_at)}</td>
+          <td className="px-4 py-3">
+            <p className="font-medium text-zinc-200">{log.username ?? "Unknown user"}</p>
+            <p className="font-mono text-[11px] text-zinc-600">{log.user_id ?? "-"}</p>
+          </td>
+          <td className="px-4 py-3 font-medium text-indigo-300">
+            <span className="inline-flex items-center gap-1.5">
+              <History className="h-3.5 w-3.5" /> {log.action}
+            </span>
+          </td>
+          <td className="max-w-sm px-4 py-3 text-xs text-zinc-400">{summarizeOperation(log)}</td>
+        </tr>
+      ))}
+    </TableShell>
+  );
+}
+
 /** Role/channel/category id -> name, for resolving the raw Discord snowflakes that show up inside
  *  audit log details (allowlists, log-channel routing, {channel=id} message tokens) into something
  *  readable. IDs are unique across all three kinds within a guild, so one merged map is safe. */
@@ -633,6 +692,7 @@ export function Logs() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [automodInfoOpen, setAutomodInfoOpen] = useState(false);
+  const [selectedOperation, setSelectedOperation] = useState<AuditLog | null>(null);
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -764,6 +824,14 @@ export function Logs() {
     }),
   [auditLogs, search, filterStatus]);
 
+  const filteredOperations = useMemo(() =>
+    auditLogs.filter(log => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (log.username?.toLowerCase().includes(q) || log.user_id?.includes(q) || log.action?.toLowerCase().includes(q)) ?? false;
+    }),
+  [auditLogs, search]);
+
   // ── Paged slices ──────────────────────────────────────────────────────────
 
   const activeFiltered =
@@ -771,6 +839,7 @@ export function Logs() {
     : activeTab === "logins" ? filteredLogins
     : activeTab === "warnings" ? filteredWarnings
     : activeTab === "automod" || activeTab === "verification" ? filteredAutomod
+    : activeTab === "operations" ? filteredOperations
     : filteredCommands;
 
   const totalFiltered = activeFiltered.length;
@@ -780,6 +849,7 @@ export function Logs() {
   const pagedWarnings = slice(filteredWarnings) as WarningLog[];
   const pagedAutomod = slice(filteredAutomod) as AuditLog[];
   const pagedCommands = slice(filteredCommands) as AuditLog[];
+  const pagedOperations = slice(filteredOperations) as AuditLog[];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -788,6 +858,7 @@ export function Logs() {
     : activeTab === "logins" ? "Search user, IP…"
     : activeTab === "warnings" ? "Search user, moderator, reason…"
     : activeTab === "automod" || activeTab === "verification" ? "Search user, action, trigger…"
+    : activeTab === "operations" ? "Search user, action…"
     : "Search user, command, args…";
 
   if (!guildId) {
@@ -930,7 +1001,37 @@ export function Logs() {
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
+        {!loading && !error && activeTab === "operations" && (
+          <>
+            <OperationsTable logs={pagedOperations} onSelect={setSelectedOperation} />
+            <Pagination page={page} total={totalFiltered} onChange={setPage} />
+          </>
+        )}
       </div>
+
+      <Dialog open={selectedOperation !== null} onOpenChange={open => { if (!open) setSelectedOperation(null); }}>
+        <DialogContent className="max-w-2xl border-zinc-700 bg-zinc-900 text-zinc-100">
+          {selectedOperation && (
+            <>
+              <DialogHeader>
+                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
+                  <History className="h-5 w-5" />
+                </div>
+                <DialogTitle>{selectedOperation.action}</DialogTitle>
+                <DialogDescription className="leading-relaxed text-zinc-400">
+                  {fmt(selectedOperation.created_at)} · {selectedOperation.username ?? "Unknown user"}
+                  {selectedOperation.user_id && <span className="ml-1 font-mono text-[11px] text-zinc-600">({selectedOperation.user_id})</span>}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pr-1 text-sm">
+                {selectedOperation.details
+                  ? <DetailsView details={selectedOperation.details} resolve={resolve} />
+                  : <p className="italic text-zinc-600">No details recorded.</p>}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={automodInfoOpen} onOpenChange={setAutomodInfoOpen}>
         <DialogContent className="max-w-lg border-zinc-700 bg-zinc-900 text-zinc-100">
