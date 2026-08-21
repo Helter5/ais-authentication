@@ -7,7 +7,11 @@ public record SemesterDefinition(
         List<String> categoryIds,
         List<String> semesterRoles,
         List<RoleMapping> roleMappings,
-        Boolean everyoneViewChannel) {
+        Boolean everyoneViewChannel,
+        String semesterType) {
+
+    public static final String TYPE_WINTER = "WINTER";
+    public static final String TYPE_SUMMER = "SUMMER";
 
     public List<String> categoryIdsOrEmpty() {
         return categoryIds == null ? List.of() : categoryIds;

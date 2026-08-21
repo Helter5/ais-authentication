@@ -65,6 +65,71 @@ export interface DiscordGuild {
   icon: string | null;
 }
 
+export type RevertStatus = 'NONE' | 'PARTIAL' | 'FULL';
+
+export interface SwitchHistoryEntry {
+  id: number;
+  migrationId: string;
+  operationType: 'setup' | 'plan';
+  label: string;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: string;
+  canRevertPosition: boolean;
+  positionReverted: boolean;
+  status: RevertStatus;
+  rolledBackByActorName: string | null;
+}
+
+export interface MigrationGroup {
+  groupKey: string;
+  roleFromId: string;
+  roleToId: string | null;
+  keptFromRole: boolean;
+  totalMembers: number;
+  remainingMembers: number;
+  rolledBack: boolean;
+}
+
+export interface VisibilityRow {
+  id: number;
+  categoryId: string;
+  categoryName: string | null;
+  direction: 'hide' | 'show';
+  everyoneViewChannel: boolean;
+  rolledBack: boolean;
+  isChannel: boolean;
+}
+
+export interface StepDetail {
+  stepIndex: number;
+  stepLabel: string | null;
+  roleGroups: MigrationGroup[];
+  visibilityRows: VisibilityRow[];
+}
+
+export interface MigrationDetail {
+  steps: StepDetail[];
+}
+
+export interface AdditionalChannel {
+  channelId: string;
+  channelName: string;
+  visible?: boolean;
+  everyoneViewChannel?: boolean;
+}
+
+export type SwitchPlanStep =
+  | { type: 'switch'; from: string; to: string }
+  | { type: 'setup'; semester: string; visible?: boolean; clearRoles?: boolean };
+
+export interface SwitchPlan {
+  id: string;
+  name: string;
+  steps: SwitchPlanStep[];
+  additionalChannels?: AdditionalChannel[];
+}
+
 export interface AuditLog {
   id: number;
   category: 'dashboard' | 'commands' | 'automod';
@@ -527,13 +592,13 @@ export const adminApi = {
     return res.data;
   },
 
-  getSwitchSemesterProgress: async (guildId: string): Promise<{ running: boolean; progress: number; logs: string[]; startedAt: string | null; status?: 'running' | 'success' | 'partial' | 'failed'; operation?: 'switch'; params?: { oldName: string; newName: string }; completedSteps?: string[] }> => {
-    const res = await api.get('/switchsemester/progress', { params: { guildId } });
+  getPlanProgress: async (guildId: string): Promise<{ running: boolean; progress: number; logs: string[]; startedAt: string | null; status?: 'running' | 'success' | 'partial' | 'failed'; operation?: 'plan'; params?: { planId: string }; completedSteps?: string[] }> => {
+    const res = await api.get('/switchplan/progress', { params: { guildId } });
     return res.data;
   },
 
-  runSwitchSemester: async (guildId: string, oldName: string, newName: string, resume = false): Promise<{ started: boolean }> => {
-    const res = await api.post('/switchsemester/run', { guildId, oldName, newName, resume });
+  runPlan: async (guildId: string, planId: string, resume = false): Promise<{ started: boolean }> => {
+    const res = await api.post('/switchplan/run', { guildId, planId, resume });
     return res.data;
   },
 
@@ -547,8 +612,53 @@ export const adminApi = {
     return res.data;
   },
 
+  getCurrentPlan: async (guildId: string): Promise<{ currentPlanId: string | null; currentPlanName: string | null; currentSemesterType: 'WINTER' | 'SUMMER' | null }> => {
+    const res = await api.get('/semester/current', { params: { guildId } });
+    return res.data;
+  },
+
+  setCurrentPlan: async (guildId: string, planId: string): Promise<{ success: boolean }> => {
+    const res = await api.post('/semester/current', { guildId, planId });
+    return res.data;
+  },
+
+  getNextPlan: async (guildId: string): Promise<{
+    currentPlanId: string | null; currentPlanName: string | null; currentSemesterType: 'WINTER' | 'SUMMER' | null;
+    nextPlanId: string | null; nextPlanName: string | null; nextSemesterType: 'WINTER' | 'SUMMER' | null;
+  }> => {
+    const res = await api.get('/semester/next', { params: { guildId } });
+    return res.data;
+  },
+
+  getSwitchSemesterHistory: async (guildId: string): Promise<SwitchHistoryEntry[]> => {
+    const res = await api.get('/switchsemester/history', { params: { guildId } });
+    return res.data;
+  },
+
+  getMigrationDetail: async (guildId: string, migrationId: string): Promise<MigrationDetail> => {
+    const res = await api.get(`/switchsemester/migration/${migrationId}/detail`, { params: { guildId } });
+    return res.data;
+  },
+
+  getRollbackProgress: async (guildId: string): Promise<{ running: boolean; progress: number; logs: string[]; startedAt: string | null; status?: 'running' | 'success' | 'partial' | 'failed'; operation?: 'rollback'; params?: { migrationId: string }; completedSteps?: string[] }> => {
+    const res = await api.get('/switchsemester/rollback/progress', { params: { guildId } });
+    return res.data;
+  },
+
+  runRollback: async (
+    guildId: string, migrationId: string, roleGroupKeys: string[], visibilityIds: number[], revertPlanPosition: boolean
+  ): Promise<{ started: boolean }> => {
+    const res = await api.post('/switchsemester/rollback', { guildId, migrationId, roleGroupKeys, visibilityIds, revertPlanPosition });
+    return res.data;
+  },
+
   getDiscordGuilds: async (): Promise<DiscordGuild[]> => {
     const res = await api.get('/discord/guilds');
+    return res.data;
+  },
+
+  getDiscordApiStatus: async (): Promise<{ indicator: string | null; description: string | null }> => {
+    const res = await api.get('/discord/status');
     return res.data;
   },
 

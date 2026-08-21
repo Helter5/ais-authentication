@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
@@ -38,6 +39,8 @@ public class SemesterController {
     private final DiscordBotService discordBotService;
     private final DashboardAuditLogger dashboardAuditLogger;
     private final SemesterVisibilityService semesterVisibilityService;
+    private final SemesterOperationService semesterOperationService;
+    private final SemesterStatusBroadcaster semesterStatusBroadcaster;
 
     @ManagerAccess
     @GetMapping("/semester/mappings")
@@ -141,6 +144,65 @@ public class SemesterController {
         return Map.of("allowed", true);
     }
 
+    @ManagerAccess
+    @GetMapping("/semester/current")
+    public Map<String, Object> getCurrentPlan(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
+        String planId = semesterOperationService.currentPlan(guildId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("currentPlanId", planId);
+        response.put("currentPlanName", planId == null ? null : planName(guildId, planId));
+        response.put("currentSemesterType", planId == null ? null : semesterType(guildId, planId));
+        return response;
+    }
+
+    /** Manual override escape hatch for a desynced current-plan pointer - see SemesterOperationService.overrideCurrentPlan. */
+    @ManagerAccess
+    @PostMapping("/semester/current")
+    public Map<String, Boolean> setCurrentPlan(
+            @AuthenticationPrincipal Claims claims, @RequestBody SetCurrentPlanRequest request) {
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
+        Guild guild = discordBotService.requireGuild(request.guildId());
+        semesterOperationService.overrideCurrentPlan(
+                guild, request.planId(), claims.getSubject(), claims.get("username", String.class));
+        return Map.of("success", true);
+    }
+
+    /** Pushes the current semester type instantly to open tabs (see SemesterOperationService#setCurrentPlan) instead of waiting on a poll. */
+    @ManagerAccess
+    @GetMapping("/semester/stream")
+    public SseEmitter streamSemesterType(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
+        String planId = semesterOperationService.currentPlan(guildId);
+        return semesterStatusBroadcaster.subscribe(guildId, planId == null ? null : semesterType(guildId, planId));
+    }
+
+    @ManagerAccess
+    @GetMapping("/semester/next")
+    public Map<String, Object> getNextPlan(@AuthenticationPrincipal Claims claims, @RequestParam String guildId) {
+        guildAccessService.assertCanManageGuild(claims, guildId);
+        SemesterOperationService.NextPlan next = semesterOperationService.nextPlan(guildId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("currentPlanId", next.currentPlanId());
+        response.put("currentPlanName", next.currentPlanId() == null ? null : planName(guildId, next.currentPlanId()));
+        response.put("currentSemesterType", next.currentPlanId() == null ? null : semesterType(guildId, next.currentPlanId()));
+        response.put("nextPlanId", next.nextPlanId());
+        response.put("nextPlanName", next.nextPlanId() == null ? null : planName(guildId, next.nextPlanId()));
+        response.put("nextSemesterType", next.nextPlanId() == null ? null : semesterType(guildId, next.nextPlanId()));
+        return response;
+    }
+
+    private String semesterType(String guildId, String planId) {
+        SwitchSemesterSettings settings = adminSettingsService.get(configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
+        return settings.resultingSemesterType(planId);
+    }
+
+    private String planName(String guildId, String planId) {
+        SwitchSemesterSettings settings = adminSettingsService.get(configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
+        SwitchSemesterSettings.SwitchPlan plan = settings.findPlan(planId);
+        return plan == null ? null : plan.name();
+    }
+
     private List<CategoryRef> categories(String guildId, int rocnik, int semester) {
         return adminSettingsService.get(mappingKey(guildId, rocnik, semester), new TypeReference<List<CategoryRef>>() { }, List.of());
     }
@@ -157,5 +219,8 @@ public class SemesterController {
     }
 
     public record SetVisibilityRequest(String guildId, Integer rocnik, Integer semester, Boolean visible) {
+    }
+
+    public record SetCurrentPlanRequest(String guildId, String planId) {
     }
 }

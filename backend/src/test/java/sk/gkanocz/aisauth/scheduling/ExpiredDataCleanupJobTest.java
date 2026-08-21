@@ -10,6 +10,12 @@ import sk.gkanocz.aisauth.auth.AdminSession;
 import sk.gkanocz.aisauth.auth.AdminSessionRepository;
 import sk.gkanocz.aisauth.directory.LdapConnectionSample;
 import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
+import sk.gkanocz.aisauth.semester.SemesterRoleMigration;
+import sk.gkanocz.aisauth.semester.SemesterRoleMigrationRepository;
+import sk.gkanocz.aisauth.semester.SemesterSwitchHistory;
+import sk.gkanocz.aisauth.semester.SemesterSwitchHistoryRepository;
+import sk.gkanocz.aisauth.semester.SemesterVisibilityMigration;
+import sk.gkanocz.aisauth.semester.SemesterVisibilityMigrationRepository;
 import sk.gkanocz.aisauth.verification.VerificationCode;
 import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 
@@ -35,6 +41,12 @@ class ExpiredDataCleanupJobTest {
     private AdminSessionRepository adminSessionRepository;
     @Autowired
     private LdapConnectionSampleRepository ldapConnectionSampleRepository;
+    @Autowired
+    private SemesterSwitchHistoryRepository semesterSwitchHistoryRepository;
+    @Autowired
+    private SemesterRoleMigrationRepository semesterRoleMigrationRepository;
+    @Autowired
+    private SemesterVisibilityMigrationRepository semesterVisibilityMigrationRepository;
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -76,5 +88,35 @@ class ExpiredDataCleanupJobTest {
 
         assertThat(ldapConnectionSampleRepository.findById(old.getId())).isEmpty();
         assertThat(ldapConnectionSampleRepository.findById(recent.getId())).isPresent();
+    }
+
+    @Test
+    void deletesSemesterHistoryAndMigrationsOlderThan14DaysButKeepsRecentOnes() {
+        LocalDateTime old = LocalDateTime.now().minusDays(15);
+        LocalDateTime recent = LocalDateTime.now().minusDays(1);
+
+        SemesterSwitchHistory oldHistory = semesterSwitchHistoryRepository.save(
+                SemesterSwitchHistory.forSetup("guild-1", "migration-old", "1zs", "actor-1", "actor", old));
+        SemesterSwitchHistory recentHistory = semesterSwitchHistoryRepository.save(
+                SemesterSwitchHistory.forSetup("guild-1", "migration-recent", "1zs", "actor-1", "actor", recent));
+
+        SemesterRoleMigration oldRoleRow = semesterRoleMigrationRepository.save(new SemesterRoleMigration(
+                "guild-1", "migration-old", 0, "Setup 1zs", "discord-1", "role-from", null, false, old));
+        SemesterRoleMigration recentRoleRow = semesterRoleMigrationRepository.save(new SemesterRoleMigration(
+                "guild-1", "migration-recent", 0, "Setup 1zs", "discord-1", "role-from", null, false, recent));
+
+        SemesterVisibilityMigration oldVisRow = semesterVisibilityMigrationRepository.save(new SemesterVisibilityMigration(
+                "guild-1", "migration-old", 0, "Setup 1zs", "cat-1", "General", "show", true, false, old));
+        SemesterVisibilityMigration recentVisRow = semesterVisibilityMigrationRepository.save(new SemesterVisibilityMigration(
+                "guild-1", "migration-recent", 0, "Setup 1zs", "cat-1", "General", "show", true, false, recent));
+
+        expiredDataCleanupJob.cleanupExpired();
+
+        assertThat(semesterSwitchHistoryRepository.findById(oldHistory.getId())).isEmpty();
+        assertThat(semesterSwitchHistoryRepository.findById(recentHistory.getId())).isPresent();
+        assertThat(semesterRoleMigrationRepository.findById(oldRoleRow.getId())).isEmpty();
+        assertThat(semesterRoleMigrationRepository.findById(recentRoleRow.getId())).isPresent();
+        assertThat(semesterVisibilityMigrationRepository.findById(oldVisRow.getId())).isEmpty();
+        assertThat(semesterVisibilityMigrationRepository.findById(recentVisRow.getId())).isPresent();
     }
 }

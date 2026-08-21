@@ -114,29 +114,172 @@ function formatScalar(value: unknown): string {
   return String(value);
 }
 
-// Renders a before/after pair as only the fields that actually changed,
-// so a settings save doesn't dump the entire unchanged record into the log.
-function formatChange(before: unknown, after: unknown): string {
-  if (isPlainObject(before) && isPlainObject(after)) {
-    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-    const changes = [...keys]
-      .filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
-      .map(key => `${humanizeKey(key)}: ${formatScalar(before[key])} → ${formatScalar(after[key])}`);
-    return changes.length > 0 ? changes.join(", ") : "no changes";
-  }
-  return `${formatScalar(before)} → ${formatScalar(after)}`;
-}
-
-function formatDetails(details: Record<string, unknown>): string {
-  const { before, after, ...rest } = details;
-  const parts = Object.entries(rest).map(([k, v]) => `${humanizeKey(k)}: ${formatScalar(v)}`);
-  if ("before" in details || "after" in details) parts.push(formatChange(before, after));
-  return parts.join(" · ");
-}
-
 function DetailValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") return <span className="text-zinc-600">-</span>;
   return <>{formatScalar(value)}</>;
+}
+
+function isScalarArray(value: unknown[]): boolean {
+  return value.every(v => !isPlainObject(v) && !Array.isArray(v));
+}
+
+// Best-effort identity for matching an array item across a before/after pair, so a diff can say
+// "this one plan's steps changed" instead of "the whole plans array changed". Falls back to
+// position when nothing id-like is present (fine for ordered lists like steps).
+function itemKey(item: unknown, index: number): string {
+  if (isPlainObject(item)) {
+    const candidate = item.id ?? item.channelId ?? item.name ?? item.channelName;
+    if (typeof candidate === "string" || typeof candidate === "number") return String(candidate);
+  }
+  return `#${index}`;
+}
+
+function itemLabel(item: unknown): string | null {
+  if (!isPlainObject(item)) return null;
+  const candidate = item.name ?? item.channelName;
+  return typeof candidate === "string" ? candidate : null;
+}
+
+// Whether a value needs its own block below the label (nested object, or array of objects) as
+// opposed to a short "Label: value" that can sit on one line - so a plain scalar field never gets
+// split across two lines just because it happens to live next to a big nested one.
+function isBlockValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0 && !isScalarArray(value);
+  if (isPlainObject(value)) return !isBooleanMap(value);
+  return false;
+}
+
+/** One "Label: value" line - inline when short, label-above-block when the value is itself a
+ *  nested structure (so a plan/step list gets its own indented block instead of being crammed
+ *  onto the same line as its label). */
+function FieldRow({ label, block, children }: { label: string; block: boolean; children: ReactNode }) {
+  if (block) {
+    return (
+      <div>
+        <p className="text-zinc-500">{label}:</p>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className="text-zinc-400">
+      <span className="text-zinc-500">{label}: </span>
+      <span className="text-zinc-300">{children}</span>
+    </div>
+  );
+}
+
+/** Renders one JSON-ish value as an indented structure - nested objects/arrays get their own
+ *  rows instead of being flattened into one long comma-joined string. */
+function ValueView({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") return <span className="text-zinc-600">none</span>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-zinc-600">none</span>;
+    if (isScalarArray(value)) return <>{formatScalar(value)}</>;
+    return (
+      <div className="space-y-1">
+        {value.map((item, i) => (
+          <div key={itemKey(item, i)} className="rounded border border-zinc-800/80 bg-zinc-900/40 px-2 py-1">
+            {itemLabel(item) && <p className="mb-0.5 font-semibold text-zinc-300">{itemLabel(item)}</p>}
+            <ValueView value={item} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (isPlainObject(value)) {
+    if (isBooleanMap(value)) return <>{formatObject(value)}</>;
+    return (
+      <div className="space-y-0.5">
+        {Object.entries(value).map(([k, v]) => (
+          <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} /></FieldRow>
+        ))}
+      </div>
+    );
+  }
+  return <>{formatScalar(value)}</>;
+}
+
+/** Deep before/after diff - recurses into nested objects and matches array items by
+ *  {@link itemKey} so only what actually changed is shown, instead of re-dumping an entire
+ *  nested plan/step structure because one field two levels down changed. Returns null when
+ *  the two values are equal (caller skips rendering anything for that branch). */
+function DiffView({ before, after }: { before: unknown; after: unknown }): ReactNode {
+  if (JSON.stringify(before) === JSON.stringify(after)) return null;
+
+  if (Array.isArray(before) && Array.isArray(after)) {
+    if (isScalarArray(before) && isScalarArray(after)) {
+      return <>{formatScalar(before)} <span className="text-zinc-600">→</span> {formatScalar(after)}</>;
+    }
+    const beforeMap = new Map(before.map((v, i) => [itemKey(v, i), v]));
+    const afterMap = new Map(after.map((v, i) => [itemKey(v, i), v]));
+    const rows: ReactNode[] = [];
+    new Set([...beforeMap.keys(), ...afterMap.keys()]).forEach(key => {
+      const hasBefore = beforeMap.has(key);
+      const hasAfter = afterMap.has(key);
+      const label = itemLabel(hasAfter ? afterMap.get(key) : beforeMap.get(key));
+      if (hasBefore && hasAfter) {
+        const inner = DiffView({ before: beforeMap.get(key), after: afterMap.get(key) });
+        if (inner) rows.push(
+          <div key={key} className="rounded border border-zinc-800/80 bg-zinc-900/40 px-2 py-1">
+            {label && <p className="mb-0.5 font-semibold text-zinc-300">{label}</p>}
+            {inner}
+          </div>
+        );
+      } else if (hasBefore) {
+        rows.push(
+          <div key={key} className="rounded border border-red-500/20 bg-red-500/5 px-2 py-1 text-red-300/90">
+            <p className="mb-0.5 font-semibold">− Removed{label ? `: ${label}` : ""}</p>
+            <ValueView value={beforeMap.get(key)} />
+          </div>
+        );
+      } else {
+        rows.push(
+          <div key={key} className="rounded border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-300/90">
+            <p className="mb-0.5 font-semibold">+ Added{label ? `: ${label}` : ""}</p>
+            <ValueView value={afterMap.get(key)} />
+          </div>
+        );
+      }
+    });
+    return rows.length > 0 ? <div className="space-y-1">{rows}</div> : null;
+  }
+
+  if (isPlainObject(before) && isPlainObject(after)) {
+    const rows: ReactNode[] = [];
+    new Set([...Object.keys(before), ...Object.keys(after)]).forEach(key => {
+      const inner = DiffView({ before: before[key], after: after[key] });
+      if (inner) rows.push(
+        <FieldRow key={key} label={humanizeKey(key)} block={isBlockValue(before[key]) || isBlockValue(after[key])}>
+          {inner}
+        </FieldRow>
+      );
+    });
+    return rows.length > 0 ? <div className="space-y-0.5">{rows}</div> : null;
+  }
+
+  return <>{formatScalar(before)} <span className="text-zinc-600">→</span> {formatScalar(after)}</>;
+}
+
+function DetailsView({ details }: { details: Record<string, unknown> }) {
+  const { before, after, ...rest } = details;
+  const hasChange = "before" in details || "after" in details;
+  const restEntries = Object.entries(rest);
+  const changeNode = hasChange ? <DiffView before={before} after={after} /> : null;
+
+  if (restEntries.length === 0 && !hasChange) return null;
+  return (
+    <div className="space-y-1">
+      {restEntries.map(([k, v]) => (
+        <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} /></FieldRow>
+      ))}
+      {hasChange && (
+        changeNode
+          ? <div className={cn("space-y-1", restEntries.length > 0 && "mt-1.5 border-t border-zinc-800/60 pt-1.5")}>{changeNode}</div>
+          : <p className="italic text-zinc-600">no changes</p>
+      )}
+    </div>
+  );
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -263,15 +406,11 @@ function DashboardTable({ entries }: { entries: AuditLog[] }) {
               <Settings2 className="h-3.5 w-3.5" /> {log.action}
             </span>
           </td>
-          <td className="max-w-xs px-4 py-3 text-xs text-zinc-500">
+          <td className="max-w-sm px-4 py-3 text-xs text-zinc-500 break-words">
             {(log.channel_name || log.channel_id) && (
               <p className="mb-1">#{log.channel_name ?? log.channel_id}</p>
             )}
-            {log.details && (
-              <p className="whitespace-pre-wrap break-words">
-                {formatDetails(log.details)}
-              </p>
-            )}
+            {log.details && <DetailsView details={log.details} />}
           </td>
         </tr>
       ))}

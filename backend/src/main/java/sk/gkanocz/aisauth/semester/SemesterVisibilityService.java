@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.Category;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.requests.restaction.PermissionOverrideAction;
 import org.springframework.stereotype.Service;
+import sk.gkanocz.aisauth.semester.SwitchSemesterSettings.AdditionalChannel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,45 @@ public class SemesterVisibilityService {
         }
 
         return new Result(errors == 0, categoriesUpdated, channelsUpdated, rolesUpdated, errors, logs);
+    }
+
+    /**
+     * Forces each individually-listed channel to its own configured View Channel state, independent
+     * of any category it lives in - e.g. one plan showing "❄️pv-predmety-roles" while hiding
+     * "☀️pv-predmety-roles". Unlike {@link #apply}, the two flags are fully independent, not one
+     * gating the other: {@code visible} applies to every existing role override on the channel
+     * unconditionally, and {@code everyoneViewChannel} sets @everyone's own state exactly as
+     * configured regardless of what {@code visible} says - e.g. Hide + @everyone=True is a valid,
+     * meaningful combination (every other role hidden, @everyone still sees it) - see
+     * {@link AdditionalChannel}.
+     */
+    public Result applyChannels(Guild guild, List<AdditionalChannel> channels) {
+        List<String> logs = new ArrayList<>();
+        int channelsUpdated = 0;
+        int rolesUpdated = 0;
+        int errors = 0;
+
+        for (AdditionalChannel entry : channels) {
+            GuildChannel channel = guild.getGuildChannelById(entry.channelId());
+            if (channel == null) {
+                logs.add("WARNING: Channel ID " + entry.channelId() + " not found in guild (may have been deleted)");
+                errors++;
+                continue;
+            }
+            boolean visible = entry.isVisible();
+            boolean everyoneVisible = entry.isEveryoneViewChannel();
+            try {
+                setViewChannel((IPermissionContainer) channel, guild.getPublicRole(), everyoneVisible);
+                logs.add("Channel \"" + channel.getName() + "\": @everyone → " + (everyoneVisible ? "visible" : "hidden"));
+                rolesUpdated += applyRoleOverrides((IPermissionContainer) channel, guild, visible, logs, "  ");
+                channelsUpdated++;
+            } catch (Exception e) {
+                logs.add("ERROR channel \"" + channel.getName() + "\": " + e.getMessage());
+                errors++;
+            }
+        }
+
+        return new Result(errors == 0, 0, channelsUpdated, rolesUpdated, errors, logs);
     }
 
     private int applyRoleOverrides(IPermissionContainer container, Guild guild, boolean visible, List<String> logs, String indent) {

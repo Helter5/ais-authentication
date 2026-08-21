@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage } from "@/lib/api";
+import type { SwitchPlan } from "@/lib/api";
 import { SemesterRunPanel } from "@/components/semester/SemesterRunPanel";
 import { ConfirmSwitchModal, ConfirmSetupModal, ModeInfoModal } from "@/components/semester/SemesterModals";
+import { SemesterHistoryModal } from "@/components/semester/SemesterHistoryPanel";
+import { SemesterPlanEditor } from "@/components/semester/SemesterPlanEditor";
 import {
   CategoryMultiSelect,
   RoleMultiSelect,
@@ -13,12 +16,13 @@ import {
 import {
   Plus, X, Loader2, CheckCircle2,
   Trash2, CalendarDays, ArrowLeftRight,
-  ChevronRight, Users, ShieldCheck,
-  Eye, EyeOff, XCircle, Smile,
+  Users, Eye, EyeOff, XCircle, Smile, History,
+  GripVertical, SlidersHorizontal, Snowflake, Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectedGuildId, LogChannelPicker } from "@/components/modules/shared";
 import { useToast } from "@/components/ui/toast";
+import { firstIncompleteStepLabel } from "@/lib/semesterPlanValidation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -28,7 +32,8 @@ type RoleMapping = {
   conditionRoleIds?: string[];
   keepFromRole?: boolean;
 };
-type AllowedTransition = { from: string; to: string };
+
+export type SemesterType = "WINTER" | "SUMMER";
 
 export type SemesterConfig = {
   id: string;
@@ -37,24 +42,26 @@ export type SemesterConfig = {
   everyoneViewChannel: boolean;
   roleMappings: RoleMapping[];
   semesterRoles: string[];
+  semesterType: SemesterType | null;
 };
 
 type Category = SemesterCategory;
 type Role = SemesterRole;
+export type SemesterChannel = { id: string; name: string; position: number };
 export type RunProgress = {
   running: boolean;
   progress: number;
   logs: string[];
   startedAt: string | null;
   status?: "running" | "success" | "partial" | "failed";
-  operation?: "switch" | "setup";
+  operation?: "plan" | "setup" | "rollback";
   params?: {
-    oldName?: string;
-    newName?: string;
+    planId?: string;
     semesterName?: string;
     visible?: boolean;
     everyoneViewChannel?: boolean;
     clearRoles?: boolean;
+    migrationId?: string;
   };
   completedSteps?: string[];
 };
@@ -68,15 +75,20 @@ const DEFAULT_CONFIG = (): SemesterConfig => ({
   everyoneViewChannel: false,
   roleMappings: [],
   semesterRoles: [],
+  semesterType: null,
 });
 
 // ── Section header ─────────────────────────────────────────────────────────────
 
+// Subtle indigo wash (vs. Switch Plans' rose one, see SemesterPlanEditor) - these three Sections
+// (Semester Config, Role Mappings, Semester Cleanup Roles) all scope to one selected config, so a
+// shared background tint ties them together as a family distinct from the plan-wide, all-configs
+// Switch Plans editor above them.
 function Section({ icon: Icon, color, title, children }: {
   icon: React.ElementType; color: string; title: string; children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+    <div className="rounded-lg border border-zinc-800 bg-indigo-950/25 overflow-hidden">
       <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
         <Icon className="w-4 h-4" style={{ color }} />
         <h2 className="text-sm font-bold text-zinc-100">{title}</h2>
@@ -98,12 +110,15 @@ export function SwitchSemesterModule() {
   // Config state
   const [categories, setCategories] = useState<Category[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [channels, setChannels] = useState<SemesterChannel[]>([]);
   const [configs, setConfigs] = useState<SemesterConfig[]>([]);
-  const [allowedTransitions, setAllowedTransitions] = useState<AllowedTransition[]>([]);
-  const [newTFrom, setNewTFrom] = useState("");
-  const [newTTo, setNewTTo] = useState("");
-  const [selectedId, setSelectedId] = useState<string | "new" | null>(null);
-  const [draft, setDraft] = useState<SemesterConfig | null>(null);
+  // Every semester's edits live here, keyed by id, until the one global Save Changes button
+  // commits the whole list - switching which semester you're looking at (selectedId) no longer
+  // throws away whatever you were mid-editing on a different one.
+  const [configsDraft, setConfigsDraft] = useState<SemesterConfig[]>([]);
+  const [plans, setPlans] = useState<SwitchPlan[]>([]);
+  const [plansDraft, setPlansDraft] = useState<SwitchPlan[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -116,8 +131,7 @@ export function SwitchSemesterModule() {
   const [newKeepFrom, setNewKeepFrom] = useState(false);
 
   // Run state
-  const [runOld, setRunOld] = useState("");
-  const [runNew, setRunNew] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState("");
   const [runStarting, setRunStarting] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -130,16 +144,44 @@ export function SwitchSemesterModule() {
   const [setupProgress, setSetupProgress] = useState<RunProgress | null>(null);
   const [showSetupConfirm, setShowSetupConfirm] = useState(false);
   const [showModeInfo, setShowModeInfo] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [currentPlanName, setCurrentPlanName] = useState<string | null>(null);
+  const [nextPlan, setNextPlan] = useState<{
+    currentPlanId: string | null; currentPlanName: string | null; currentSemesterType: SemesterType | null;
+    nextPlanId: string | null; nextPlanName: string | null; nextSemesterType: SemesterType | null;
+  } | null>(null);
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
   const consoleContainerRef = useRef<HTMLDivElement | null>(null);
   const isConsoleAtBottomRef = useRef(true);
+  // Auto-collapses a finished run's console the first time this page loads it (so a run that
+  // completed hours/days ago doesn't sit there dumped open forever, requiring a manual click every
+  // single visit) - but only once per mount, so a run that finishes WHILE you're watching it stays
+  // visible right when it completes, and "Show output" (clearConsole(null)) isn't immediately
+  // fought by this on the next poll tick.
+  const autoCollapsedRef = useRef(false);
+  const runModeRef = useRef<"switch" | "setup">("switch");
+  useEffect(() => { runModeRef.current = runMode; }, [runMode]);
   const [clearedStartedAt, setClearedStartedAt] = useState<string | null>(
     () => localStorage.getItem(`semester_console_cleared_${guildId}`) ?? null
+  );
+  // Regular admins just want to run a switch - Plans/Role Mappings/config editing is Advanced-only,
+  // off by default, remembered per guild so it doesn't reset every visit.
+  const [advanced, setAdvanced] = useState(
+    () => localStorage.getItem(`semester_advanced_${guildId}`) === "1"
   );
 
   useEffect(() => {
     setClearedStartedAt(localStorage.getItem(`semester_console_cleared_${guildId}`) ?? null);
+    setAdvanced(localStorage.getItem(`semester_advanced_${guildId}`) === "1");
   }, [guildId]);
+
+  const toggleAdvanced = () => {
+    setAdvanced(prev => {
+      const next = !prev;
+      localStorage.setItem(`semester_advanced_${guildId}`, next ? "1" : "0");
+      return next;
+    });
+  };
 
   const clearConsole = (startedAt: string | null) => {
     setClearedStartedAt(startedAt);
@@ -160,6 +202,16 @@ export function SwitchSemesterModule() {
       .catch(() => setAccess(false));
   };
 
+  const refreshCurrentPlan = () => {
+    if (!guildId) return;
+    adminApi.getCurrentPlan(guildId)
+      .then(r => { setCurrentPlanName(r.currentPlanName); })
+      .catch(() => { /* ignore */ });
+    adminApi.getNextPlan(guildId)
+      .then(setNextPlan)
+      .catch(() => { /* ignore */ });
+  };
+
   // Access check
   useEffect(() => {
     let cancelled = false;
@@ -167,23 +219,23 @@ export function SwitchSemesterModule() {
     setAccessReason(null);
     setCategories([]);
     setRoles([]);
+    setChannels([]);
     setConfigs([]);
-    setAllowedTransitions([]);
-    setNewTFrom("");
-    setNewTTo("");
+    setConfigsDraft([]);
+    setPlans([]);
+    setPlansDraft([]);
     setSelectedId(null);
-    setDraft(null);
     setLoading(true);
     setSaving(false);
     setDeleteId(null);
     setNewFrom(null);
     setNewTo([]);
-    setRunOld("");
-    setRunNew("");
+    setSelectedPlanId("");
     setRunStarting(false);
     setRunError(null);
     setShowConfirm(false);
     setSsProgress(null);
+    autoCollapsedRef.current = false;
     setRunMode("switch");
     setSetupSemester("");
     setSetupVisible(true);
@@ -192,6 +244,9 @@ export function SwitchSemesterModule() {
     setSetupProgress(null);
     setShowSetupConfirm(false);
     setShowModeInfo(false);
+    setShowHistory(false);
+    setCurrentPlanName(null);
+    setNextPlan(null);
     if (!guildId) {
       setAccess(false);
       setLoading(false);
@@ -222,28 +277,30 @@ export function SwitchSemesterModule() {
     Promise.all([
       adminApi.getDiscordCategories(guildId),
       adminApi.getDiscordRoles(guildId),
+      adminApi.getDiscordTextChannels(guildId),
       adminApi.getSemesterConfigs(guildId),
-    ]).then(([cats, rls, settings]) => {
+      adminApi.getCurrentPlan(guildId),
+      adminApi.getNextPlan(guildId),
+    ]).then(([cats, rls, chans, settings, current, next]) => {
       if (cancelled) return;
       setCategories(cats);
       setRoles(rls);
-      const s = settings as { configs?: SemesterConfig[]; logActions?: boolean; allowedTransitions?: AllowedTransition[] };
+      setChannels(chans);
+      setCurrentPlanName(current.currentPlanName);
+      setNextPlan(next);
+      const s = settings as { configs?: SemesterConfig[]; logActions?: boolean; plans?: SwitchPlan[]; planPath?: string[] };
       const normalizedConfigs = (s.configs ?? []).map(config => ({
         ...config,
         everyoneViewChannel: config.everyoneViewChannel === true,
+        semesterType: config.semesterType === "WINTER" || config.semesterType === "SUMMER" ? config.semesterType : null,
       }));
       setConfigs(normalizedConfigs);
-      setAllowedTransitions(s.allowedTransitions ?? []);
+      setConfigsDraft(normalizedConfigs);
+      setPlans(s.plans ?? []);
+      setPlansDraft(s.plans ?? []);
       if (normalizedConfigs.length > 0) {
-        const first = normalizedConfigs[0];
-        setSelectedId(first.id);
-        setDraft({
-          ...first,
-          categoryIds: [...first.categoryIds],
-          roleMappings: first.roleMappings.map(m => ({ ...m, toRoleIds: [...m.toRoleIds] })),
-          semesterRoles: [...(first.semesterRoles ?? [])],
-        });
-        setSetupSemester(first.name);
+        setSelectedId(normalizedConfigs[0].id);
+        setSetupSemester(normalizedConfigs[0].name);
       }
     }).catch(error => { if (!cancelled) console.error(error); }).finally(() => {
       if (!cancelled) setLoading(false);
@@ -257,14 +314,34 @@ export function SwitchSemesterModule() {
     if (!guildId || access === false) return () => { cancelled = true; };
     const poll = async () => {
       try {
-        const [switchRun, setupRun] = await Promise.all([
-          adminApi.getSwitchSemesterProgress(guildId),
+        const [planRun, setupRun] = await Promise.all([
+          adminApi.getPlanProgress(guildId),
           adminApi.getSemesterSetupProgress(guildId),
         ]);
         if (cancelled) return;
-        setSsProgress(switchRun);
+        // First poll of this page load only: if the run it finds is already finished (not one that
+        // just completed while you were watching), auto-collapse its console so a run from hours or
+        // days ago doesn't sit there dumped open on every visit - "Show output" still recalls it.
+        if (!autoCollapsedRef.current) {
+          autoCollapsedRef.current = true;
+          const relevant = runModeRef.current === "switch" ? planRun : setupRun;
+          if (!relevant.running && relevant.startedAt) {
+            clearConsole(relevant.startedAt);
+          }
+        }
+        // A completed plan/setup may have moved the tracked position - keep the header badge current.
+        if (planRun.status !== ssProgress?.status || setupRun.status !== setupProgress?.status) {
+          refreshCurrentPlan();
+        }
+        // Only follow new output down - re-scrolling on every idle tick (nothing new arrived) is
+        // what made this fight a user trying to scroll up to read earlier lines.
+        const grew = planRun.logs.length > (ssProgress?.logs.length ?? 0)
+          || setupRun.logs.length > (setupProgress?.logs.length ?? 0);
+        setSsProgress(planRun);
         setSetupProgress(setupRun);
-        if (isConsoleAtBottomRef.current && consoleEndRef.current) consoleEndRef.current.scrollIntoView({ behavior: "smooth" });
+        if (grew && isConsoleAtBottomRef.current && consoleEndRef.current) {
+          consoleEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
       } catch { /* ignore */ }
     };
     poll();
@@ -274,15 +351,31 @@ export function SwitchSemesterModule() {
       cancelled = true;
       clearInterval(id);
     };
+    // Intentionally keyed on *.running only (not .status/refreshCurrentPlan) - those are read fresh
+    // from the closure each tick via the polling interval itself, and including them would tear
+    // down/restart the interval on every status change instead of just running-state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, access, ssProgress?.running, setupProgress?.running]);
 
-  const saveAll = async (updated: SemesterConfig[], newTransitions = allowedTransitions) => {
+  // The Plan Path fully determines what "Select switch" should default to - no manual From/To
+  // picking needed once both a tracked position and a path exist. Admin can still pick a different
+  // plan from the dropdown; the backend guard is what actually enforces path order at submit time.
+  useEffect(() => {
+    if (runMode !== "switch" || anyRunActive) return;
+    if (nextPlan?.nextPlanId) {
+      setSelectedPlanId(nextPlan.nextPlanId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextPlan, runMode]);
+
+  const persist = async (nextConfigs: SemesterConfig[], nextPlans: SwitchPlan[], nextPlanPath: string[]) => {
     if (!guildId) return;
     setSaving(true);
     try {
       // Always logged to Access Logs - not user-configurable, so this is hardcoded rather than a draft toggle.
-      await adminApi.saveSemesterConfigs(guildId, { configs: updated, logActions: true, allowedTransitions: newTransitions });
+      await adminApi.saveSemesterConfigs(guildId, { configs: nextConfigs, logActions: true, plans: nextPlans, planPath: nextPlanPath });
       toast("Saved.");
+      refreshCurrentPlan();
     } catch {
       toast("Failed to save.", "error");
     } finally {
@@ -290,26 +383,14 @@ export function SwitchSemesterModule() {
     }
   };
 
-  const addTransition = async () => {
-    if (!newTFrom || !newTTo || newTFrom === newTTo) return;
-    const already = allowedTransitions.some(t => t.from === newTFrom && t.to === newTTo);
-    if (already) return;
-    const next = [...allowedTransitions, { from: newTFrom, to: newTTo }];
-    setAllowedTransitions(next);
-    setNewTFrom(""); setNewTTo("");
-    await saveAll(configs, next);
-  };
-
-  const removeTransition = async (i: number) => {
-    const next = allowedTransitions.filter((_, idx) => idx !== i);
-    setAllowedTransitions(next);
-    await saveAll(configs, next);
-  };
+  // The config currently shown/edited in the center panel - just a lookup into configsDraft, not
+  // its own piece of state, so it can never fall out of sync with what Save Changes would persist.
+  const draft = configsDraft.find(c => c.id === selectedId) ?? null;
 
   const newCfg = () => {
     const c = DEFAULT_CONFIG();
-    setDraft(c);
-    setSelectedId("new");
+    setConfigsDraft(prev => [...prev, c]);
+    setSelectedId(c.id);
     setNewFrom(null);
     setNewTo([]);
     setNewCondition([]);
@@ -318,7 +399,6 @@ export function SwitchSemesterModule() {
   };
 
   const selectCfg = (cfg: SemesterConfig) => {
-    setDraft({ ...cfg, categoryIds: [...cfg.categoryIds], roleMappings: cfg.roleMappings.map(m => ({ ...m, toRoleIds: [...m.toRoleIds] })), semesterRoles: [...(cfg.semesterRoles ?? [])] });
     setSelectedId(cfg.id);
     if (runMode === "setup") setSetupSemester(cfg.name);
     setNewFrom(null);
@@ -335,31 +415,40 @@ export function SwitchSemesterModule() {
   };
 
   const upd = <K extends keyof SemesterConfig>(key: K, value: SemesterConfig[K]) => {
-    setDraft(d => d ? { ...d, [key]: value } : d);
+    setConfigsDraft(prev => prev.map(c => c.id === selectedId ? { ...c, [key]: value } : c));
   };
 
+  // One global Save Changes button commits every draft together (every semester config being
+  // edited, not just the one currently selected, plus the Switch Plans list) - Plans has no save
+  // button of its own, see SemesterPlanEditor.
   const save = async () => {
-    if (!draft) return;
-    let next: SemesterConfig[];
-    if (selectedId === "new") {
-      next = [...configs, draft];
-    } else {
-      next = configs.map(c => c.id === selectedId ? draft : c);
-    }
-    setConfigs(next);
-    if (selectedId === "new") setSelectedId(draft.id);
-    await saveAll(next);
+    setConfigs(configsDraft);
+    setPlans(plansDraft);
+    const nextPlanPath = plansDraft.map(p => p.id);
+    await persist(configsDraft, plansDraft, nextPlanPath);
+  };
+
+  // Discards every unsaved edit (configs and plans both) back to the last-persisted state - if
+  // selectedId was only a not-yet-saved config, draft resolves to null and the empty state shows.
+  const revert = () => {
+    setConfigsDraft(configs);
+    setPlansDraft(plans);
+    toast("Changes reverted.");
   };
 
   const deleteCfg = async (id: string) => {
-    const next = configs.filter(c => c.id !== id);
-    setConfigs(next);
-    if (selectedId === id || selectedId === "new") { setSelectedId(null); setDraft(null); }
+    const nextConfigs = configsDraft.filter(c => c.id !== id);
+    setConfigsDraft(nextConfigs);
+    setConfigs(nextConfigs);
+    if (selectedId === id) setSelectedId(null);
     setDeleteId(null);
-    await saveAll(next);
+    const nextPlanPath = plansDraft.map(p => p.id);
+    setPlans(plansDraft);
+    await persist(nextConfigs, plansDraft, nextPlanPath);
   };
 
   const [editMappingIdx, setEditMappingIdx] = useState<number | null>(null);
+  const [dragMappingIndex, setDragMappingIndex] = useState<number | null>(null);
 
   const addMapping = () => {
     if (!newFrom || newTo.length === 0 || !draft) return;
@@ -404,19 +493,50 @@ export function SwitchSemesterModule() {
     upd("roleMappings", draft.roleMappings.filter((_, idx) => idx !== i));
   };
 
+  // Mappings run top-to-bottom (each sees the result of all previous ones - see the note above the
+  // list), so reordering changes behavior, not just display. Move instead of delete-and-recreate.
+  const moveMapping = (from: number, to: number) => {
+    if (!draft || from === to || to < 0 || to >= draft.roleMappings.length) return;
+    const editedMapping = editMappingIdx !== null ? draft.roleMappings[editMappingIdx] : null;
+    const next = [...draft.roleMappings];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    if (editedMapping) setEditMappingIdx(next.indexOf(editedMapping));
+    upd("roleMappings", next);
+  };
+
+  const dropMapping = (targetIndex: number) => {
+    if (dragMappingIndex === null) return;
+    moveMapping(dragMappingIndex, targetIndex);
+    setDragMappingIndex(null);
+  };
+
   const roleName = (id: string) => roles.find(r => r.id === id)?.name ?? null;
   const roleCol = (id: string) => roleColor(roles.find(r => r.id === id)?.color);
 
+  const openConfirmSwitch = () => {
+    if (incompleteStepWarning) {
+      toast(incompleteStepWarning, "error");
+      return;
+    }
+    setShowConfirm(true);
+  };
+
   const handleRun = async () => {
-    if (!guildId || !runOld || !runNew || runStarting) return;
+    if (!guildId || !selectedPlanId || runStarting) return;
+    if (incompleteStepWarning) {
+      setShowConfirm(false);
+      toast(incompleteStepWarning, "error");
+      return;
+    }
     setShowConfirm(false);
     setRunError(null);
     setRunStarting(true);
     try {
-      await adminApi.runSwitchSemester(guildId, runOld, runNew);
-      const p = await adminApi.getSwitchSemesterProgress(guildId);
+      await adminApi.runPlan(guildId, selectedPlanId);
+      const p = await adminApi.getPlanProgress(guildId);
       setSsProgress(p);
-      toast("Semester switch started.");
+      toast("Plan started.");
     } catch (e: unknown) {
       const msg = apiErrorMessage(e, "Failed to start.");
       setRunError(msg);
@@ -449,15 +569,14 @@ export function SwitchSemesterModule() {
     if (!guildId || anyRunActive) return;
     setRunError(null);
     if (runMode === "switch") {
-      const params = ssProgress?.params;
-      if (!params?.oldName || !params.newName) return;
+      const planId = ssProgress?.params?.planId;
+      if (!planId) return;
       setRunStarting(true);
-      setRunOld(params.oldName);
-      setRunNew(params.newName);
+      setSelectedPlanId(planId);
       try {
-        await adminApi.runSwitchSemester(guildId, params.oldName, params.newName, true);
-        setSsProgress(await adminApi.getSwitchSemesterProgress(guildId));
-        toast("Semester switch resumed.");
+        await adminApi.runPlan(guildId, planId, true);
+        setSsProgress(await adminApi.getPlanProgress(guildId));
+        toast("Plan resumed.");
       } catch (e: unknown) {
         const msg = apiErrorMessage(e, "Failed to resume.");
         setRunError(msg);
@@ -489,7 +608,10 @@ export function SwitchSemesterModule() {
 
   const activeProgress = runMode === "switch" ? ssProgress : setupProgress;
   const setupConfig = configs.find(config => config.name === setupSemester);
-  const newSemesterConfig = configs.find(config => config.name === runNew);
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const incompleteStepWarning = selectedPlan ? firstIncompleteStepLabel(selectedPlan) : null;
+  const configsDirty = JSON.stringify(configsDraft) !== JSON.stringify(configs);
+  const plansDirty = JSON.stringify(plansDraft) !== JSON.stringify(plans);
   const anyRunActive = Boolean(ssProgress?.running || setupProgress?.running);
   const isConsoleCleared = Boolean(activeProgress?.startedAt && activeProgress.startedAt === clearedStartedAt);
   const consoleLogs = isConsoleCleared ? [] : (activeProgress?.logs ?? []);
@@ -557,11 +679,61 @@ export function SwitchSemesterModule() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Running
           </span>
         )}
+        <button onClick={() => setShowHistory(true)}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors">
+          <History className="w-3.5 h-3.5" /> History &amp; Rollback
+        </button>
+        <button onClick={toggleAdvanced}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition-colors",
+            advanced
+              ? "border-indigo-500/50 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20"
+              : "border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500")}>
+          <SlidersHorizontal className="w-3.5 h-3.5" /> {advanced ? "Simple Mode" : "Advanced"}
+        </button>
       </div>
 
       {loading ? (
         <div className="flex items-center gap-2 p-6 text-zinc-500 text-sm">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+        </div>
+      ) : !advanced ? (
+        <div className="flex-1 flex items-start justify-center overflow-y-auto scrollbar-thin p-6">
+          <div className="w-full max-w-md">
+            <SemesterRunPanel
+              standalone
+              plans={plans}
+              runMode={runMode}
+              setRunMode={setRunMode}
+              anyRunActive={anyRunActive}
+              nextPlan={nextPlan}
+              selectedPlanId={selectedPlanId}
+              setSelectedPlanId={setSelectedPlanId}
+              runStarting={runStarting}
+              ssProgress={ssProgress}
+              configs={configs}
+              setupSemester={setupSemester}
+              selectSetupSemester={selectSetupSemester}
+              setupVisible={setupVisible}
+              setSetupVisible={setSetupVisible}
+              setupClearRoles={setupClearRoles}
+              setSetupClearRoles={setSetupClearRoles}
+              setupStarting={setupStarting}
+              setupProgress={setupProgress}
+              activeProgress={activeProgress}
+              canResume={canResume}
+              runError={runError}
+              consoleLogs={consoleLogs}
+              isConsoleCleared={isConsoleCleared}
+              consoleEndRef={consoleEndRef}
+              consoleContainerRef={consoleContainerRef}
+              handleConsoleScroll={handleConsoleScroll}
+              clearConsole={clearConsole}
+              onShowConfirmSwitch={openConfirmSwitch}
+              onShowConfirmSetup={() => setShowSetupConfirm(true)}
+              onShowModeInfo={() => setShowModeInfo(true)}
+              onResume={handleResume}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
@@ -574,24 +746,37 @@ export function SwitchSemesterModule() {
             <div className="p-3 border-b border-zinc-800">
               <button onClick={newCfg}
                 className={cn("w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider border transition-all",
-                  selectedId === "new"
+                  draft && !configs.some(c => c.id === draft.id)
                     ? "border-indigo-500/60 text-indigo-400 bg-indigo-500/10"
                     : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200")}>
                 <Plus className="w-3.5 h-3.5" /> New Semester
               </button>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
-              {configs.length === 0 && (
+              {configsDraft.length === 0 && (
                 <p className="text-xs text-zinc-600 text-center py-4">No configs yet</p>
               )}
-              {configs.map(cfg => (
+              {configsDraft.map(cfg => {
+                const persisted = configs.find(c => c.id === cfg.id);
+                const unsaved = !persisted || JSON.stringify(persisted) !== JSON.stringify(cfg);
+                return (
                 <div key={cfg.id}
-                  className={cn("group flex items-center gap-2 px-3 py-2.5 rounded cursor-pointer transition-all",
+                  className={cn("group flex items-center gap-2 px-3 py-2.5 rounded cursor-pointer transition-all border-l-2",
+                    cfg.semesterType === "WINTER" ? "border-sky-500/70" : cfg.semesterType === "SUMMER" ? "border-amber-500/70" : "border-transparent",
                     selectedId === cfg.id ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200")}
                   onClick={() => selectCfg(cfg)}>
-                  <CalendarDays className="w-3.5 h-3.5 flex-shrink-0 text-indigo-400" />
+                  {cfg.semesterType === "WINTER" ? (
+                    <span title="Winter" className="flex-shrink-0"><Snowflake className="w-3.5 h-3.5 text-sky-400" /></span>
+                  ) : cfg.semesterType === "SUMMER" ? (
+                    <span title="Summer" className="flex-shrink-0"><Sun className="w-3.5 h-3.5 text-amber-400" /></span>
+                  ) : (
+                    <CalendarDays className="w-3.5 h-3.5 flex-shrink-0 text-indigo-400" />
+                  )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">{cfg.name}</p>
+                    <p className="text-xs font-semibold truncate flex items-center gap-1.5">
+                      {cfg.name}
+                      {unsaved && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved changes" />}
+                    </p>
                     <p className="text-[10px] text-zinc-600 mt-0.5">
                       {cfg.categoryIds.length} cat · {cfg.roleMappings.length} map
                     </p>
@@ -608,58 +793,21 @@ export function SwitchSemesterModule() {
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* ── Center: config editor ── */}
           <div className="flex-1 flex flex-col min-w-0 overflow-y-auto scrollbar-thin">
-            {/* Transition rules only affect switches. */}
-            {runMode === "switch" && <div className="p-6 pb-0">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden mb-5">
-                <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <h2 className="text-sm font-bold text-zinc-100">Allowed Transitions</h2>
-                  <span className="ml-auto text-[11px] text-zinc-600">
-                    {allowedTransitions.length === 0 ? "All transitions allowed (none configured)" : `${allowedTransitions.length} rule${allowedTransitions.length !== 1 ? "s" : ""}`}
-                  </span>
-                </div>
-                <div className="px-4 py-4 space-y-3">
-                  <p className="text-xs text-zinc-500">Restrict which semester switches are permitted. If any rules exist, only listed transitions will run.</p>
-                  {allowedTransitions.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {allowedTransitions.map((t, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700/60 text-xs font-mono">
-                          <span className="text-zinc-200">{t.from}</span>
-                          <ChevronRight className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                          <span className="text-amber-300">{t.to}</span>
-                          <button onClick={() => removeTransition(i)} className="ml-1 text-zinc-600 hover:text-red-400 transition-colors">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
-                    <select value={newTFrom} onChange={e => setNewTFrom(e.target.value)}
-                      className="w-36 min-w-0 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 outline-none focus:border-amber-500 transition-colors cursor-pointer">
-                      <option value="">From…</option>
-                      {configs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                    <ChevronRight className="w-3 h-3 text-zinc-600 flex-shrink-0" />
-                    <select value={newTTo} onChange={e => setNewTTo(e.target.value)}
-                      className="w-36 min-w-0 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-200 outline-none focus:border-amber-500 transition-colors cursor-pointer">
-                      <option value="">To…</option>
-                      {configs.filter(c => c.name !== newTFrom).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                    <button onClick={addTransition} disabled={!newTFrom || !newTTo || newTFrom === newTTo}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-bold bg-amber-600/80 hover:bg-amber-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                      <Plus className="w-3 h-3" /> Add
-                    </button>
-                  </div>
+            {/* Plans only affect switches - they decide what "Select switch" offers and enforce order. */}
+            {runMode === "switch" && (
+              <div className="p-6 pb-0">
+                <div className="mb-5">
+                  <SemesterPlanEditor configs={configsDraft} channels={channels} plans={plansDraft} onChange={setPlansDraft} />
                 </div>
               </div>
-            </div>}
+            )}
 
             {selectedId === null || !draft ? (
               <div className="flex-1 flex items-center justify-center text-zinc-600">
@@ -678,7 +826,29 @@ export function SwitchSemesterModule() {
                       <input value={draft.name} onChange={e => upd("name", e.target.value)}
                         placeholder="e.g. ZS2025, LS2025"
                         className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors" />
-                      <p className="text-[11px] text-zinc-600 mt-1">Used as the old/new semester name when running a switch.</p>
+                      <p className="text-[11px] text-zinc-600 mt-1">Referenced by name from Plan steps and the Setup picker.</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-400 mb-1.5">Semester Type</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => upd("semesterType", "WINTER")}
+                          className={cn("py-2 rounded text-xs font-semibold border transition-all",
+                            draft.semesterType === "WINTER"
+                              ? "bg-sky-600/20 border-sky-500/50 text-sky-300"
+                              : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300")}>
+                          Winter
+                        </button>
+                        <button type="button" onClick={() => upd("semesterType", "SUMMER")}
+                          className={cn("py-2 rounded text-xs font-semibold border transition-all",
+                            draft.semesterType === "SUMMER"
+                              ? "bg-amber-600/20 border-amber-500/50 text-amber-300"
+                              : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300")}>
+                          Summer
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-zinc-600 mt-1">
+                        Used to block a switch between two same-type semesters in Switch Plans. Unset skips that check.
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-zinc-400 mb-1.5">Categories</p>
@@ -712,14 +882,26 @@ export function SwitchSemesterModule() {
                   {/* Right: switch mappings and shared cleanup roles */}
                   <div className="space-y-5">
                     {runMode === "switch" && <Section icon={ArrowLeftRight} color="#f43f5e" title="Role Mappings">
-                      <p className="text-xs text-zinc-500 -mt-2">Applied when switching <span className="text-zinc-300 font-semibold">away from</span> this semester. Members with "From" role get it removed and receive "To" roles.</p>
+                      <p className="text-xs text-zinc-500 -mt-2">Applied when a Plan step switches <span className="text-zinc-300 font-semibold">away from</span> this semester. Members with "From" role get it removed and receive "To" roles.</p>
                       <p className="text-xs text-zinc-600 -mt-1">Mappings run <span className="text-zinc-400 font-semibold">top to bottom</span> — each mapping sees the result of all previous ones. If a condition depends on a role that an earlier mapping assigns, use the <span className="text-zinc-400">new</span> role in the condition, not the original. Example: if <span className="text-zinc-400">@API 1.roč → @API 2.roč</span> is above a conditional mapping, use <span className="text-zinc-400">@API 2.roč</span> as the condition, not <span className="text-zinc-400">@API 1.roč</span>.</p>
                       {draft.roleMappings.length > 0 && (
                         <div className="space-y-1">
                           {draft.roleMappings.map((m, i) => {
                             const isEditing = editMappingIdx === i;
                             return (
-                              <div key={i} className={cn("flex items-start gap-1.5 py-1.5 border-b border-zinc-800 last:border-0", isEditing && "opacity-40")}>
+                              <div key={i}
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={() => dropMapping(i)}
+                                className={cn("flex items-start gap-1.5 py-1.5 border-b border-zinc-800 last:border-0",
+                                  isEditing && "opacity-40", dragMappingIndex === i && "opacity-40")}>
+                                <span
+                                  draggable
+                                  onDragStart={() => setDragMappingIndex(i)}
+                                  onDragEnd={() => setDragMappingIndex(null)}
+                                  title="Drag to reorder"
+                                  className="mt-0.5 flex-shrink-0 cursor-grab text-zinc-600 hover:text-zinc-300 transition-colors active:cursor-grabbing">
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </span>
                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-1">
                                     {(() => {
@@ -772,7 +954,7 @@ export function SwitchSemesterModule() {
                                     })}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1 mt-0.5 flex-shrink-0">
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-shrink-0">
                                   {!isEditing && (
                                     <button onClick={() => editMapping(i)} className="text-zinc-600 hover:text-indigo-400 transition-colors" title="Edit">
                                       <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z"/></svg>
@@ -834,7 +1016,7 @@ export function SwitchSemesterModule() {
                       <p className="text-xs text-zinc-500 -mt-2">
                         Subject and carry-over roles belonging to this semester, for example <span className="text-zinc-300">MAT2I</span>.
                         {runMode === "switch"
-                          ? " Members are removed from these roles when switching away from this semester."
+                          ? " Members are removed from these roles when a Plan step switches away from this semester."
                           : " Setup removes members from these roles only when cleanup is enabled in the run panel."}
                       </p>
                       <RoleMultiSelect
@@ -844,32 +1026,41 @@ export function SwitchSemesterModule() {
                         placeholder="Add roles to clear for this semester…"
                       />
                     </Section>
-
-                    <div className="flex justify-end pt-1">
-                      <button onClick={save} disabled={saving}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50">
-                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        Save Changes
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* One global Save Changes button for every semester config draft (not just the one
+                selected) and the Switch Plans draft above - always reachable even with no semester
+                selected. */}
+            <div className="flex items-center justify-end gap-2 px-6 pb-6 flex-shrink-0">
+              {(configsDirty || plansDirty) && <span className="text-[11px] text-amber-400">unsaved changes</span>}
+              <button onClick={revert} disabled={saving || (!configsDirty && !plansDirty)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-bold uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <X className="w-3.5 h-3.5" />
+                Revert Changes
+              </button>
+              <button onClick={save} disabled={saving || (!configsDirty && !plansDirty)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Save Changes
+              </button>
+            </div>
           </div>
 
           {/* ── Right: run + monitor ── */}
           <SemesterRunPanel
-            configs={configs}
+            plans={plans}
             runMode={runMode}
             setRunMode={setRunMode}
             anyRunActive={anyRunActive}
-            runOld={runOld}
-            setRunOld={setRunOld}
-            runNew={runNew}
-            setRunNew={setRunNew}
+            nextPlan={nextPlan}
+            selectedPlanId={selectedPlanId}
+            setSelectedPlanId={setSelectedPlanId}
             runStarting={runStarting}
             ssProgress={ssProgress}
+            configs={configs}
             setupSemester={setupSemester}
             selectSetupSemester={selectSetupSemester}
             setupVisible={setupVisible}
@@ -887,7 +1078,7 @@ export function SwitchSemesterModule() {
             consoleContainerRef={consoleContainerRef}
             handleConsoleScroll={handleConsoleScroll}
             clearConsole={clearConsole}
-            onShowConfirmSwitch={() => setShowConfirm(true)}
+            onShowConfirmSwitch={openConfirmSwitch}
             onShowConfirmSetup={() => setShowSetupConfirm(true)}
             onShowModeInfo={() => setShowModeInfo(true)}
             onResume={handleResume}
@@ -898,9 +1089,7 @@ export function SwitchSemesterModule() {
 
       <ConfirmSwitchModal
         open={showConfirm}
-        runOld={runOld}
-        runNew={runNew}
-        newSemesterConfig={newSemesterConfig}
+        plan={selectedPlan}
         onClose={() => setShowConfirm(false)}
         onRun={handleRun}
       />
@@ -917,6 +1106,15 @@ export function SwitchSemesterModule() {
         open={showModeInfo}
         runMode={runMode}
         onClose={() => setShowModeInfo(false)}
+      />
+      <SemesterHistoryModal
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        guildId={guildId}
+        plans={plans}
+        roles={roles}
+        currentPlanName={currentPlanName}
+        onCurrentPlanChanged={refreshCurrentPlan}
       />
     </div>
   );

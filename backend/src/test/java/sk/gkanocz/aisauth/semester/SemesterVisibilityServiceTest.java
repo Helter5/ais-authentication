@@ -4,7 +4,9 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.PermissionOverride;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.requests.restaction.PermissionOverrideAction;
+import sk.gkanocz.aisauth.semester.SwitchSemesterSettings.AdditionalChannel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,6 +82,93 @@ class SemesterVisibilityServiceTest {
         assertThat(result.rolesUpdated()).isEqualTo(1);
         assertThat(result.errors()).isZero();
         verify(publicRoleAction).complete();
+        verify(memberRoleAction).complete();
+    }
+
+    @Test
+    void channelNotFoundIsCountedAsAnError() {
+        when(guild.getGuildChannelById("missing-channel")).thenReturn(null);
+
+        SemesterVisibilityService.Result result = service.applyChannels(
+                guild, List.of(new AdditionalChannel("missing-channel", "gone", true, false)));
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errors()).isEqualTo(1);
+        assertThat(result.channelsUpdated()).isZero();
+        assertThat(result.logs()).anyMatch(log -> log.contains("not found in guild"));
+    }
+
+    @Test
+    void visibleAppliesToEveryExistingRoleOverrideUnconditionally(@org.mockito.Mock TextChannel channel) {
+        when(guild.getGuildChannelById("chan-1")).thenReturn(channel);
+        when(channel.getName()).thenReturn("zs-volitelne");
+        when(channel.getRolePermissionOverrides()).thenReturn(List.of(memberOverride));
+        when(memberOverride.getRole()).thenReturn(memberRole);
+        when(memberRole.isPublicRole()).thenReturn(false);
+        when(memberRole.getName()).thenReturn("Members");
+
+        when(channel.upsertPermissionOverride(publicRole)).thenReturn(publicRoleAction);
+        when(publicRoleAction.deny(any(net.dv8tion.jda.api.Permission.class))).thenReturn(publicRoleAction);
+        when(channel.upsertPermissionOverride(memberRole)).thenReturn(memberRoleAction);
+        when(memberRoleAction.grant(any(net.dv8tion.jda.api.Permission.class))).thenReturn(memberRoleAction);
+
+        // visible=true, everyoneViewChannel left unset (defaults false) - the exact "show it for
+        // everybody but keep @everyone itself hidden" case this split exists for. Unlike
+        // SemesterVisibilityService#apply for categories, the two flags are independent here, not
+        // one gating the other.
+        SemesterVisibilityService.Result result = service.applyChannels(
+                guild, List.of(new AdditionalChannel("chan-1", "zs-volitelne", true, null)));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.rolesUpdated()).isEqualTo(1);
+        verify(publicRoleAction).deny(net.dv8tion.jda.api.Permission.VIEW_CHANNEL);
+        verify(publicRoleAction).complete();
+        verify(memberRoleAction).grant(net.dv8tion.jda.api.Permission.VIEW_CHANNEL);
+        verify(memberRoleAction).complete();
+    }
+
+    @Test
+    void everyoneViewChannelTrueAlsoShowsItToEveryone(@org.mockito.Mock TextChannel channel) {
+        when(guild.getGuildChannelById("chan-2")).thenReturn(channel);
+        when(channel.getName()).thenReturn("ls-volitelne");
+        when(channel.getRolePermissionOverrides()).thenReturn(List.of());
+        when(channel.upsertPermissionOverride(publicRole)).thenReturn(publicRoleAction);
+        when(publicRoleAction.grant(any(net.dv8tion.jda.api.Permission.class))).thenReturn(publicRoleAction);
+
+        SemesterVisibilityService.Result result = service.applyChannels(
+                guild, List.of(new AdditionalChannel("chan-2", "ls-volitelne", true, true)));
+
+        assertThat(result.success()).isTrue();
+        verify(publicRoleAction).grant(net.dv8tion.jda.api.Permission.VIEW_CHANNEL);
+        verify(publicRoleAction).complete();
+    }
+
+    @Test
+    void everyoneViewChannelIsIndependentOfVisibleEvenWhenHiding(@org.mockito.Mock TextChannel channel) {
+        when(guild.getGuildChannelById("chan-3")).thenReturn(channel);
+        when(channel.getName()).thenReturn("zs-volitelne");
+        when(channel.getRolePermissionOverrides()).thenReturn(List.of(memberOverride));
+        when(memberOverride.getRole()).thenReturn(memberRole);
+        when(memberRole.isPublicRole()).thenReturn(false);
+        when(memberRole.getName()).thenReturn("Members");
+
+        when(channel.upsertPermissionOverride(publicRole)).thenReturn(publicRoleAction);
+        when(publicRoleAction.grant(any(net.dv8tion.jda.api.Permission.class))).thenReturn(publicRoleAction);
+        when(channel.upsertPermissionOverride(memberRole)).thenReturn(memberRoleAction);
+        when(memberRoleAction.deny(any(net.dv8tion.jda.api.Permission.class))).thenReturn(memberRoleAction);
+
+        // visible=false (every other role hidden) + everyoneViewChannel=true (@everyone still sees
+        // it) - a deliberately valid, meaningful combination unlike category apply()'s
+        // "everyoneVisible = visible && everyoneViewChannel" (there, hiding always forces @everyone
+        // hidden too).
+        SemesterVisibilityService.Result result = service.applyChannels(
+                guild, List.of(new AdditionalChannel("chan-3", "zs-volitelne", false, true)));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.rolesUpdated()).isEqualTo(1);
+        verify(publicRoleAction).grant(net.dv8tion.jda.api.Permission.VIEW_CHANNEL);
+        verify(publicRoleAction).complete();
+        verify(memberRoleAction).deny(net.dv8tion.jda.api.Permission.VIEW_CHANNEL);
         verify(memberRoleAction).complete();
     }
 }
