@@ -516,18 +516,22 @@ function WarningsTable({ logs, warnCounts }: { logs: WarningLog[]; warnCounts: R
 
 type RawOption = { name: string; type: number; value?: string; options?: RawOption[] };
 
-function formatArgs(options: RawOption[]): string {
+/** Raw option values are whatever was actually submitted - a picked role/channel snowflake, or free
+ *  text (autocomplete is only a UI hint, see SubjectRoleSlashCommandListener) - resolveText only
+ *  ever touches the former, so free text like "LA2" passes through untouched. */
+function formatArgs(options: RawOption[], resolve: IdResolver): string {
   if (!options || options.length === 0) return "";
+  const val = (v: string) => resolveText(v, resolve);
   return options.map(opt => {
     if (opt.options && opt.options.length > 0) {
-      const sub = opt.options.filter(o => o.value !== undefined).map(o => `${o.name}: ${o.value}`).join(" · ");
+      const sub = opt.options.filter(o => o.value !== undefined).map(o => `${o.name}: ${val(o.value!)}`).join(" · ");
       return sub ? `${opt.name} · ${sub}` : opt.name;
     }
-    return opt.value !== undefined ? `${opt.name}: ${opt.value}` : opt.name;
+    return opt.value !== undefined ? `${opt.name}: ${val(opt.value)}` : opt.name;
   }).join(" · ");
 }
 
-function ActionAuditTable({ logs, label }: { logs: AuditLog[]; label: string }) {
+function ActionAuditTable({ logs, label, resolve }: { logs: AuditLog[]; label: string; resolve: IdResolver }) {
   return (
     <TableShell headers={["Time", "Affected User", "Channel", "Action", "Trigger", "Result"]} empty={logs.length === 0} emptyLabel={`${label} logs`}>
       {logs.map(log => {
@@ -549,7 +553,7 @@ function ActionAuditTable({ logs, label }: { logs: AuditLog[]; label: string }) 
             </td>
             <td className="px-4 py-3 font-semibold text-red-400">{log.action}</td>
             <td className="max-w-sm whitespace-pre-wrap break-words px-4 py-3 text-zinc-400">
-              <DetailValue value={trigger} />
+              <DetailValue value={trigger} resolve={resolve} />
             </td>
             <td className="max-w-sm px-4 py-3 text-xs text-zinc-400">
               <span className={cn(
@@ -560,7 +564,7 @@ function ActionAuditTable({ logs, label }: { logs: AuditLog[]; label: string }) 
               )}>
                 {status}
               </span>
-              <p className="mt-2 whitespace-pre-wrap break-words"><DetailValue value={result} /></p>
+              <p className="mt-2 whitespace-pre-wrap break-words"><DetailValue value={result} resolve={resolve} /></p>
               {error && <p className="mt-1 whitespace-pre-wrap break-words text-red-400">{error}</p>}
             </td>
           </tr>
@@ -570,14 +574,14 @@ function ActionAuditTable({ logs, label }: { logs: AuditLog[]; label: string }) 
   );
 }
 
-function CommandsTable({ logs }: { logs: AuditLog[] }) {
+function CommandsTable({ logs, resolve }: { logs: AuditLog[]; resolve: IdResolver }) {
   return (
     <TableShell headers={["Time", "User", "Channel", "Command", "Status", "Duration"]} empty={logs.length === 0} emptyLabel="command logs">
       {logs.map(log => {
         const status = String(log.details?.status ?? "unknown");
         const error = log.details?.error ? String(log.details.error) : null;
         const blockedReason = log.details?.blockedReason ? String(log.details.blockedReason) : null;
-        const args = log.details?.options ? formatArgs(log.details.options as RawOption[]) : "";
+        const args = log.details?.options ? formatArgs(log.details.options as RawOption[], resolve) : "";
         return (
           <tr key={log.id} className="bg-zinc-950/30 hover:bg-zinc-900/70">
             <td className="whitespace-nowrap px-4 py-3 text-xs text-zinc-400">{fmt(log.created_at)}</td>
@@ -1160,19 +1164,19 @@ export function Logs() {
         )}
         {!loading && !error && activeTab === "automod" && (
           <>
-            <ActionAuditTable logs={pagedAutomod} label="automod" />
+            <ActionAuditTable logs={pagedAutomod} label="automod" resolve={resolve} />
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
         {!loading && !error && activeTab === "verification" && (
           <>
-            <ActionAuditTable logs={pagedAutomod} label="verification" />
+            <ActionAuditTable logs={pagedAutomod} label="verification" resolve={resolve} />
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
         {!loading && !error && activeTab === "commands" && (
           <>
-            <CommandsTable logs={pagedCommands} />
+            <CommandsTable logs={pagedCommands} resolve={resolve} />
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
