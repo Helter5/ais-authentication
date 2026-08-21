@@ -663,7 +663,7 @@ function OperationsTable({ logs, onSelect }: { logs: AuditLog[]; onSelect: (log:
 
 function RoleMenuTable({ logs }: { logs: AuditLog[] }) {
   return (
-    <TableShell headers={["Time", "User", "Config", "Added", "Removed", "Blocked"]} empty={logs.length === 0} emptyLabel="role menu logs">
+    <TableShell headers={["Time", "User", "Config", "Change"]} empty={logs.length === 0} emptyLabel="role menu logs">
       {logs.map(log => {
         const added = Array.isArray(log.details?.added) ? log.details.added as string[] : [];
         const removed = Array.isArray(log.details?.removed) ? log.details.removed as string[] : [];
@@ -676,9 +676,13 @@ function RoleMenuTable({ logs }: { logs: AuditLog[] }) {
               <p className="font-mono text-[11px] text-zinc-600">{log.user_id ?? "-"}</p>
             </td>
             <td className="px-4 py-3 font-mono text-xs text-zinc-500">#{String(log.details?.configId ?? "-")}</td>
-            <td className="max-w-xs px-4 py-3 text-xs text-emerald-400">{added.length > 0 ? added.join(", ") : <span className="text-zinc-600">-</span>}</td>
-            <td className="max-w-xs px-4 py-3 text-xs text-red-400">{removed.length > 0 ? removed.join(", ") : <span className="text-zinc-600">-</span>}</td>
-            <td className="max-w-xs px-4 py-3 text-xs text-amber-400">{blocked.length > 0 ? blocked.join(", ") : <span className="text-zinc-600">-</span>}</td>
+            <td className="max-w-md px-4 py-3 text-xs">
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {added.map(name => <span key={`+${name}`} className="text-emerald-400">+ {name}</span>)}
+                {removed.map(name => <span key={`-${name}`} className="text-red-400">− {name}</span>)}
+                {blocked.map(name => <span key={`!${name}`} className="text-amber-400">⚠ {name}</span>)}
+              </div>
+            </td>
           </tr>
         );
       })}
