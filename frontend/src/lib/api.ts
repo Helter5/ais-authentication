@@ -404,6 +404,14 @@ export const adminApi = {
     return res.data;
   },
 
+  /** Resolves member IDs to their current username - e.g. for showing "who exactly" in a semester
+   *  role-migration's member list instead of raw Discord IDs. Empty ids returns [] without a request. */
+  getDiscordMembers: async (guildId: string, ids: string[]): Promise<{ id: string; name: string }[]> => {
+    if (ids.length === 0) return [];
+    const res = await api.get('/discord/members', { params: { guildId, ids: ids.join(",") } });
+    return res.data;
+  },
+
   getSettings: async (guildId: string): Promise<{
     verified_role_id: string | null;
     inactive_role_id: string | null;

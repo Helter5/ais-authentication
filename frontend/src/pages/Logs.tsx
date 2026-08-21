@@ -683,7 +683,7 @@ function useIdNameMap(guildId: string | null): IdResolver {
 
 type OpSubTab = "users" | "rooms" | "log";
 
-function RoleMappingRow({ group, resolve }: { group: MigrationGroup; resolve: IdResolver }) {
+function RoleMappingRow({ group, resolve, resolveMember }: { group: MigrationGroup; resolve: IdResolver; resolveMember: IdResolver }) {
   return (
     <div className="rounded border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
       <p className="font-semibold text-zinc-200">
@@ -698,7 +698,9 @@ function RoleMappingRow({ group, resolve }: { group: MigrationGroup; resolve: Id
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {group.discordIds.map(id => (
-          <span key={id} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">{id}</span>
+          <span key={id} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-300">
+            {resolveMember(id) ?? <span className="font-mono text-[10px] text-zinc-500">{id}</span>}
+          </span>
         ))}
       </div>
     </div>
@@ -726,14 +728,14 @@ function VisibilityRoomRow({ row, resolve }: { row: VisibilityRow; resolve: IdRe
 
 /** Every step of a semester plan/setup/rollback run, each with its role-mapping groups (exactly
  *  which members moved from which role to which) and per-room visibility changes. */
-function MigrationStepsView({ detail, resolve }: { detail: MigrationDetail; resolve: IdResolver }) {
+function MigrationStepsView({ detail, resolve, resolveMember }: { detail: MigrationDetail; resolve: IdResolver; resolveMember: IdResolver }) {
   return (
     <div className="space-y-3">
       {detail.steps.map(step => (
         <div key={step.stepIndex}>
           {step.stepLabel && <p className="mb-1 text-xs font-semibold text-zinc-400">Step {step.stepIndex + 1}: {step.stepLabel}</p>}
           <div className="space-y-1.5">
-            {step.roleGroups.map(g => <RoleMappingRow key={g.groupKey} group={g} resolve={resolve} />)}
+            {step.roleGroups.map(g => <RoleMappingRow key={g.groupKey} group={g} resolve={resolve} resolveMember={resolveMember} />)}
             {step.visibilityRows.map(v => <VisibilityRoomRow key={v.id} row={v} resolve={resolve} />)}
           </div>
         </div>
@@ -746,6 +748,7 @@ function OperationDetailModal({ log, guildId, resolve }: {
   log: AuditLog; guildId: string; resolve: IdResolver;
 }) {
   const [migrationDetail, setMigrationDetail] = useState<MigrationDetail | null>(null);
+  const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map());
   const migrationId = typeof log.details?.migrationId === "string" ? log.details.migrationId : null;
 
   useEffect(() => {
@@ -755,6 +758,22 @@ function OperationDetailModal({ log, guildId, resolve }: {
     adminApi.getMigrationDetail(guildId, migrationId).then(d => { if (!cancelled) setMigrationDetail(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [guildId, migrationId]);
+
+  // Member IDs only ever appear inside this one migration's role groups - resolved on demand
+  // (not upfront like roles/channels/categories) since which IDs matter differs per run.
+  useEffect(() => {
+    setMemberNames(new Map());
+    if (!migrationDetail) return;
+    const ids = [...new Set(migrationDetail.steps.flatMap(s => s.roleGroups.flatMap(g => g.discordIds)))];
+    if (ids.length === 0) return;
+    let cancelled = false;
+    adminApi.getDiscordMembers(guildId, ids).then(members => {
+      if (cancelled) return;
+      setMemberNames(new Map(members.map(m => [m.id, m.name])));
+    }).catch(() => { /* best-effort - falls back to raw IDs */ });
+    return () => { cancelled = true; };
+  }, [guildId, migrationDetail]);
+  const resolveMember: IdResolver = id => memberNames.get(id) ?? null;
 
   const removedUsers = Array.isArray(log.details?.removedUsers) ? log.details.removedUsers as Record<string, unknown>[] : null;
   const logLines = Array.isArray(log.details?.log) ? (log.details.log as unknown[]).filter((l): l is string => typeof l === "string") : [];
@@ -812,7 +831,7 @@ function OperationDetailModal({ log, guildId, resolve }: {
           migrationDetail
             ? <MigrationStepsView
                 detail={{ steps: migrationDetail.steps.map(s => ({ ...s, visibilityRows: [] })) }}
-                resolve={resolve} />
+                resolve={resolve} resolveMember={resolveMember} />
             : removedUsers && (
               <div className="space-y-1.5">
                 {removedUsers.map((u, i) => (
@@ -827,7 +846,7 @@ function OperationDetailModal({ log, guildId, resolve }: {
             )
         )}
         {activeSubTab === "rooms" && migrationDetail && (
-          <MigrationStepsView detail={{ steps: migrationDetail.steps.map(s => ({ ...s, roleGroups: [] })) }} resolve={resolve} />
+          <MigrationStepsView detail={{ steps: migrationDetail.steps.map(s => ({ ...s, roleGroups: [] })) }} resolve={resolve} resolveMember={resolveMember} />
         )}
         {activeSubTab === "log" && <LogLinesView lines={logLines} />}
       </div>
