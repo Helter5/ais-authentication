@@ -473,7 +473,7 @@ function DashboardTable({ entries, resolve }: { entries: AuditLog[]; resolve: Id
           </td>
           <td className="max-w-sm px-4 py-3 text-xs text-zinc-500 break-words">
             {(log.channel_name || log.channel_id) && (
-              <p className="mb-1">#{log.channel_name ?? log.channel_id}</p>
+              <p className="mb-1">#{log.channel_name ?? (log.channel_id && resolve(log.channel_id)) ?? log.channel_id}</p>
             )}
             {log.details && <DetailsView details={log.details} resolve={resolve} />}
           </td>
@@ -548,7 +548,7 @@ function ActionAuditTable({ logs, label, resolve }: { logs: AuditLog[]; label: s
             </td>
             <td className="px-4 py-3 text-zinc-400">
               {(log.channel_name || log.channel_id)
-                ? <span>#{log.channel_name ?? log.channel_id}</span>
+                ? <span>#{log.channel_name ?? (log.channel_id && resolve(log.channel_id)) ?? log.channel_id}</span>
                 : <span className="text-zinc-600">—</span>}
             </td>
             <td className="px-4 py-3 font-semibold text-red-400">{log.action}</td>
@@ -591,7 +591,7 @@ function CommandsTable({ logs, resolve }: { logs: AuditLog[]; resolve: IdResolve
             </td>
             <td className="px-4 py-3 text-zinc-400">
               {(log.channel_name || log.channel_id)
-                ? <span>#{log.channel_name ?? log.channel_id ?? "unknown"}</span>
+                ? <span>#{log.channel_name ?? (log.channel_id && resolve(log.channel_id)) ?? log.channel_id}</span>
                 : <span className="text-zinc-600">—</span>}
             </td>
             <td className="px-4 py-3">
