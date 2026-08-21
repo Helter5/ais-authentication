@@ -12,8 +12,8 @@ import java.util.List;
  * Tracks self-service /pridatpredmet subject-role requests per guild+user+semester, so a member can
  * grab their first couple of "repeated/extra subject" roles frictionlessly while anything past
  * that gets held for admin approval instead of silently handing out an unbounded number of roles.
- * The semester boundary is whatever SemesterOperationService.startSwitch last reset it to - there
- * is no separate semester-epoch concept anywhere else in the app to hook into.
+ * The semester boundary is whatever SemesterPlanService.startPlan last reset it to - there is no
+ * separate semester-epoch concept anywhere else in the app to hook into.
  */
 @Service
 @RequiredArgsConstructor

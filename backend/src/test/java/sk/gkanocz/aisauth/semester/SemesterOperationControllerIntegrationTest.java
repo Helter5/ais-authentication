@@ -48,7 +48,7 @@ class SemesterOperationControllerIntegrationTest {
                 .andExpect(jsonPath("$.running").value(false))
                 .andExpect(jsonPath("$.progress").value(0));
 
-        mockMvc.perform(get("/api/switchsemester/progress")
+        mockMvc.perform(get("/api/switchplan/progress")
                         .param("guildId", guildId)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isOk())
@@ -67,13 +67,13 @@ class SemesterOperationControllerIntegrationTest {
     }
 
     @Test
-    void runSwitchForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
+    void runPlanForbiddenWhenManagerTokenIsForADifferentGuild() throws Exception {
         String token = auth.managerTokenFor("guild-owned-by-manager");
 
-        mockMvc.perform(post("/api/switchsemester/run")
+        mockMvc.perform(post("/api/switchplan/run")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
-                        .content("{\"guildId\":\"some-other-guild\",\"oldName\":\"ZS\",\"newName\":\"LS\"}"))
+                        .content("{\"guildId\":\"some-other-guild\",\"planId\":\"plan-1\"}"))
                 .andExpect(status().isForbidden());
     }
 }

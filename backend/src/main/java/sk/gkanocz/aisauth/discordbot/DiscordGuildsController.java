@@ -19,6 +19,7 @@ public class DiscordGuildsController {
 
     private final DiscordBotService discordBotService;
     private final GuildAccessService guildAccessService;
+    private final DiscordStatusService discordStatusService;
 
     /**
      * Filters live via canManageGuild (JDA member-cache state), not the guildIds JWT claim, so a
@@ -35,6 +36,13 @@ public class DiscordGuildsController {
                         .map(GuildResponse::from)
                         .toList())
                 .orElseGet(List::of);
+    }
+
+    /** Not guild-scoped - the same discordstatus.com summary for every dashboard user. See DiscordStatusService. */
+    @PublicToAuthenticated
+    @GetMapping("/status")
+    public DiscordStatusService.Result getDiscordApiStatus() {
+        return discordStatusService.status();
     }
 
     public record GuildResponse(String id, String name, String icon) {
