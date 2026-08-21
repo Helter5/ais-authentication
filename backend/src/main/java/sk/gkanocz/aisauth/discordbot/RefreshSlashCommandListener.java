@@ -18,6 +18,7 @@ import tools.jackson.core.type.TypeReference;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * {@code /refresh} - self-service role restore for a returning member. If they left, were kicked,
@@ -81,10 +82,15 @@ class RefreshSlashCommandListener {
                 .map(Role::getAsMention).reduce((a, b) -> a + " " + b).orElse("");
         event.getHook().sendMessage(successMessage(event, roleMentions)).queue();
 
+        // "verification", not "commands" - the generic per-invocation "/refresh" row (status,
+        // options, duration) is already written by CommandInteractionListener.logCommand for every
+        // slash command; a second "commands"-category entry here collided with that table's shape
+        // (no status/options of its own) and rendered as a stray "unknown"-status row next to it.
         Map<String, Object> details = new LinkedHashMap<>();
-        details.put("roleIds", outcome.rolesToApply().stream().map(Role::getId).toList());
+        details.put("status", "success");
+        details.put("result", "Restored: " + outcome.rolesToApply().stream().map(Role::getName).collect(Collectors.joining(", ")));
         auditLogService.log(new AuditLogEntry(
-                "commands", "/refresh restored roles",
+                "verification", "/refresh restored roles",
                 event.getGuild().getId(), event.getGuild().getName(),
                 event.getChannel().getId(), event.getChannel().getName(),
                 member.getId(), member.getUser().getName(), details));

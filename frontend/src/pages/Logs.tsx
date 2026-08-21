@@ -75,6 +75,25 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Looks up a Discord snowflake (role/channel/category id) by whatever the guild's roles/channels
+ *  fetch resolved it to, or null if it's not one of those (a user id, or the guild's already gone). */
+type IdResolver = (id: string) => string | null;
+const NO_RESOLVER: IdResolver = () => null;
+
+const SNOWFLAKE = /^\d{15,20}$/;
+const CHANNEL_TOKEN = /\{channel=(\d{15,20})\}/g;
+
+/** Resolves a bare snowflake string to its role/channel name, and any {channel=<id>} tokens
+ *  embedded in message templates to "#name" - instead of showing raw Discord IDs nobody can read. */
+function resolveText(text: string, resolve: IdResolver): string {
+  const withChannels = text.replace(CHANNEL_TOKEN, (_match, id: string) => `#${resolve(id) ?? id}`);
+  if (SNOWFLAKE.test(withChannels)) {
+    const name = resolve(withChannels);
+    if (name) return name;
+  }
+  return withChannels;
+}
+
 // "trapChannelId" -> "Trap channel ID", "adminOnly" -> "Admin only"
 function humanizeKey(key: string): string {
   const spaced = key
@@ -94,7 +113,7 @@ function isBooleanMap(value: Record<string, unknown>): boolean {
 
 // A flat map of name -> enabled/disabled (e.g. bulk command toggles) reads better
 // as two grouped lists than as raw {"/warn":false,"/warns":true,...} JSON.
-function formatObject(value: Record<string, unknown>): string {
+function formatObject(value: Record<string, unknown>, resolve: IdResolver): string {
   if (isBooleanMap(value)) {
     const enabled = Object.keys(value).filter(k => value[k] === true);
     const disabled = Object.keys(value).filter(k => value[k] === false);
@@ -103,20 +122,21 @@ function formatObject(value: Record<string, unknown>): string {
       disabled.length > 0 ? `disabled: ${disabled.join(", ")}` : null,
     ].filter(Boolean).join(" · ");
   }
-  return Object.entries(value).map(([k, v]) => `${humanizeKey(k)}: ${formatScalar(v)}`).join(", ");
+  return Object.entries(value).map(([k, v]) => `${humanizeKey(k)}: ${formatScalar(v, resolve)}`).join(", ");
 }
 
-function formatScalar(value: unknown): string {
+function formatScalar(value: unknown, resolve: IdResolver = NO_RESOLVER): string {
   if (value === null || value === undefined || value === "") return "none";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.length === 0 ? "none" : value.map(formatScalar).join(", ");
-  if (isPlainObject(value)) return formatObject(value);
+  if (Array.isArray(value)) return value.length === 0 ? "none" : value.map(v => formatScalar(v, resolve)).join(", ");
+  if (isPlainObject(value)) return formatObject(value, resolve);
+  if (typeof value === "string") return resolveText(value, resolve);
   return String(value);
 }
 
-function DetailValue({ value }: { value: unknown }) {
+function DetailValue({ value, resolve = NO_RESOLVER }: { value: unknown; resolve?: IdResolver }) {
   if (value === null || value === undefined || value === "") return <span className="text-zinc-600">-</span>;
-  return <>{formatScalar(value)}</>;
+  return <>{formatScalar(value, resolve)}</>;
 }
 
 function isScalarArray(value: unknown[]): boolean {
@@ -171,45 +191,61 @@ function FieldRow({ label, block, children }: { label: string; block: boolean; c
 
 /** Renders one JSON-ish value as an indented structure - nested objects/arrays get their own
  *  rows instead of being flattened into one long comma-joined string. */
-function ValueView({ value }: { value: unknown }) {
+function ValueView({ value, resolve = NO_RESOLVER }: { value: unknown; resolve?: IdResolver }) {
   if (value === null || value === undefined || value === "") return <span className="text-zinc-600">none</span>;
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-zinc-600">none</span>;
-    if (isScalarArray(value)) return <>{formatScalar(value)}</>;
+    if (isScalarArray(value)) return <>{formatScalar(value, resolve)}</>;
     return (
       <div className="space-y-1">
         {value.map((item, i) => (
           <div key={itemKey(item, i)} className="rounded border border-zinc-800/80 bg-zinc-900/40 px-2 py-1">
             {itemLabel(item) && <p className="mb-0.5 font-semibold text-zinc-300">{itemLabel(item)}</p>}
-            <ValueView value={item} />
+            <ValueView value={item} resolve={resolve} />
           </div>
         ))}
       </div>
     );
   }
   if (isPlainObject(value)) {
-    if (isBooleanMap(value)) return <>{formatObject(value)}</>;
+    if (isBooleanMap(value)) return <>{formatObject(value, resolve)}</>;
     return (
       <div className="space-y-0.5">
         {Object.entries(value).map(([k, v]) => (
-          <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} /></FieldRow>
+          <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} resolve={resolve} /></FieldRow>
         ))}
       </div>
     );
   }
-  return <>{formatScalar(value)}</>;
+  return <>{formatScalar(value, resolve)}</>;
+}
+
+/** null/undefined/""/[] all mean "nothing set" - collapsing them to one canonical shape before
+ *  comparing before/after keeps a field that went from unset to unset-a-different-way (e.g.
+ *  `null` -> `[]`) from showing up as a no-op "none → none" diff line. */
+function normalizeEmpty(value: unknown): unknown {
+  if (value === undefined || value === null || value === "") return null;
+  if (Array.isArray(value) && value.length === 0) return null;
+  return value;
+}
+
+/** Long or multi-line values (message templates, embedded {channel=id} tokens) read better as a
+ *  stacked removed/added block than crammed inline after a "→", where the old and new text run
+ *  together with nothing separating them. */
+function isLongText(text: string): boolean {
+  return text.length > 40 || text.includes("\n");
 }
 
 /** Deep before/after diff - recurses into nested objects and matches array items by
  *  {@link itemKey} so only what actually changed is shown, instead of re-dumping an entire
  *  nested plan/step structure because one field two levels down changed. Returns null when
  *  the two values are equal (caller skips rendering anything for that branch). */
-function DiffView({ before, after }: { before: unknown; after: unknown }): ReactNode {
-  if (JSON.stringify(before) === JSON.stringify(after)) return null;
+function DiffView({ before, after, resolve = NO_RESOLVER }: { before: unknown; after: unknown; resolve?: IdResolver }): ReactNode {
+  if (JSON.stringify(normalizeEmpty(before)) === JSON.stringify(normalizeEmpty(after))) return null;
 
   if (Array.isArray(before) && Array.isArray(after)) {
     if (isScalarArray(before) && isScalarArray(after)) {
-      return <>{formatScalar(before)} <span className="text-zinc-600">→</span> {formatScalar(after)}</>;
+      return <>{formatScalar(before, resolve)} <span className="text-zinc-600">→</span> {formatScalar(after, resolve)}</>;
     }
     const beforeMap = new Map(before.map((v, i) => [itemKey(v, i), v]));
     const afterMap = new Map(after.map((v, i) => [itemKey(v, i), v]));
@@ -219,7 +255,7 @@ function DiffView({ before, after }: { before: unknown; after: unknown }): React
       const hasAfter = afterMap.has(key);
       const label = itemLabel(hasAfter ? afterMap.get(key) : beforeMap.get(key));
       if (hasBefore && hasAfter) {
-        const inner = DiffView({ before: beforeMap.get(key), after: afterMap.get(key) });
+        const inner = DiffView({ before: beforeMap.get(key), after: afterMap.get(key), resolve });
         if (inner) rows.push(
           <div key={key} className="rounded border border-zinc-800/80 bg-zinc-900/40 px-2 py-1">
             {label && <p className="mb-0.5 font-semibold text-zinc-300">{label}</p>}
@@ -230,14 +266,14 @@ function DiffView({ before, after }: { before: unknown; after: unknown }): React
         rows.push(
           <div key={key} className="rounded border border-red-500/20 bg-red-500/5 px-2 py-1 text-red-300/90">
             <p className="mb-0.5 font-semibold">− Removed{label ? `: ${label}` : ""}</p>
-            <ValueView value={beforeMap.get(key)} />
+            <ValueView value={beforeMap.get(key)} resolve={resolve} />
           </div>
         );
       } else {
         rows.push(
           <div key={key} className="rounded border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-300/90">
             <p className="mb-0.5 font-semibold">+ Added{label ? `: ${label}` : ""}</p>
-            <ValueView value={afterMap.get(key)} />
+            <ValueView value={afterMap.get(key)} resolve={resolve} />
           </div>
         );
       }
@@ -248,7 +284,7 @@ function DiffView({ before, after }: { before: unknown; after: unknown }): React
   if (isPlainObject(before) && isPlainObject(after)) {
     const rows: ReactNode[] = [];
     new Set([...Object.keys(before), ...Object.keys(after)]).forEach(key => {
-      const inner = DiffView({ before: before[key], after: after[key] });
+      const inner = DiffView({ before: before[key], after: after[key], resolve });
       if (inner) rows.push(
         <FieldRow key={key} label={humanizeKey(key)} block={isBlockValue(before[key]) || isBlockValue(after[key])}>
           {inner}
@@ -258,20 +294,30 @@ function DiffView({ before, after }: { before: unknown; after: unknown }): React
     return rows.length > 0 ? <div className="space-y-0.5">{rows}</div> : null;
   }
 
-  return <>{formatScalar(before)} <span className="text-zinc-600">→</span> {formatScalar(after)}</>;
+  const beforeText = formatScalar(before, resolve);
+  const afterText = formatScalar(after, resolve);
+  if (isLongText(beforeText) || isLongText(afterText)) {
+    return (
+      <div className="space-y-1">
+        <p className="whitespace-pre-wrap break-words rounded border border-red-500/20 bg-red-500/5 px-2 py-1 text-red-300/90">− {beforeText}</p>
+        <p className="whitespace-pre-wrap break-words rounded border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-300/90">+ {afterText}</p>
+      </div>
+    );
+  }
+  return <>{beforeText} <span className="text-zinc-600">→</span> {afterText}</>;
 }
 
-function DetailsView({ details }: { details: Record<string, unknown> }) {
+function DetailsView({ details, resolve = NO_RESOLVER }: { details: Record<string, unknown>; resolve?: IdResolver }) {
   const { before, after, ...rest } = details;
   const hasChange = "before" in details || "after" in details;
   const restEntries = Object.entries(rest);
-  const changeNode = hasChange ? <DiffView before={before} after={after} /> : null;
+  const changeNode = hasChange ? <DiffView before={before} after={after} resolve={resolve} /> : null;
 
   if (restEntries.length === 0 && !hasChange) return null;
   return (
     <div className="space-y-1">
       {restEntries.map(([k, v]) => (
-        <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} /></FieldRow>
+        <FieldRow key={k} label={humanizeKey(k)} block={isBlockValue(v)}><ValueView value={v} resolve={resolve} /></FieldRow>
       ))}
       {hasChange && (
         changeNode
@@ -391,7 +437,7 @@ function LoginsTable({ entries }: { entries: AccessLog[] }) {
   );
 }
 
-function DashboardTable({ entries }: { entries: AuditLog[] }) {
+function DashboardTable({ entries, resolve }: { entries: AuditLog[]; resolve: IdResolver }) {
   return (
     <TableShell headers={["Time", "User", "Action", "Details"]} empty={entries.length === 0} emptyLabel="dashboard logs">
       {entries.map(log => (
@@ -410,7 +456,7 @@ function DashboardTable({ entries }: { entries: AuditLog[] }) {
             {(log.channel_name || log.channel_id) && (
               <p className="mb-1">#{log.channel_name ?? log.channel_id}</p>
             )}
-            {log.details && <DetailsView details={log.details} />}
+            {log.details && <DetailsView details={log.details} resolve={resolve} />}
           </td>
         </tr>
       ))}
@@ -551,10 +597,34 @@ function CommandsTable({ logs }: { logs: AuditLog[] }) {
   );
 }
 
+/** Role/channel/category id -> name, for resolving the raw Discord snowflakes that show up inside
+ *  audit log details (allowlists, log-channel routing, {channel=id} message tokens) into something
+ *  readable. IDs are unique across all three kinds within a guild, so one merged map is safe. */
+function useIdNameMap(guildId: string | null): IdResolver {
+  const [map, setMap] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!guildId) { setMap(new Map()); return; }
+    let cancelled = false;
+    Promise.all([
+      adminApi.getDiscordRoles(guildId),
+      adminApi.getDiscordTextChannels(guildId),
+      adminApi.getDiscordCategories(guildId),
+    ]).then(([roles, channels, categories]) => {
+      if (cancelled) return;
+      const next = new Map<string, string>();
+      [...roles, ...channels, ...categories].forEach(item => next.set(item.id, item.name));
+      setMap(next);
+    }).catch(() => { /* best-effort - falls back to raw IDs */ });
+    return () => { cancelled = true; };
+  }, [guildId]);
+  return useMemo(() => (id: string) => map.get(id) ?? null, [map]);
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function Logs() {
   const guildId = useSelectedGuildId();
+  const resolve = useIdNameMap(guildId);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [dashboardAuditLogs, setDashboardAuditLogs] = useState<AuditLog[]>([]);
@@ -826,7 +896,7 @@ export function Logs() {
 
         {!loading && !error && activeTab === "dashboard" && (
           <>
-            <DashboardTable entries={pagedDashboard} />
+            <DashboardTable entries={pagedDashboard} resolve={resolve} />
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
