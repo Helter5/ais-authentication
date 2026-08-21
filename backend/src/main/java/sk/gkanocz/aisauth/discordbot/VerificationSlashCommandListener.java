@@ -247,6 +247,7 @@ class VerificationSlashCommandListener {
                         "Verifikácia zlyhala — nemôžem ti priradiť rolu. Kontaktuj administrátora.").queue();
                 return;
             }
+            clearInactiveRole(event.getGuild(), member);
 
             eventLogEmbedSender.send(event.getGuild(), LogEventType.CODE_CONFIRMED,
                     EventLogEmbedSender.base(EventLogEmbedSender.SUCCESS, "User Verified", null)
@@ -341,6 +342,7 @@ class VerificationSlashCommandListener {
                                 + "**. Databázový záznam bol vrátený späť.").queue();
                 return;
             }
+            clearInactiveRole(event.getGuild(), target);
 
             eventLogEmbedSender.send(event.getGuild(), LogEventType.MANUAL_VERIFY_PERFORMED,
                     EventLogEmbedSender.base(EventLogEmbedSender.WARNING, "Manual Verification", null)
@@ -373,6 +375,27 @@ class VerificationSlashCommandListener {
             log.error("Failed to assign verified role {} to {} in guild {}: {}",
                     role.getId(), member.getId(), guild.getId(), e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * A member wiped while inactive (e.g. between Bc. and Ing. studies) keeps the inactive/ex-student
+     * role forever otherwise - re-verifying should clear it now that they hold the verified role again.
+     */
+    private void clearInactiveRole(Guild guild, Member member) {
+        try {
+            String inactiveRoleId = guildSettingsService.getOrCreate(guild.getId()).getInactiveRoleId();
+            if (inactiveRoleId == null) {
+                return;
+            }
+            Role inactiveRole = guild.getRoleById(inactiveRoleId);
+            if (inactiveRole == null || !member.getRoles().contains(inactiveRole)) {
+                return;
+            }
+            guild.removeRoleFromMember(member, inactiveRole).reason("Re-verified").complete();
+        } catch (Exception e) {
+            log.error("Failed to remove inactive role from {} in guild {}: {}",
+                    member.getId(), guild.getId(), e.getMessage());
         }
     }
 }

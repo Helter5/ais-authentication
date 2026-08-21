@@ -378,6 +378,34 @@ class VerificationSlashCommandListenerTest {
     }
 
     @Test
+    void codeRemovesInactiveRoleFromExStudentOnReVerify() {
+        asCommand("code");
+        Role inactiveRole = mock(Role.class);
+        GuildSettings settings = new GuildSettings("guild-1");
+        settings.setInactiveRoleId("inactive-1");
+        when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settings);
+        Role role = mock(Role.class);
+        when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(role);
+        Member member = mock(Member.class);
+        when(member.getRoles()).thenReturn(List.of(inactiveRole));
+        when(event.getMember()).thenReturn(member);
+        stubStringOption("code", "ABC123");
+        VerifiedUser verifiedUser = new VerifiedUser("12345", "discord-1", "guild-1", "s@stuba.sk");
+        when(verificationService.confirmVerification("discord-1", "guild-1", "ABC123")).thenReturn(verifiedUser);
+
+        AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.addRoleToMember(member, role)).thenReturn(addRoleAction);
+        when(guild.getRoleById("inactive-1")).thenReturn(inactiveRole);
+        AuditableRestAction<Void> removeRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.removeRoleFromMember(member, inactiveRole)).thenReturn(removeRoleAction);
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(removeRoleAction).complete();
+    }
+
+    @Test
     void codeDoesNotReassignRoleWhenMemberAlreadyHasIt() {
         asCommand("code");
         enableVerification();
@@ -558,6 +586,38 @@ class VerificationSlashCommandListenerTest {
         verify(addRoleAction).complete();
         verify(eventLogEmbedSender).send(eq(guild), eq(LogEventType.MANUAL_VERIFY_PERFORMED), any());
         verify(hook).sendMessage(contains("has been manually verified"));
+    }
+
+    @Test
+    void manualVerifyRemovesInactiveRoleFromExStudent() {
+        asCommand("manualverify");
+        Role inactiveRole = mock(Role.class);
+        Member target = mock(Member.class);
+        when(target.getId()).thenReturn("target-1");
+        when(target.getRoles()).thenReturn(List.of(inactiveRole));
+        User targetUser = mock(User.class);
+        when(targetUser.getName()).thenReturn("Target");
+        when(target.getUser()).thenReturn(targetUser);
+        stubMemberOption("user", target);
+        stubStringOption("ais_id", "12345");
+        stubStringOption("email", "s@stuba.sk");
+        Role role = mock(Role.class);
+        when(verifiedRoleResolver.resolveAssignable(guild)).thenReturn(role);
+        VerifiedUser verifiedUser = new VerifiedUser("12345", "target-1", "guild-1", "s@stuba.sk");
+        when(verificationService.manuallyVerify("target-1", "guild-1", "12345", "s@stuba.sk")).thenReturn(verifiedUser);
+        AuditableRestAction<Void> addRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.addRoleToMember(target, role)).thenReturn(addRoleAction);
+        GuildSettings settings = new GuildSettings("guild-1");
+        settings.setInactiveRoleId("inactive-1");
+        when(guildSettingsService.getOrCreate("guild-1")).thenReturn(settings);
+        when(guild.getRoleById("inactive-1")).thenReturn(inactiveRole);
+        AuditableRestAction<Void> removeRoleAction = mock(AuditableRestAction.class, Mockito.RETURNS_SELF);
+        when(guild.removeRoleFromMember(target, inactiveRole)).thenReturn(removeRoleAction);
+        stubTextReply();
+
+        listener.dispatch(event, null);
+
+        verify(removeRoleAction).complete();
     }
 
     @Test
