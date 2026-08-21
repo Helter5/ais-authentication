@@ -38,7 +38,10 @@ type CmdSettingsData = {
   ephemeral?: boolean;
   includeBots?: boolean;
   message?: string;
+  /** @deprecated pre-split flat list - still read as a fallback when the ZS/LS lists below are both empty. */
   allowedRoleIds?: string[];
+  allowedRoleIdsWinter?: string[];
+  allowedRoleIdsSummer?: string[];
   approverRoleIds?: string[];
   excludeRoleIds?: string[];
   subcommandEphemeral?: Record<string, boolean>;
@@ -103,7 +106,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: false },
-  pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIds: [], approverRoleIds: [] },
+  pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIdsWinter: [], allowedRoleIdsSummer: [], approverRoleIds: [] },
   faq:          { ephemeral: true, message: DEFAULT_FAQ_MESSAGE },
   odpocet:      { subcommandEphemeral: { add: false, list: true } },
   refresh:      { ephemeral: true, message: DEFAULT_REFRESH_MESSAGE, excludeRoleIds: [] },
@@ -269,7 +272,8 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
   const [ephemeral, setEphemeral] = useState(defaults.ephemeral ?? false);
   const [includeBots, setIncludeBots] = useState(defaults.includeBots ?? false);
   const [message, setMessage] = useState(defaults.message ?? "");
-  const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(defaults.allowedRoleIds ?? []);
+  const [allowedRoleIdsWinter, setAllowedRoleIdsWinter] = useState<string[]>(defaults.allowedRoleIdsWinter ?? []);
+  const [allowedRoleIdsSummer, setAllowedRoleIdsSummer] = useState<string[]>(defaults.allowedRoleIdsSummer ?? []);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
   const [excludeRoleIds, setExcludeRoleIds] = useState<string[]>(defaults.excludeRoleIds ?? []);
   const [subcommandEphemeral, setSubcommandEphemeral] = useState<Record<string, boolean>>(defaults.subcommandEphemeral ?? {});
@@ -292,7 +296,11 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
         if (schema.ephemeral)   setEphemeral(data.ephemeral ?? defaults.ephemeral ?? false);
         if (schema.includeBots) setIncludeBots(data.includeBots ?? defaults.includeBots ?? false);
         if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
-        if (schema.allowedRoles) setAllowedRoleIds(data.allowedRoleIds ?? defaults.allowedRoleIds ?? []);
+        if (schema.allowedRoles) {
+          // Fall back to the pre-split flat list for a guild that hasn't re-saved Settings yet.
+          setAllowedRoleIdsWinter(data.allowedRoleIdsWinter ?? data.allowedRoleIds ?? defaults.allowedRoleIdsWinter ?? []);
+          setAllowedRoleIdsSummer(data.allowedRoleIdsSummer ?? data.allowedRoleIds ?? defaults.allowedRoleIdsSummer ?? []);
+        }
         if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
         if (schema.excludeRoles) setExcludeRoleIds(data.excludeRoleIds ?? defaults.excludeRoleIds ?? []);
         if (schema.subcommandEphemeral) setSubcommandEphemeral({ ...defaults.subcommandEphemeral, ...data.subcommandEphemeral });
@@ -314,7 +322,8 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     defaults.ephemeral,
     defaults.includeBots,
     defaults.message,
-    defaults.allowedRoleIds,
+    defaults.allowedRoleIdsWinter,
+    defaults.allowedRoleIdsSummer,
     defaults.approverRoleIds,
     defaults.excludeRoleIds,
     defaults.subcommandEphemeral,
@@ -343,7 +352,10 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     if (schema.ephemeral)   data.ephemeral = ephemeral;
     if (schema.includeBots) data.includeBots = includeBots;
     if (schema.message)     data.message = message;
-    if (schema.allowedRoles) data.allowedRoleIds = allowedRoleIds;
+    if (schema.allowedRoles) {
+      data.allowedRoleIdsWinter = allowedRoleIdsWinter;
+      data.allowedRoleIdsSummer = allowedRoleIdsSummer;
+    }
     if (schema.approverRoles) data.approverRoleIds = approverRoleIds;
     if (schema.excludeRoles) data.excludeRoleIds = excludeRoleIds;
     if (schema.subcommandEphemeral) data.subcommandEphemeral = subcommandEphemeral;
@@ -430,12 +442,19 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
             </div>
           )}
           {schema.allowedRoles && (
-            <div>
+            <div className="space-y-4">
               <p className="text-sm font-bold text-zinc-200">Allowed subject roles</p>
-              <p className="text-xs text-zinc-500 mt-0.5 mb-2">
-                Only these roles can be self-assigned via /pridatpredmet - everything else is blocked. Also filters what the command's autocomplete suggests. Empty = nothing is allowed yet.
+              <p className="text-xs text-zinc-500 -mt-3">
+                Only these roles can be self-assigned via /pridatpredmet, and only during their own semester - everything else is blocked. Also filters what the command's autocomplete suggests.
               </p>
-              <MultiPicker options={roles} selected={allowedRoleIds} onChange={setAllowedRoleIds} placeholder="Select Role" />
+              <div>
+                <p className="text-xs font-semibold text-sky-300 mb-2">❄️ Winter (ZS)</p>
+                <MultiPicker options={roles} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-amber-300 mb-2">☀️ Summer (LS)</p>
+                <MultiPicker options={roles} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role" />
+              </div>
             </div>
           )}
           {schema.approverRoles && (
@@ -447,9 +466,10 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
               <MultiPicker options={roles} selected={approverRoleIds} onChange={setApproverRoleIds} placeholder="Select Role" />
             </div>
           )}
-          {schema.allowedRoles && schema.approverRoles && (allowedRoleIds.length === 0 || approverRoleIds.length === 0) && (
+          {schema.allowedRoles && schema.approverRoles
+            && ((allowedRoleIdsWinter.length === 0 && allowedRoleIdsSummer.length === 0) || approverRoleIds.length === 0) && (
             <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">
-              /pridatpredmet will refuse to run until both allowed subject roles and approvers are set.
+              /pridatpredmet will refuse to run until at least one semester has allowed subject roles and approvers are set.
             </p>
           )}
           {schema.excludeRoles && (

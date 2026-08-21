@@ -113,6 +113,21 @@ public class SemesterOperationService {
         return adminSettingsService.get(CURRENT_PLAN_PREFIX + guildId, String.class, null);
     }
 
+    /**
+     * The semester type (WINTER/SUMMER) the guild is currently in, or null if no plan has completed
+     * yet or the current plan's resulting semester has no type configured. Used outside this package
+     * to filter which subject roles /pridatpredmet may grant per semester.
+     */
+    public String currentSemesterType(String guildId) {
+        String planId = currentPlan(guildId);
+        if (planId == null) {
+            return null;
+        }
+        SwitchSemesterSettings settings = adminSettingsService.get(
+                SemesterController.configsKey(guildId), SwitchSemesterSettings.class, SwitchSemesterSettings.empty());
+        return settings.resultingSemesterType(planId);
+    }
+
     void setCurrentPlan(String guildId, String planId) {
         adminSettingsService.set(CURRENT_PLAN_PREFIX + guildId, planId);
         // Single choke point for both a completed Plan run (SemesterPlanService.runPlan) and a

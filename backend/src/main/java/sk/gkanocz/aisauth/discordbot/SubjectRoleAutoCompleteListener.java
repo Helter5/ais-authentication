@@ -7,7 +7,9 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.Command;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.semester.SemesterOperationService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 
 import java.util.List;
@@ -30,6 +32,9 @@ public class SubjectRoleAutoCompleteListener extends ListenerAdapter {
     private static final int MAX_CHOICES = 25;
 
     private final AdminSettingsService adminSettingsService;
+    /** @Lazy: same startup-cycle guard as SubjectRoleSlashCommandListener - see its javadoc. */
+    @Lazy
+    private final SemesterOperationService semesterOperationService;
 
     @Override
     public void onCommandAutoCompleteInteraction(CommandAutoCompleteInteractionEvent event) {
@@ -42,7 +47,8 @@ public class SubjectRoleAutoCompleteListener extends ListenerAdapter {
             return;
         }
 
-        Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId());
+        String semesterType = semesterOperationService.currentSemesterType(guild.getId());
+        Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId(), semesterType);
         Member member = event.getMember();
         Set<String> memberRoleIds = member == null
                 ? Set.of()

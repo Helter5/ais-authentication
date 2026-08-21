@@ -11,7 +11,9 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.semester.SemesterOperationService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.subjectrole.SubjectRoleRequest;
@@ -52,6 +54,10 @@ class SubjectRoleSlashCommandListener {
     private final SubjectRoleService subjectRoleService;
     private final AdminSettingsService adminSettingsService;
     private final EventLogEmbedSender eventLogEmbedSender;
+    /** @Lazy breaks a startup cycle: DiscordBotService -> ... -> this -> SemesterOperationService ->
+     *  DashboardAuditLogger -> DiscordBotService. Resolved on first actual use, well after both sides exist. */
+    @Lazy
+    private final SemesterOperationService semesterOperationService;
 
     void dispatch(SlashCommandInteractionEvent event, Boolean ephemeralOverride) {
         if (!SubjectRoleSettings.COMMAND_NAME.equals(event.getName())) {
@@ -78,10 +84,12 @@ class SubjectRoleSlashCommandListener {
             return;
         }
 
-        Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId());
+        String semesterType = semesterOperationService.currentSemesterType(guild.getId());
+        Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId(), semesterType);
         Set<String> approverRoleIds = SubjectRoleSettings.approverRoleIds(adminSettingsService, guild.getId());
         boolean logChannelSet = eventLogEmbedSender.resolveChannel(guild, LogEventType.SUBJECT_ROLE_PENDING_APPROVAL) != null;
-        if (allowedRoleIds.isEmpty() || approverRoleIds.isEmpty() || !logChannelSet) {
+        if (!SubjectRoleSettings.anyAllowedRoleIdsConfigured(adminSettingsService, guild.getId())
+                || approverRoleIds.isEmpty() || !logChannelSet) {
             event.getHook().sendMessage("Tento príkaz ešte nie je nastavený administrátorom "
                     + "(chýbajú povolené predmetové role, schvaľovatelia, alebo Log Channel v Settings), skús to neskôr.").queue();
             return;
