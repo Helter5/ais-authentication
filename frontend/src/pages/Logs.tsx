@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
   AlertCircle, Bot, Command, Gauge, Hash, History, Info, Loader2, LogIn, Settings2,
-  ShieldAlert, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck, Users,
+  ShieldAlert, Tags, TriangleAlert, Search, ChevronLeft, ChevronRight, X, UserCheck, Users,
 } from "lucide-react";
 import { adminApi, apiErrorMessage, type AuditLog, type MigrationDetail, type MigrationGroup, type VisibilityRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 
-type Tab = "dashboard" | "logins" | "warnings" | "automod" | "verification" | "commands" | "operations";
+type Tab = "dashboard" | "logins" | "warnings" | "automod" | "verification" | "commands" | "operations" | "rolemenu";
 type AccessLog = Awaited<ReturnType<typeof adminApi.getAccessLogs>>[number];
 type WarningLog = Awaited<ReturnType<typeof adminApi.getAdminWarnings>>[number];
 
@@ -22,6 +22,7 @@ const TABS: { id: Tab; label: string; icon: ElementType }[] = [
   { id: "automod", label: "Automod", icon: ShieldAlert },
   { id: "verification", label: "Verification", icon: UserCheck },
   { id: "commands", label: "Commands", icon: Command },
+  { id: "rolemenu", label: "Role Menu", icon: Tags },
 ];
 
 const AUTOMOD_LOGGED_ACTIONS = [
@@ -660,6 +661,31 @@ function OperationsTable({ logs, onSelect }: { logs: AuditLog[]; onSelect: (log:
   );
 }
 
+function RoleMenuTable({ logs }: { logs: AuditLog[] }) {
+  return (
+    <TableShell headers={["Time", "User", "Config", "Added", "Removed", "Blocked"]} empty={logs.length === 0} emptyLabel="role menu logs">
+      {logs.map(log => {
+        const added = Array.isArray(log.details?.added) ? log.details.added as string[] : [];
+        const removed = Array.isArray(log.details?.removed) ? log.details.removed as string[] : [];
+        const blocked = Array.isArray(log.details?.blocked) ? log.details.blocked as string[] : [];
+        return (
+          <tr key={log.id} className="bg-zinc-950/30 align-top hover:bg-zinc-900/70">
+            <td className="whitespace-nowrap px-4 py-3 text-xs text-zinc-400">{fmt(log.created_at)}</td>
+            <td className="px-4 py-3">
+              <p className="font-medium text-zinc-200">{log.username ?? "Unknown user"}</p>
+              <p className="font-mono text-[11px] text-zinc-600">{log.user_id ?? "-"}</p>
+            </td>
+            <td className="px-4 py-3 font-mono text-xs text-zinc-500">#{String(log.details?.configId ?? "-")}</td>
+            <td className="max-w-xs px-4 py-3 text-xs text-emerald-400">{added.length > 0 ? added.join(", ") : <span className="text-zinc-600">-</span>}</td>
+            <td className="max-w-xs px-4 py-3 text-xs text-red-400">{removed.length > 0 ? removed.join(", ") : <span className="text-zinc-600">-</span>}</td>
+            <td className="max-w-xs px-4 py-3 text-xs text-amber-400">{blocked.length > 0 ? blocked.join(", ") : <span className="text-zinc-600">-</span>}</td>
+          </tr>
+        );
+      })}
+    </TableShell>
+  );
+}
+
 /** Role/channel/category id -> name, for resolving the raw Discord snowflakes that show up inside
  *  audit log details (allowlists, log-channel routing, {channel=id} message tokens) into something
  *  readable. IDs are unique across all three kinds within a guild, so one merged map is safe. */
@@ -1011,6 +1037,16 @@ export function Logs() {
     }),
   [auditLogs, search]);
 
+  const filteredRoleMenu = useMemo(() =>
+    auditLogs.filter(log => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const roles = [log.details?.added, log.details?.removed, log.details?.blocked]
+        .filter(Array.isArray).flat().join(" ").toLowerCase();
+      return (log.username?.toLowerCase().includes(q) || log.user_id?.includes(q) || roles.includes(q)) ?? false;
+    }),
+  [auditLogs, search]);
+
   // ── Paged slices ──────────────────────────────────────────────────────────
 
   const activeFiltered =
@@ -1019,6 +1055,7 @@ export function Logs() {
     : activeTab === "warnings" ? filteredWarnings
     : activeTab === "automod" || activeTab === "verification" ? filteredAutomod
     : activeTab === "operations" ? filteredOperations
+    : activeTab === "rolemenu" ? filteredRoleMenu
     : filteredCommands;
 
   const totalFiltered = activeFiltered.length;
@@ -1029,6 +1066,7 @@ export function Logs() {
   const pagedAutomod = slice(filteredAutomod) as AuditLog[];
   const pagedCommands = slice(filteredCommands) as AuditLog[];
   const pagedOperations = slice(filteredOperations) as AuditLog[];
+  const pagedRoleMenu = slice(filteredRoleMenu) as AuditLog[];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1038,6 +1076,7 @@ export function Logs() {
     : activeTab === "warnings" ? "Search user, moderator, reason…"
     : activeTab === "automod" || activeTab === "verification" ? "Search user, action, trigger…"
     : activeTab === "operations" ? "Search user, action…"
+    : activeTab === "rolemenu" ? "Search user, role…"
     : "Search user, command, args…";
 
   if (!guildId) {
@@ -1183,6 +1222,12 @@ export function Logs() {
         {!loading && !error && activeTab === "operations" && (
           <>
             <OperationsTable logs={pagedOperations} onSelect={setSelectedOperation} />
+            <Pagination page={page} total={totalFiltered} onChange={setPage} />
+          </>
+        )}
+        {!loading && !error && activeTab === "rolemenu" && (
+          <>
+            <RoleMenuTable logs={pagedRoleMenu} />
             <Pagination page={page} total={totalFiltered} onChange={setPage} />
           </>
         )}
