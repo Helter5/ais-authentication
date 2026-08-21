@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.auth.ManagerAccess;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -37,6 +38,7 @@ public class RoleMenuController {
     private final GuildAccessService guildAccessService;
     private final AdminSettingsService adminSettingsService;
     private final DiscordBotService discordBotService;
+    private final DashboardAuditLogger dashboardAuditLogger;
 
     @ManagerAccess
     @GetMapping("/enabled")
@@ -51,6 +53,7 @@ public class RoleMenuController {
         guildAccessService.assertCanManageGuild(claims, request.guildId());
         boolean enabled = Boolean.TRUE.equals(request.enabled());
         adminSettingsService.set("rolemenu_enabled_" + request.guildId(), enabled);
+        dashboardAuditLogger.log(claims, request.guildId(), enabled ? "Enabled role menus" : "Disabled role menus", Map.of());
         return Map.of("success", true, "enabled", enabled);
     }
 
@@ -82,6 +85,8 @@ public class RoleMenuController {
 
         Guild guild = discordBotService.requireGuild(request.guildId());
         roleMenuService.postOrUpdateMenu(guild, config, null, null);
+        dashboardAuditLogger.log(claims, guild, "Created role menu",
+                Map.of("configName", request.configName(), "title", request.title(), "channelId", request.channelId()));
         return toResponse(config);
     }
 
@@ -97,6 +102,7 @@ public class RoleMenuController {
 
         String previousChannelId = config.getChannelId();
         String previousMessageId = config.getMessageId();
+        RoleMenuConfigResponse before = toResponse(config);
         config.update(
                 request.channelId(), request.configName(), request.title(), request.description(),
                 request.uiType(), request.messageType(),
@@ -108,6 +114,7 @@ public class RoleMenuController {
 
         Guild guild = discordBotService.requireGuild(request.guildId());
         roleMenuService.postOrUpdateMenu(guild, config, previousChannelId, previousMessageId);
+        dashboardAuditLogger.log(claims, guild, "Updated role menu", Map.of("before", before, "after", toResponse(config)));
         return toResponse(config);
     }
 
@@ -135,6 +142,10 @@ public class RoleMenuController {
         discordBotService.jda().map(jda -> jda.getGuildById(guildId))
                 .ifPresent(guild -> roleMenuService.deleteMenuMessage(guild, config));
         roleMenuConfigRepository.deleteByIdAndGuildId(id, guildId);
+        java.util.Map<String, Object> deletedDetails = new java.util.LinkedHashMap<>();
+        deletedDetails.put("configName", config.getConfigName());
+        deletedDetails.put("title", config.getTitle());
+        dashboardAuditLogger.log(claims, guildId, "Deleted role menu", deletedDetails);
         return Map.of("success", true);
     }
 

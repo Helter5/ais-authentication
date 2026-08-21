@@ -17,6 +17,7 @@ import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
 import sk.gkanocz.aisauth.auth.SuperAdminAccess;
 import sk.gkanocz.aisauth.directory.LdapConnectionSample;
 import sk.gkanocz.aisauth.directory.LdapConnectionSampleRepository;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
@@ -60,6 +61,7 @@ public class AdminController {
     private final VerificationCodeRepository verificationCodeRepository;
     private final MaintenanceModeBroadcaster maintenanceModeBroadcaster;
     private final LdapConnectionSampleRepository ldapConnectionSampleRepository;
+    private final DashboardAuditLogger dashboardAuditLogger;
 
     @SuperAdminAccess
     @GetMapping("/settings")
@@ -170,6 +172,12 @@ public class AdminController {
         }
         adminSettingsService.set(MAINTENANCE_KEY, request.enabled());
         maintenanceModeBroadcaster.broadcast(request.enabled());
+        // Bot-wide, not tied to one guild - but the Logs page can only ever be viewed guild-by-guild,
+        // so this is logged once per currently-joined guild instead of once with no guild at all
+        // (which would be unreachable from any dashboard's Logs tab).
+        discordBotService.jda().ifPresent(jda -> jda.getGuilds().forEach(guild ->
+                dashboardAuditLogger.log(claims, guild, request.enabled() ? "Enabled maintenance mode" : "Disabled maintenance mode",
+                        Map.of("enabled", request.enabled()))));
         return Map.of("success", true, "enabled", request.enabled());
     }
 

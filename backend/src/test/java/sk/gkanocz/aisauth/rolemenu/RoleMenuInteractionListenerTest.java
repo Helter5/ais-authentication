@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.verification.MemberVerificationChecker;
 import tools.jackson.databind.ObjectMapper;
@@ -38,6 +39,8 @@ class RoleMenuInteractionListenerTest {
     private AdminSettingsService adminSettingsService;
     @Mock
     private MemberVerificationChecker memberVerificationChecker;
+    @Mock
+    private AuditLogService auditLogService;
 
     @Mock
     private Guild guild;
@@ -52,7 +55,7 @@ class RoleMenuInteractionListenerTest {
     @BeforeEach
     void setUp() {
         listener = new RoleMenuInteractionListener(
-                roleMenuConfigRepository, roleMenuService, adminSettingsService, memberVerificationChecker);
+                roleMenuConfigRepository, roleMenuService, adminSettingsService, memberVerificationChecker, auditLogService);
 
         Mockito.lenient().when(guild.getId()).thenReturn("guild-1");
         Mockito.lenient().when(adminSettingsService.isMaintenanceMode()).thenReturn(false);

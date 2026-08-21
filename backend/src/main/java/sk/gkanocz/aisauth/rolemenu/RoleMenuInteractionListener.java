@@ -10,13 +10,17 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
+import sk.gkanocz.aisauth.audit.AuditLogEntry;
+import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.discordbot.BotPermissionChecker;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.verification.MemberVerificationChecker;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -41,6 +45,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
     private final RoleMenuService roleMenuService;
     private final AdminSettingsService adminSettingsService;
     private final MemberVerificationChecker memberVerificationChecker;
+    private final AuditLogService auditLogService;
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
@@ -133,6 +138,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 }
             }
 
+            logSelfService(guild, member, configId, added, removed, blocked);
             event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
         });
     }
@@ -263,6 +269,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 applyOption(guild, member, option, shouldHave, keep, added, removed, blocked);
             }
 
+            logSelfService(guild, member, configId, added, removed, blocked);
             event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
         });
     }
@@ -313,6 +320,28 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
     private boolean canManageRole(Guild guild, Role role) {
         return BotPermissionChecker.missingPermissions(guild, Permission.MANAGE_ROLES).isEmpty()
                 && BotPermissionChecker.rolesAboveBot(guild, role).isEmpty();
+    }
+
+    /** Only worth a row when something actually happened or failed - a click that changed nothing
+     *  (e.g. re-picking an already-held NORMAL option) would otherwise flood this at full click
+     *  volume for zero informational value. */
+    private void logSelfService(Guild guild, Member member, Long configId,
+            List<String> added, List<String> removed, List<String> blocked) {
+        if (added.isEmpty() && removed.isEmpty() && blocked.isEmpty()) {
+            return;
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("configId", configId);
+        details.put("added", added);
+        details.put("removed", removed);
+        details.put("blocked", blocked);
+        try {
+            auditLogService.log(new AuditLogEntry(
+                    "rolemenu", "Role menu self-service", guild.getId(), guild.getName(), null, null,
+                    member.getId(), member.getUser().getName(), details));
+        } catch (Exception e) {
+            log.error("Failed to log role menu self-service for {} in guild {}", member.getId(), guild.getId(), e);
+        }
     }
 
     private String summarize(List<String> added, List<String> removed, List<String> blocked) {

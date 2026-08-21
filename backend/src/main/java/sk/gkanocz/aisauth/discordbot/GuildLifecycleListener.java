@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.audit.ActionType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
+import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleAddEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleRemoveEvent;
@@ -32,6 +34,34 @@ class GuildLifecycleListener extends ListenerAdapter {
     private final VerifiedUserRepository verifiedUserRepository;
     private final EventLogEmbedSender eventLogEmbedSender;
     private final RoleSnapshotService roleSnapshotService;
+
+    /** Bot added to a server (invited) - not gated on the allowed-guilds list, since that's exactly
+     *  what determines whether it'll actually do anything here; this just records that it happened. */
+    @Override
+    public void onGuildJoin(GuildJoinEvent event) {
+        Guild guild = event.getGuild();
+        try {
+            auditLogService.log(new AuditLogEntry(
+                    "dashboard", "Bot added to server", guild.getId(), guild.getName(), null, null, null, null,
+                    Map.of("memberCount", guild.getMemberCount())));
+        } catch (Exception e) {
+            log.error("Failed to log guild join for {}", guild.getId(), e);
+        }
+    }
+
+    /** Bot removed from a server (kicked, or the server left/deleted) - the Guild object is still
+     *  the last-cached snapshot, so name/memberCount are still readable here. */
+    @Override
+    public void onGuildLeave(GuildLeaveEvent event) {
+        Guild guild = event.getGuild();
+        try {
+            auditLogService.log(new AuditLogEntry(
+                    "dashboard", "Bot removed from server", guild.getId(), guild.getName(), null, null, null, null,
+                    Map.of("memberCount", guild.getMemberCount())));
+        } catch (Exception e) {
+            log.error("Failed to log guild leave for {}", guild.getId(), e);
+        }
+    }
 
     @Override
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {

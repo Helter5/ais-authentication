@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import sk.gkanocz.aisauth.discordbot.DashboardAuditLogger;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.DashboardSettings;
@@ -30,6 +31,7 @@ public class GuildAccessAdminController {
     private final GuildAccessService guildAccessService;
     private final AdminSettingsService adminSettingsService;
     private final DiscordBotService discordBotService;
+    private final DashboardAuditLogger dashboardAuditLogger;
 
     @SuperAdminAccess
     @GetMapping("/manager-roles")
@@ -61,8 +63,11 @@ public class GuildAccessAdminController {
             throw InvalidRequestException.withMessage("One or more manager roles are invalid");
         }
 
+        List<String> previous = adminSettingsService.dashboardSettings(request.guildId()).managerRoleIds();
         List<String> unique = List.copyOf(new LinkedHashSet<>(request.managerRoleIds()));
         adminSettingsService.set(dashboardSettingsKey(request.guildId()), new DashboardSettings(unique));
+        dashboardAuditLogger.log(claims, request.guildId(), "Updated manager roles",
+                Map.of("before", previous, "after", unique));
         return Map.of("success", true, "managerRoleIds", unique);
     }
 
@@ -95,8 +100,19 @@ public class GuildAccessAdminController {
             throw InvalidRequestException.withMessage("At least one valid Discord guild ID is required");
         }
 
+        List<String> previous = allowedGuildIds();
         List<String> unique = List.copyOf(new LinkedHashSet<>(request.guildIds()));
         adminSettingsService.set("allowed_guild_ids", unique);
+
+        // Not tied to one guild by nature, but the Logs page is always viewed per-guild - log once
+        // per guild actually added/removed so it shows up on the dashboard of the guild it concerns,
+        // instead of once with no guild at all (which no Logs tab could ever show).
+        java.util.Set<String> previousSet = java.util.Set.copyOf(previous);
+        java.util.Set<String> newSet = java.util.Set.copyOf(unique);
+        unique.stream().filter(id -> !previousSet.contains(id))
+                .forEach(id -> dashboardAuditLogger.log(claims, id, "Guild allowed", Map.of()));
+        previous.stream().filter(id -> !newSet.contains(id))
+                .forEach(id -> dashboardAuditLogger.log(claims, id, "Guild disallowed", Map.of()));
         return Map.of("success", true, "guildIds", unique);
     }
 
