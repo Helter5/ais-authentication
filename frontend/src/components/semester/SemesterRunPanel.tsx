@@ -1,9 +1,11 @@
 import {
-  ArrowLeftRight, Settings2, Info, Eye, EyeOff, ChevronRight,
-  Loader2, Play, XCircle, Terminal, X,
+  ArrowLeftRight, Settings2, Info, Eye, EyeOff,
+  Loader2, Play, XCircle, Terminal, X, TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { SwitchPlan } from "@/lib/api";
 import type { SemesterConfig, RunProgress } from "@/pages/SwitchSemester";
+import { isStepIncomplete } from "@/lib/semesterPlanValidation";
 
 function logColor(line: string) {
   if (line.includes("[ERROR]") || /\bERROR\b/.test(line)) return "text-red-400";
@@ -13,14 +15,16 @@ function logColor(line: string) {
 }
 
 interface SemesterRunPanelProps {
+  /** Used from Simple Mode, where this is the whole page's content instead of a 3-column sidebar. */
+  standalone?: boolean;
   configs: SemesterConfig[];
+  plans: SwitchPlan[];
   runMode: "switch" | "setup";
   setRunMode: (m: "switch" | "setup") => void;
   anyRunActive: boolean;
-  runOld: string;
-  setRunOld: (v: string) => void;
-  runNew: string;
-  setRunNew: (v: string) => void;
+  nextPlan: { currentPlanId: string | null; currentPlanName: string | null; nextPlanId: string | null; nextPlanName: string | null } | null;
+  selectedPlanId: string;
+  setSelectedPlanId: (v: string) => void;
   runStarting: boolean;
   ssProgress: RunProgress | null;
   setupSemester: string;
@@ -47,8 +51,8 @@ interface SemesterRunPanelProps {
 }
 
 export function SemesterRunPanel({
-  configs, runMode, setRunMode, anyRunActive,
-  runOld, setRunOld, runNew, setRunNew, runStarting, ssProgress,
+  standalone, configs, plans, runMode, setRunMode, anyRunActive, nextPlan,
+  selectedPlanId, setSelectedPlanId, runStarting, ssProgress,
   setupSemester, selectSetupSemester, setupVisible, setSetupVisible,
   setupClearRoles, setSetupClearRoles, setupStarting, setupProgress,
   activeProgress, canResume, runError,
@@ -56,8 +60,11 @@ export function SemesterRunPanel({
   handleConsoleScroll, clearConsole,
   onShowConfirmSwitch, onShowConfirmSetup, onShowModeInfo, onResume,
 }: SemesterRunPanelProps) {
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
   return (
-    <div className="w-80 flex-shrink-0 border-l border-zinc-800 flex flex-col">
+    <div className={standalone
+      ? "w-full flex flex-col rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden"
+      : "w-80 flex-shrink-0 border-l border-zinc-800 flex flex-col"}>
       {/* Run controls */}
       <div className="p-4 border-b border-zinc-800 space-y-3">
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-zinc-900 border border-zinc-800 p-1">
@@ -82,40 +89,53 @@ export function SemesterRunPanel({
         {runMode === "switch" ? (
           <div className="space-y-2">
             <p className="text-[11px] leading-relaxed text-zinc-500">
-              Hides the old semester, shows the new one, applies mappings from the old semester, then clears its cleanup roles.
+              Runs every step of the chosen Plan in order - each step's own hide/show/mappings/cleanup, one after another.
             </p>
+            {nextPlan?.nextPlanName && (
+              <p className="text-[10px] text-indigo-300/80 leading-relaxed">
+                Next up: <span className="font-mono">{nextPlan.nextPlanName}</span>
+              </p>
+            )}
             <div>
-              <p className="text-[11px] text-zinc-500 mb-1">From (current semester)</p>
-              <select value={runOld} onChange={e => setRunOld(e.target.value)} disabled={anyRunActive}
+              <p className="text-[11px] text-zinc-500 mb-1">Select switch</p>
+              <select value={selectedPlanId} onChange={e => setSelectedPlanId(e.target.value)} disabled={anyRunActive}
                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 cursor-pointer">
-                <option value="">Select semester…</option>
-                {configs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                <option value="">Select plan…</option>
+                {plans.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.steps.some(isStepIncomplete) ? `⚠ ${p.name} (incomplete)` : p.name}
+                  </option>
+                ))}
               </select>
-            </div>
-            <div className="flex items-center justify-center">
-              <ChevronRight className="w-4 h-4 text-zinc-600 rotate-90" />
-            </div>
-            <div>
-              <p className="text-[11px] text-zinc-500 mb-1">To (next semester)</p>
-              <select value={runNew} onChange={e => setRunNew(e.target.value)} disabled={anyRunActive}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 cursor-pointer">
-                <option value="">Select semester…</option>
-                {configs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-              </select>
+              {plans.length === 0 && (
+                <p className="text-[11px] text-amber-400/80 mt-1">No plans configured yet - add one above.</p>
+              )}
+              {selectedPlan?.steps.some(isStepIncomplete) && (
+                <p className="text-[11px] text-red-400 mt-1">
+                  This plan has an unfinished step (missing semester) - finish it in Switch Plans before running.
+                </p>
+              )}
             </div>
             <button onClick={onShowConfirmSwitch}
-              disabled={!runOld || !runNew || runOld === runNew || anyRunActive || runStarting}
+              disabled={!selectedPlanId || anyRunActive || runStarting || Boolean(selectedPlan?.steps.some(isStepIncomplete))}
               className={cn("w-full flex items-center justify-center gap-2 py-2.5 rounded text-sm font-semibold transition-all",
-                runOld && runNew && runOld !== runNew && !anyRunActive && !runStarting
+                selectedPlanId && !anyRunActive && !runStarting && !selectedPlan?.steps.some(isStepIncomplete)
                   ? "bg-indigo-600 hover:bg-indigo-500 text-white"
                   : "bg-zinc-800 text-zinc-600 cursor-not-allowed")}>
               {runStarting || ssProgress?.running
                 ? <><Loader2 className="w-4 h-4 animate-spin" />{ssProgress?.running ? "Running…" : "Starting…"}</>
-                : <><Play className="w-4 h-4" /> Run Switch</>}
+                : <><Play className="w-4 h-4" /> Run Plan</>}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
+            <div className="flex items-start gap-2 p-2.5 rounded border border-red-500/40 bg-red-500/10">
+              <TriangleAlert className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs font-bold text-red-400 leading-relaxed">
+                Moderators should use <span className="underline">Switch</span> for normal semester changes.
+                Setup is for advanced use only (fresh cohort init, manual visibility reset).
+              </p>
+            </div>
             <p className="text-[11px] leading-relaxed text-zinc-500">
               Initializes one semester without advancing students. Use it for a fresh cycle or a manual visibility reset.
             </p>
@@ -162,7 +182,7 @@ export function SemesterRunPanel({
           </div>
         )}
 
-        {activeProgress && activeProgress.progress > 0 && (
+        {activeProgress && activeProgress.progress > 0 && (activeProgress.running || !isConsoleCleared) && (
           <div>
             <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
               <span className="capitalize">{activeProgress.status ?? "Progress"}</span><span>{activeProgress.progress}%</span>
@@ -208,14 +228,24 @@ export function SemesterRunPanel({
             <button
               onClick={() => clearConsole(activeProgress.startedAt ?? null)}
               className="ml-auto text-zinc-600 hover:text-zinc-400 transition-colors"
-              title="Clear console"
+              title="Hide console"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
+          {isConsoleCleared && activeProgress && activeProgress.logs.length > 0 && (
+            <button
+              onClick={() => clearConsole(null)}
+              className="ml-auto text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+            >
+              Show output
+            </button>
+          )}
         </div>
         {consoleLogs.length === 0 ? (
-          <p className="px-3 py-2 text-xs font-mono text-zinc-700 italic">No output yet.</p>
+          <p className="px-3 py-2 text-xs font-mono text-zinc-700 italic">
+            {isConsoleCleared && activeProgress && activeProgress.logs.length > 0 ? "Output hidden." : "No output yet."}
+          </p>
         ) : (
           <div ref={consoleContainerRef} onScroll={handleConsoleScroll} className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-0.5 font-mono text-xs min-h-0">
             {consoleLogs.map((line, i) => (

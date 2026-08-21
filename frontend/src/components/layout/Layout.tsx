@@ -135,13 +135,15 @@ function VerificationStatusDot({ maintenance }: { maintenance: boolean }) {
 
   // verification_enabled is a per-guild setting, independent of the global maintenance-mode flag
   // that blocks every command (including /verify) at a different layer - without this override the
-  // badge would stay green even though /verify is actually unusable while maintenance is on.
+  // badge would stay "enabled" even though /verify is actually unusable while maintenance is on.
+  // "Enabled" uses sky, not emerald - emerald is reserved for DiscordStatusDot's "operational" (a
+  // third-party service health check), a completely different axis from "is this feature turned on".
   const blocked = maintenance && enabled;
   const label = blocked ? "Blocked by maintenance mode" : enabled ? "Enabled" : "Disabled";
-  const color = blocked ? "text-amber-400" : enabled ? "text-emerald-400" : "text-zinc-600";
+  const color = blocked ? "text-amber-400" : enabled ? "text-sky-400" : "text-zinc-600";
   const dotColor = blocked
     ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
-    : enabled ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-500";
+    : enabled ? "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.6)]" : "bg-zinc-600";
 
   return (
     <div
@@ -177,6 +179,8 @@ function useGuildAllowed(): boolean | null {
   return allowed;
 }
 
+// "Enabled" uses sky, not emerald - emerald is reserved for DiscordStatusDot's "operational" (a
+// third-party service health check), a completely different axis from "is this feature turned on".
 function botWideStatus(maintenance: boolean, guildAllowed: boolean | null) {
   if (guildAllowed === false) {
     return {
@@ -194,8 +198,8 @@ function botWideStatus(maintenance: boolean, guildAllowed: boolean | null) {
   }
   return {
     label: "Enabled",
-    color: "text-emerald-400",
-    dotColor: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]",
+    color: "text-sky-400",
+    dotColor: "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.6)]",
   };
 }
 
@@ -221,6 +225,46 @@ function ModulesStatusDot({ maintenance }: { maintenance: boolean }) {
     <div title={`Modules: ${label}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/40">
       <LayoutGrid className={cn("w-3.5 h-3.5", color)} />
       <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)} />
+    </div>
+  );
+}
+
+/**
+ * Winter/summer is per-guild and only changes when an admin runs a Switch Plan or a manual override
+ * on the Semester Management page - live via SSE (SemesterStatusBroadcaster, pushed from
+ * SemesterOperationService#setCurrentPlan) so every open tab updates instantly, same pattern as
+ * VerificationStatusDot. Lives here (not just on that page) so it's visible everywhere, matching
+ * the other bot-status dots.
+ */
+function SemesterStatusDot() {
+  const guildId = useSelectedGuildId();
+  const [type, setType] = useState<"WINTER" | "SUMMER" | null>(null);
+
+  useEffect(() => {
+    setType(null);
+    if (!guildId) return;
+    const source = new EventSource(`${API_URL}/semester/stream?guildId=${guildId}`, { withCredentials: true });
+    source.addEventListener("semester", event => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data);
+        setType(data.semesterType === "WINTER" || data.semesterType === "SUMMER" ? data.semesterType : null);
+      } catch {
+        // ignore malformed event
+      }
+    });
+    return () => source.close();
+  }, [guildId]);
+
+  if (!type) return null;
+
+  const isWinter = type === "WINTER";
+
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-800/40">
+      <span className="text-xs text-zinc-400">Semester:</span>
+      <span className={cn("text-xs font-semibold", isWinter ? "text-sky-400" : "text-amber-400")}>
+        {isWinter ? "Winter" : "Summer"}
+      </span>
     </div>
   );
 }
@@ -251,9 +295,10 @@ function LiveDot({ className }: { className: string }) {
 }
 
 /**
- * discordstatus.com is a statuspage.io instance with an open CORS policy on its public summary
- * API, so this polls it directly from the browser - no backend proxy needed for a read-only,
- * unauthenticated, third-party status check.
+ * Fetched through our own backend (DiscordStatusService), not straight from the browser - a
+ * browser extension/ad-blocker/corporate proxy silently blocking a third-party statuspage.io
+ * domain would otherwise make this dot never appear, with nothing for the admin to diagnose. The
+ * backend caches it briefly, so polling here doesn't hammer discordstatus.com.
  */
 function DiscordStatusDot() {
   const [status, setStatus] = useState<{ indicator: DiscordIndicator; description: string } | null>(null);
@@ -261,9 +306,11 @@ function DiscordStatusDot() {
   useEffect(() => {
     let cancelled = false;
     const fetchStatus = () => {
-      fetch("https://discordstatus.com/api/v2/status.json")
-        .then(res => res.json())
-        .then(data => { if (!cancelled) setStatus(data.status); })
+      adminApi.getDiscordApiStatus()
+        .then(data => {
+          if (cancelled) return;
+          setStatus(data.indicator && data.description ? { indicator: data.indicator as DiscordIndicator, description: data.description } : null);
+        })
         .catch(() => { if (!cancelled) setStatus(null); });
     };
     fetchStatus();
@@ -297,6 +344,7 @@ function TopBar({ maintenance }: { maintenance: boolean }) {
         <VerificationStatusDot maintenance={maintenance} />
         <CommandsStatusDot maintenance={maintenance} />
         <ModulesStatusDot maintenance={maintenance} />
+        <SemesterStatusDot />
       </div>
       <div className="flex items-center gap-3">
         <ServerSwitcher />
