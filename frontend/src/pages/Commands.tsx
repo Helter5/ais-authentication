@@ -274,6 +274,12 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
   const [message, setMessage] = useState(defaults.message ?? "");
   const [allowedRoleIdsWinter, setAllowedRoleIdsWinter] = useState<string[]>(defaults.allowedRoleIdsWinter ?? []);
   const [allowedRoleIdsSummer, setAllowedRoleIdsSummer] = useState<string[]>(defaults.allowedRoleIdsSummer ?? []);
+  /** True while both lists above are still an untouched copy of the pre-split flat `allowedRoleIds`
+   *  (see the fallback below) - the ZS/LS cross-exclusion filter has to be suspended in that state,
+   *  otherwise every legacy role excludes itself from both pickers (identical lists), making the
+   *  whole allowlist look empty/unsearchable in the UI despite still working correctly for the bot.
+   *  Clears itself the moment the admin actually edits either list. */
+  const [legacyUnsplit, setLegacyUnsplit] = useState(false);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
   const [excludeRoleIds, setExcludeRoleIds] = useState<string[]>(defaults.excludeRoleIds ?? []);
   const [subcommandEphemeral, setSubcommandEphemeral] = useState<Record<string, boolean>>(defaults.subcommandEphemeral ?? {});
@@ -300,6 +306,7 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
           // Fall back to the pre-split flat list for a guild that hasn't re-saved Settings yet.
           setAllowedRoleIdsWinter(data.allowedRoleIdsWinter ?? data.allowedRoleIds ?? defaults.allowedRoleIdsWinter ?? []);
           setAllowedRoleIdsSummer(data.allowedRoleIdsSummer ?? data.allowedRoleIds ?? defaults.allowedRoleIdsSummer ?? []);
+          setLegacyUnsplit(!data.allowedRoleIdsWinter && !data.allowedRoleIdsSummer && !!data.allowedRoleIds?.length);
         }
         if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
         if (schema.excludeRoles) setExcludeRoleIds(data.excludeRoleIds ?? defaults.excludeRoleIds ?? []);
@@ -448,13 +455,28 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
                 Only these roles can be self-assigned via /pridatpredmet, and only during their own semester - everything else is blocked. Also filters what the command's autocomplete suggests.
                 A role picked here drops out of the other semester's list below - a subject only ever belongs to one, so this keeps both lists free of ones already placed.
               </p>
+              {legacyUnsplit && (
+                <p className="text-xs text-indigo-300 bg-indigo-400/10 border border-indigo-400/20 rounded px-3 py-2">
+                  This guild still has the old, pre-split allowlist - both lists below start out as the same copy of it (nothing is lost or blocked for either semester). Remove whatever doesn't belong in each list, then Save to split them for good.
+                </p>
+              )}
               <div>
                 <p className="text-xs font-semibold text-sky-300 mb-2">❄️ Winter (ZS)</p>
-                <MultiPicker options={roles.filter(r => !allowedRoleIdsSummer.includes(r.id))} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role" />
+                <MultiPicker
+                  options={legacyUnsplit ? roles : roles.filter(r => !allowedRoleIdsSummer.includes(r.id))}
+                  selected={allowedRoleIdsWinter}
+                  onChange={ids => { setAllowedRoleIdsWinter(ids); setLegacyUnsplit(false); }}
+                  placeholder="Select Role"
+                />
               </div>
               <div>
                 <p className="text-xs font-semibold text-amber-300 mb-2">☀️ Summer (LS)</p>
-                <MultiPicker options={roles.filter(r => !allowedRoleIdsWinter.includes(r.id))} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role" />
+                <MultiPicker
+                  options={legacyUnsplit ? roles : roles.filter(r => !allowedRoleIdsWinter.includes(r.id))}
+                  selected={allowedRoleIdsSummer}
+                  onChange={ids => { setAllowedRoleIdsSummer(ids); setLegacyUnsplit(false); }}
+                  placeholder="Select Role"
+                />
               </div>
             </div>
           )}
