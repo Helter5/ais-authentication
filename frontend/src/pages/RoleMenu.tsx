@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { adminApi, apiErrorMessage, type DiscordEmoji, type RoleMenuConfig, type RoleMenuOption } from "@/lib/api";
 import {
-  Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw,
+  Plus, X, Loader2, CheckCircle2, AlertCircle, Hash, ListChecks, Send, RefreshCw, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -37,6 +37,14 @@ const MESSAGE_TYPES: { value: RoleMenuConfig["message_type"]; label: string; des
 
 function emptyOption(): RoleMenuOption {
   return { role_ids: [], label: "", emoji: null, description: null };
+}
+
+/** Reorders one item within an array by removing it from `from` and reinserting at `to`. */
+function reorder<T>(list: T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
 }
 
 export function RoleMenuModule() {
@@ -148,6 +156,17 @@ export function RoleMenuModule() {
 
   const addOption = () => setDraft(d => ({ ...d, options: [...d.options, emptyOption()] }));
   const removeOption = (index: number) => setDraft(d => ({ ...d, options: d.options.filter((_, i) => i !== index) }));
+
+  const [dragOptionIndex, setDragOptionIndex] = useState<number | null>(null);
+  const moveOption = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= draft.options.length) return;
+    setDraft(d => ({ ...d, options: reorder(d.options, from, to) }));
+  };
+  const dropOption = (targetIndex: number) => {
+    if (dragOptionIndex === null) return;
+    moveOption(dragOptionIndex, targetIndex);
+    setDragOptionIndex(null);
+  };
 
   const save = async () => {
     if (!guildId || !draft.channel_id) { toast("Select a channel first.", "error"); return; }
@@ -369,14 +388,24 @@ export function RoleMenuModule() {
                     <Plus className="w-3.5 h-3.5" /> Add role
                   </button>
                 </div>
+                {draft.options.length > 1 && (
+                  <p className="px-4 pt-3 text-[11px] text-zinc-600">
+                    Drag the <GripVertical className="w-2.5 h-2.5 inline -mt-0.5" /> handle to reorder - this is the order members see them in.
+                  </p>
+                )}
                 {draft.options.length === 0 ? (
                   <p className="px-4 py-6 text-xs text-zinc-600 text-center">No roles added yet.</p>
                 ) : (
                   <div className="divide-y divide-zinc-800">
                     {draft.options.map((option, i) => (
-                      <div key={i} className="px-4 py-3 space-y-2">
+                      <div key={i} onDragOver={e => e.preventDefault()} onDrop={() => dropOption(i)}
+                        className={cn("px-4 py-3 space-y-2 transition-opacity", dragOptionIndex === i && "opacity-40")}>
                         <div className="flex items-center gap-2">
-                          <span className="w-4 flex-shrink-0 text-right text-[11px] font-mono text-zinc-600">{i + 1}</span>
+                          <span draggable onDragStart={() => setDragOptionIndex(i)} onDragEnd={() => setDragOptionIndex(null)}
+                            title="Drag to reorder - this is the order members see"
+                            className="w-4 flex-shrink-0 cursor-grab text-zinc-600 hover:text-zinc-300 transition-colors active:cursor-grabbing">
+                            <GripVertical className="w-4 h-4" />
+                          </span>
                           <div className="flex-1 min-w-0">
                             <MultiPicker options={roles} selected={option.role_ids} onChange={v => updOption(i, { role_ids: v })}
                               placeholder="Select role(s) this grants…" />
