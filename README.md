@@ -105,6 +105,10 @@ GitHub Actions (`backend-ci.yml`) spúšťa `./mvnw verify` proti reálnemu Post
 
 Jadro appky (overenie, dashboard, autorizácia, audit log, Discord OAuth2 login s vlastným JWT, Docker nasadenie, CI) hotové a funkčné. Otvorené: WAR deploy na Tomcat/JBoss, nasadenie na AWS, samostatný modul v Kotline/Quarkuse.
 
+## License
+
+[MIT](LICENSE)
+
 ## Screenshoty
 
 <table>
