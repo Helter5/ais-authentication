@@ -14,7 +14,8 @@ Prepis staršieho Node.js bota ([ais-authentication](../ais-authentication)) na 
 ## Funkcie
 
 - **Overenie študentov** — `/verify`, `/code`, `/manualverify`. Používateľ zadá AIS ID, dostane overovací kód na univerzitný e-mail (Spring Mail/Mailpit), po zadaní kódu appka overí identitu voči LDAP a prideľuje Discord rolu.
-- **Admin dashboard** — per-guild správa cez Discord OAuth2 login. Nastavenia bota, warny (`/warn`, `/warns`, auto-punishment), audit log, access log, správa príkazov a rolí, hromadný re-check/wipe overených členov voči LDAP, prepínanie semestra, automatické mazanie správ, „Hacked Account Trap" automod (nastaviteľný trap kanál — ktokoľvek doňho napíše mimo výnimiek dostane permanent ban, voliteľne DM pred banom a zmazanie správ za posledných X hodín, všetko zalogované do audit logu aj spam logu).
+- **Admin dashboard** — per-guild správa cez Discord OAuth2 login. Nastavenia bota, warny (`/warn`, `/warns`, auto-punishment), audit log (Dashboard, Operations, Logins, Warnings, Automod, Verification, Commands, Role Menu), správa príkazov a rolí, hromadný re-check/wipe overených členov voči LDAP, prepínanie semestra (Switch Plans editor s rollback UI, ZS/LS role mappings), automatické mazanie správ, „Hacked Account Trap" automod (nastaviteľný trap kanál — ktokoľvek doňho napíše mimo výnimiek dostane permanent ban, voliteľne DM pred banom a zmazanie správ za posledných X hodín, všetko zalogované do audit logu aj spam logu), LDAP connection uptime monitoring priamo na Dashboarde.
+- **Thesis counter** — `/odpocet`, voliteľný dashboard modul. Premenováva kanál na odpočet dní do obhajoby (BP/DP), formát názvu kanála aj „dnes" stavu je nastaviteľný (vrátane emoji), plánovaná úloha ho denne prepočíta a premenuje.
 - **Autorizácia** — super-admini (celá appka) + per-guild manažéri (len svoj server), vynucované na každom endpointe cez `GuildAccessService`.
 - **Prihlasovanie** — Discord OAuth2 (`spring-boot-starter-oauth2-client`, vlastná `ClientRegistration` pre Discord). Appka si sama vydáva a validuje JWT session token + refresh token, žiadny externý identity provider.
 
@@ -114,7 +115,7 @@ Jadro appky (overenie, dashboard, autorizácia, audit log, Discord OAuth2 login 
 </tr>
 <tr>
 <td><img src="docs/screenshots/select-server.png" width="100%"><br><sub><b>Select server</b><br>Výber servera — super-admin vidí všetky, manažér len svoje.</sub></td>
-<td><img src="docs/screenshots/dashboard.png" width="100%"><br><sub><b>Dashboard</b><br>Stav bota, počet overených členov, aktívne kódy.</sub></td>
+<td><img src="docs/screenshots/dashboard.png" width="100%"><br><sub><b>Dashboard</b><br>Stav bota, počet overených členov, aktívne kódy, LDAP connection uptime.</sub></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/users.png" width="100%"><br><sub><b>Users</b><br>Overení členovia, hromadný re-check/wipe proti LDAP.</sub></td>
@@ -130,18 +131,18 @@ Jadro appky (overenie, dashboard, autorizácia, audit log, Discord OAuth2 login 
 </tr>
 <tr>
 <td><img src="docs/screenshots/auto-mentions.png" width="100%"><br><sub><b>Auto mentions</b><br>Automod pre mention spam.</sub></td>
-<td><img src="docs/screenshots/role-menu.png" width="100%"><br><sub><b>Role menu</b><br>Self-service roly cez Discord tlačidlá.</sub></td>
+<td><img src="docs/screenshots/role-menu.png" width="100%"><br><sub><b>Role menu</b><br>Self-service roly cez Discord tlačidlá, drag-to-reorder v editore.</sub></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/commands.png" width="100%"><br><sub><b>Commands</b><br>Zapínanie/vypínanie príkazov, permission overrides.</sub></td>
-<td><img src="docs/screenshots/logs.png" width="100%"><br><sub><b>Logs</b><br>Audit log a access log admin/moderátorských akcií.</sub></td>
+<td><img src="docs/screenshots/logs.png" width="100%"><br><sub><b>Logs</b><br>Audit log: Dashboard, Operations, Logins, Warnings, Automod, Verification, Commands, Role Menu tab.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/switch-semester.png" width="100%"><br><sub><b>Switch semester — Simple mode</b><br>Prepínanie semestra, základný pohľad.</sub></td>
+<td><img src="docs/screenshots/switch-semester-advanced.png" width="100%"><br><sub><b>Switch semester — Advanced mode</b><br>Switch Plans editor, rollback UI, ZS/LS role mappings (drag-to-reorder).</sub></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/settings.png" width="100%"><br><sub><b>Settings</b><br>Nickname bota, timezone, per-guild nastavenia.</sub></td>
-<td><img src="docs/screenshots/switch-semester.png" width="100%"><br><sub><b>Switch semester</b><br>Prepínanie semestra.</sub></td>
-</tr>
-<tr>
 <td><img src="docs/screenshots/admin.png" width="100%"><br><sub><b>Admin</b><br>Globálna super-admin sekcia (mimo per-guild).</sub></td>
-<td></td>
 </tr>
 </table>
