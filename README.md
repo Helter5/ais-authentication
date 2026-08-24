@@ -2,8 +2,6 @@
 
 Discord bot + admin dashboard pre FEI STUBA server. Overuje študentov cez univerzitný LDAP ([AIS](https://is.stuba.sk/)), prideľuje im Discord rolu. Vytvorené pre študentov [FEI STUBA](https://www.fei.stuba.sk/).
 
-Prepis staršieho Node.js bota ([ais-authentication](../ais-authentication)) na Java stack.
-
 ## Stack
 
 - **Backend** — Spring Boot 4, Java 21, Maven. REST API, Spring Security (`oauth2-client`), Spring LDAP, JPA/PostgreSQL, Flyway.
