@@ -26,3 +26,7 @@ dist/
 # one-off migration output (contains real PII - emails, discord ids) + the script that generates it
 migration.sql
 migrate-export.js
+
+# Real domain config - infra/Caddyfile.example is the template, copy it to infra/Caddyfile locally
+infra/Caddyfile
+!infra/Caddyfile.example

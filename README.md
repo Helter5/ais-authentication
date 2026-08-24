@@ -40,6 +40,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 **Variant B — celý stack v Dockeri:**
 
 ```
+cp infra/Caddyfile.example infra/Caddyfile   # nahraď your-domain.example vlastnou doménou, alebo nechaj len localhost blok
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
 ```
 
