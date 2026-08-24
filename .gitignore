@@ -10,8 +10,8 @@
 # OS
 .DS_Store
 
-# Claude Code lokálne nastavenia
-.claude/settings.local.json
+# Claude Code (celý priečinok - lokálne skills/settings, netreba v public repe)
+.claude/
 CLAUDE.md
 
 # IDE (repo-wide, projektové .gitignore v backend/frontend riešia zvyšok)
@@ -23,5 +23,6 @@ CLAUDE.md
 node_modules/
 dist/
 
-# one-off migration output (contains real PII - emails, discord ids)
+# one-off migration output (contains real PII - emails, discord ids) + the script that generates it
 migration.sql
+migrate-export.js
