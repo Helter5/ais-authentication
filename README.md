@@ -93,7 +93,7 @@ Všetko cez env vars, defaulty v `backend/src/main/resources/application.yml`.
 
 ## Testy
 
-Backend: 90 test súborov (JUnit 5, Mockito, Spring Boot Test, Testcontainers-Postgres pre integračné testy — reálna DB, nie mock). Pokrývajú service vrstvu, controllery (`*ControllerIntegrationTest`, plný Spring context + skutočný Postgres), Discord bot listenery/commandy, automod (Hacked Account Trap, auto-delete, auto-mention), warn systém, wipe/re-check proti LDAP, audit log, autorizáciu (`GuildAccessService`), role menu, semester switching, scheduling. Nepokryté zámerne: entity, DTO, exceptions, repository interfaces, config triedy (žiadna vlastná logika). **Bez testov (dlžné, nie zámer):** `subjectrole` (`SubjectRoleService`), `thesiscounter` (`ThesisCounterService`, `ThesisCounterController`, `ThesisCounterRenameJob`) — obe pridané po poslednom test sweepe.
+Backend: 95 test súborov (JUnit 5, Mockito, Spring Boot Test, Testcontainers-Postgres pre integračné testy — reálna DB, nie mock). Pokrývajú service vrstvu, controllery (`*ControllerIntegrationTest`, plný Spring context + skutočný Postgres), Discord bot listenery/commandy, automod (Hacked Account Trap, auto-delete, auto-mention), warn systém, wipe/re-check proti LDAP, audit log, autorizáciu (`GuildAccessService`), role menu, semester switching, scheduling, thesis counter (`ThesisCounterService`, `ThesisCounterRenameJob`). Nepokryté zámerne: entity, DTO, exceptions, repository interfaces, config triedy (žiadna vlastná logika). **Bez testov (dlžné, nie zámer):** `subjectrole` (`SubjectRoleService`) — pridané po poslednom test sweepe, ešte nedobehnuté.
 
 Spusti: `cd backend && ./mvnw test` (rýchle, bez integračných) alebo `./mvnw verify` (aj integračné, spúšťa Testcontainers → treba bežiaci Docker).
 

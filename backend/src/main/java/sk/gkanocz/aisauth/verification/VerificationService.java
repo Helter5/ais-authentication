@@ -7,6 +7,8 @@ import sk.gkanocz.aisauth.directory.StudentDirectoryService;
 import sk.gkanocz.aisauth.directory.StudentRecord;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -73,7 +75,10 @@ public class VerificationService {
                 .findByDiscordIdAndGuildIdAndExpiresAtAfter(discordId, guildId, LocalDateTime.now())
                 .orElseThrow(InvalidVerificationCodeException::missingOrExpired);
 
-        if (!pending.getCode().equals(inputCode)) {
+        // Constant-time compare - defense-in-depth against timing side channels (impractical here
+        // given the code's 15-char SecureRandom entropy, but MessageDigest.isEqual costs nothing).
+        if (!MessageDigest.isEqual(
+                pending.getCode().getBytes(StandardCharsets.UTF_8), inputCode.getBytes(StandardCharsets.UTF_8))) {
             throw InvalidVerificationCodeException.wrongCode();
         }
 
