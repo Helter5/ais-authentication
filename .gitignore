@@ -3,9 +3,11 @@
 *.env
 !.env.example
 
-# client.ovpn: verified 2026-08-17 to be byte-identical (SHA-256) to STU's own public download
-# (stuba.sk/buxus/docs/stu/pracoviska/cvt/navody/client.ovpn) - not a secret, tracked normally.
-# VPN credentials now come from infra/.env (VPN_USERNAME/VPN_PASSWORD), no more auth.txt file.
+# STU's own OpenVPN profile - not a secret (verified 2026-08-17 byte-identical, SHA-256, to
+# STU's public download), but not ours to redistribute either. Download it yourself (see README)
+# and drop it at infra/vpn/client.ovpn. VPN credentials come from infra/.env (VPN_USERNAME/
+# VPN_PASSWORD), no separate auth.txt file needed.
+infra/vpn/client.ovpn
 
 # OS
 .DS_Store

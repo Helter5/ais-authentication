@@ -44,6 +44,8 @@ cp infra/Caddyfile.example infra/Caddyfile   # nahraď your-domain.example vlast
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
 ```
 
+`vpn` kontajner (tunel k univerzitnému LDAP) potrebuje `infra/vpn/client.ovpn` — stiahni si vlastný profil podľa [STU CVT návodu](https://www.stuba.sk/sk/pracoviska/centrum-vypoctovej-techniky/navody/vpn-pristup-do-siete-stu/openvpn-v.3-connect.html?page_id=16269) a ulož ho tam. VPN prihlasovacie údaje idú cez `infra/.env` (`VPN_USERNAME`/`VPN_PASSWORD`).
+
 Frontend (za Caddy, proxuje `/api/` na backend) beží na `http://localhost:8081`, backend priamo na `http://localhost:8080` (potrebné pre Discord OAuth redirect).
 
 Pre reálne prihlásenie treba vlastnú Discord OAuth aplikáciu (`DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`) a Discord bota (`DISCORD_BOT_TOKEN`) — bez nich appka beží, ale login/bot sa nepripoja.
