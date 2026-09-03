@@ -94,3 +94,8 @@ app:
 logging:
   level:
     sk.gkanocz.aisauth: DEBUG
+    # During a Postgres outage every failed statement otherwise logs 4-6 WARN lines here
+    # ("HHH000247" + "Connection is not available"); the app already handles and reports the
+    # failure. ERROR keeps genuine SQL errors (constraint violations etc.) visible.
+    org.hibernate.orm.jdbc.error: ERROR
+    com.zaxxer.hikari.pool.PoolBase: ERROR # "Failed to validate connection" spam while the pool heals after a restart

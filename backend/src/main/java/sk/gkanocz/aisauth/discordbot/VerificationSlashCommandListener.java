@@ -179,7 +179,7 @@ class VerificationSlashCommandListener {
             } catch (DomainException e) {
                 replaceProgressMessage(event, progressMessageId, e.getMessage());
             } catch (Exception e) {
-                log.error("Verify command failed", e);
+                sk.gkanocz.aisauth.shared.DbErrors.report(log, "Verify command failed", e);
                 replaceProgressMessage(event, progressMessageId, GENERIC_ERROR_MESSAGE);
             } finally {
                 verifyInFlight.decrementAndGet();
@@ -268,7 +268,7 @@ class VerificationSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            log.error("Code command failed", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Code command failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }
@@ -371,7 +371,7 @@ class VerificationSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            log.error("Manual verify command failed", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Manual verify command failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }

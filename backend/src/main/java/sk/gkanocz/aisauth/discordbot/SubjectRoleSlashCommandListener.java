@@ -71,7 +71,7 @@ class SubjectRoleSlashCommandListener {
         try {
             process(event);
         } catch (Exception e) {
-            log.error("/pridatpredmet failed", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "/pridatpredmet failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }

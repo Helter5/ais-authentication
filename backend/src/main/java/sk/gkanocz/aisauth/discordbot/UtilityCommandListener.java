@@ -90,7 +90,7 @@ class UtilityCommandListener {
 
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
-            log.error("info command error", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "info command error", e);
             event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }
@@ -191,7 +191,7 @@ class UtilityCommandListener {
 
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
-            log.error("[/user] Error", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "[/user] Error", e);
             event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }

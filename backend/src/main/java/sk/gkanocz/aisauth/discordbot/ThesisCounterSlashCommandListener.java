@@ -88,7 +88,7 @@ class ThesisCounterSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage() + dashboardHint()).queue();
         } catch (Exception e) {
-            log.error("odpocet add failed", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "odpocet add failed", e);
             event.getHook().sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.").queue();
         }
     }

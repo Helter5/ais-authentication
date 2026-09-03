@@ -133,7 +133,7 @@ class WarnSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            log.error("Warn command failed", e);
+            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Warn command failed", e);
             event.getHook().sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.").queue();
         }
     }

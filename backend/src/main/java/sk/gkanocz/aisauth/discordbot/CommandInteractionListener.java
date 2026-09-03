@@ -115,11 +115,19 @@ class CommandInteractionListener extends ListenerAdapter {
             faqCommandHandler.dispatch(event, ephemeralOverride);
             refreshCommandHandler.dispatch(event, ephemeralOverride);
             logCommand(event, "success", startedAt, null);
+        } catch (TransactionException | DataAccessException e) {
+            // DB unreachable mid-command - expected during an outage, one line, no stack.
+            log.warn("Command /{} in guild {} failed - database unavailable", event.getName(), guildId);
+            logCommand(event, "error", startedAt, null);
+            if (event.isAcknowledged()) {
+                event.getHook().sendMessage("⚠️ Databáza je dočasne nedostupná, skús to o chvíľu.")
+                        .setEphemeral(true).queue();
+            }
         } catch (Exception e) {
             log.error("Command execution error in guild {}", guildId, e);
             logCommand(event, "error", startedAt, null);
-            // The handler deferred but then blew up (typically its own DB work during an outage) -
-            // resolve the "thinking..." spinner with a message instead of leaving it hanging.
+            // The handler deferred but then blew up - resolve the "thinking..." spinner with a
+            // message instead of leaving it hanging.
             if (event.isAcknowledged()) {
                 event.getHook().sendMessage("⚠️ Príkaz zlyhal, skús to prosím o chvíľu.").setEphemeral(true).queue();
             }

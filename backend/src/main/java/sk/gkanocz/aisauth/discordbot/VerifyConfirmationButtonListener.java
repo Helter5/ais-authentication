@@ -104,7 +104,7 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
             } catch (DomainException e) {
                 event.getHook().editOriginal(e.getMessage()).setEmbeds(List.of()).setComponents(List.of()).queue();
             } catch (Exception e) {
-                log.error("Verify confirmation failed", e);
+                sk.gkanocz.aisauth.shared.DbErrors.report(log, "Verify confirmation failed", e);
                 event.getHook().editOriginal(GENERIC_ERROR_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
             } finally {
                 confirmInFlight.decrementAndGet();
