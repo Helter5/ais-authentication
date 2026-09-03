@@ -1,7 +1,9 @@
 package sk.gkanocz.aisauth.config;
 
+import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -27,6 +29,7 @@ import java.time.Duration;
  * <p>Guarded on {@code spring.cache.type=caffeine} so the test suite (which sets it to {@code none})
  * gets Spring Boot's no-op manager and never caches across its reused context.
  */
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "spring.cache.type", havingValue = "caffeine")
@@ -48,9 +51,37 @@ public class CacheConfig {
                 // forces the gating path back onto the database.
                 .expireAfterWrite(Duration.ofHours(24))
                 .refreshAfterWrite(Duration.ofSeconds(30)));
-        manager.setCacheLoader(key -> adminSettingRepository.findById((String) key)
-                .map(AdminSetting::getValue)
-                .orElse(ABSENT));
+        manager.setCacheLoader(new CacheLoader<Object, Object>() {
+            /** Cold key. If the DB is down, serve it as absent so callers fall back to their defaults
+             *  instead of every message/interaction listener throwing an uncaught exception; the
+             *  background refresh corrects it once Postgres is back. */
+            @Override
+            public Object load(Object key) {
+                try {
+                    return read(key);
+                } catch (RuntimeException e) {
+                    log.debug("adminSettings cache: DB unavailable loading '{}', serving as absent ({})", key, e.getMessage());
+                    return ABSENT;
+                }
+            }
+
+            /** Background refresh of an entry that already has a value. On a DB failure keep whatever
+             *  is currently cached (a good value stays good, an ABSENT stays ABSENT) instead of
+             *  overwriting it or spamming Caffeine's own refresh-failure logger; the next refresh
+             *  after Postgres is back picks up the real value. */
+            @Override
+            public Object reload(Object key, Object oldValue) {
+                try {
+                    return read(key);
+                } catch (RuntimeException e) {
+                    return oldValue;
+                }
+            }
+
+            private Object read(Object key) {
+                return adminSettingRepository.findById((String) key).map(AdminSetting::getValue).orElse(ABSENT);
+            }
+        });
         return manager;
     }
 }
