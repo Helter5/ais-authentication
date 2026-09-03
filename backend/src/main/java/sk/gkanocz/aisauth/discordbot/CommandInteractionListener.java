@@ -118,6 +118,11 @@ class CommandInteractionListener extends ListenerAdapter {
         } catch (Exception e) {
             log.error("Command execution error in guild {}", guildId, e);
             logCommand(event, "error", startedAt, null);
+            // The handler deferred but then blew up (typically its own DB work during an outage) -
+            // resolve the "thinking..." spinner with a message instead of leaving it hanging.
+            if (event.isAcknowledged()) {
+                event.getHook().sendMessage("⚠️ Príkaz zlyhal, skús to prosím o chvíľu.").setEphemeral(true).queue();
+            }
         }
     }
 
