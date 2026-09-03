@@ -18,6 +18,7 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
+import jakarta.annotation.PreDestroy;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.ClassPathResource;
@@ -33,6 +34,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 
@@ -66,7 +71,30 @@ public class DiscordBotService implements ApplicationRunner {
     private final GuildAllowlistEventManager guildAllowlistEventManager;
     private final DatabaseSyncService databaseSyncService;
 
+    /**
+     * JDA runs every registered listener inline on the single gateway WebSocket read thread unless
+     * it's handed a pool. A listener that then blocks that thread - a slow settings/DB lookup, or a
+     * blocking {@code .complete()} during one of the university's ~60-90s LDAP dead windows (see
+     * {@link VerificationSlashCommandListener}) - stalls dispatch for <em>every</em> other
+     * interaction queued behind it, pushing them past Discord's hard 3s acknowledgement deadline.
+     * That surfaced as a flood of "10062: Unknown interaction" errors on completely unrelated
+     * commands and button clicks. A dedicated pool means one slow handler only ties up its own
+     * thread; sized well above the handful of listeners so a burst of interactions during an LDAP
+     * dead window still gets threads to defer on.
+     */
+    private static final int EVENT_POOL_SIZE = 16;
+    private final ExecutorService jdaEventPool = Executors.newFixedThreadPool(EVENT_POOL_SIZE, eventThreadFactory());
+
     private volatile JDA jda;
+
+    private static ThreadFactory eventThreadFactory() {
+        AtomicLong counter = new AtomicLong();
+        return runnable -> {
+            Thread thread = new Thread(runnable, "jda-event-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
+    }
 
     public Optional<JDA> jda() {
         return Optional.ofNullable(jda);
@@ -101,6 +129,8 @@ public class DiscordBotService implements ApplicationRunner {
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .setChunkingFilter(ChunkingFilter.ALL)
                 .setEventManager(guildAllowlistEventManager)
+                // Dispatch listeners on jdaEventPool instead of the gateway read thread - see its javadoc.
+                .setEventPool(jdaEventPool, true)
                 .addEventListeners(commandInteractionListener, guildLifecycleListener, autoDeleteListener,
                         autoMentionListener, hackedAccountTrapListener, roleMenuInteractionListener,
                         verifyConfirmationButtonListener, subjectRoleButtonListener, subjectRoleAutoCompleteListener)
@@ -111,6 +141,18 @@ public class DiscordBotService implements ApplicationRunner {
         updateAvatar();
         registerCommands();
         databaseSyncService.syncAllGuildsAsync(jda.getGuilds());
+    }
+
+    /**
+     * JDA is never otherwise shut down, so on context close the gateway connection and (via
+     * {@code automaticShutdown=true} on setEventPool) jdaEventPool would leak - most visible as
+     * piled-up threads across restarts in local/dev runs.
+     */
+    @PreDestroy
+    void shutdown() {
+        if (jda != null) {
+            jda.shutdown();
+        }
     }
 
     private void updateAvatar() {

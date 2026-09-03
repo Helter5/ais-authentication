@@ -138,8 +138,10 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 }
             }
 
-            logSelfService(guild, member, configId, added, removed, blocked);
+            // Acknowledge before the audit-log write, not after - a slow "rolemenu" insert must not
+            // eat into Discord's 3s interaction deadline (10062 Unknown interaction).
             event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
+            logSelfService(guild, member, configId, added, removed, blocked);
         });
     }
 
@@ -269,8 +271,9 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 applyOption(guild, member, option, shouldHave, keep, added, removed, blocked);
             }
 
-            logSelfService(guild, member, configId, added, removed, blocked);
+            // See onButtonInteraction - reply before the audit-log write, not after.
             event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
+            logSelfService(guild, member, configId, added, removed, blocked);
         });
     }
 
