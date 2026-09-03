@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Handles clicks on a role menu's buttons/select-menu (posted by RoleMenuService). Not gated
@@ -306,7 +307,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
     }
 
     private void withConfig(GenericComponentInteractionCreateEvent event, Long configId,
-            java.util.function.Consumer<RoleMenuConfig> action) {
+            Consumer<RoleMenuConfig> action) {
         Guild guild = event.getGuild();
         if (guild == null
                 || adminSettingsService.isMaintenanceMode()

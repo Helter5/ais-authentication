@@ -22,6 +22,7 @@ import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Slf4j
 @Component
@@ -136,7 +137,7 @@ class GuildLifecycleListener extends ListenerAdapter {
      * "Unknown" if the bot lacks View Audit Log or nothing matches (audit log entries can lag
      * slightly behind the gateway event that triggered this lookup).
      */
-    private void resolveRoleChangeActor(Guild guild, String targetId, java.util.function.Consumer<String> callback) {
+    private void resolveRoleChangeActor(Guild guild, String targetId, Consumer<String> callback) {
         guild.retrieveAuditLogs()
                 .type(ActionType.MEMBER_ROLE_UPDATE)
                 .limit(10)

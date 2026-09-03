@@ -25,6 +25,7 @@ import sk.gkanocz.aisauth.verification.VerificationCodeRepository;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import tools.jackson.core.type.TypeReference;
 
+import java.lang.management.ManagementFactory;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public class AdminController {
         long activeCodesCount = verificationCodeRepository.countByExpiresAtAfter(LocalDateTime.now());
         Runtime runtime = Runtime.getRuntime();
         long memoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
-        double uptimeSeconds = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0;
+        double uptimeSeconds = ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0;
 
         return new StatusResponse(
                 uptimeSeconds, guildCount, verifiedCount, activeCodesCount,

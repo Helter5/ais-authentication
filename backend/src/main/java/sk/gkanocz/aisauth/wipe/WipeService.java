@@ -41,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -254,7 +255,7 @@ public class WipeService {
                         int botHighest = self.getRoles().stream().mapToInt(Role::getPosition).max().orElse(-1);
                         List<Role> keepRoles = member.getRoles().stream()
                                 .filter(r -> r.isManaged() || r.getPosition() >= botHighest || keepRoleIdSet.contains(r.getId()))
-                                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                                .collect(Collectors.toCollection(ArrayList::new));
                         keepRoles.add(inactiveRole);
                         guild.modifyMemberRoles(member, keepRoles).complete();
                     } else {
