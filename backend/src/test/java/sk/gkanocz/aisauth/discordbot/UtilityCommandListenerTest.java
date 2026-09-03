@@ -239,7 +239,7 @@ class UtilityCommandListenerTest {
 
         listener.dispatch(event, null);
 
-        assertThat(captor.getValue()).isEqualTo("An error occurred: discord unreachable");
+        assertThat(captor.getValue()).isEqualTo("An unexpected error occurred, try again later.");
     }
 
     // ---- /user ----
@@ -429,6 +429,6 @@ class UtilityCommandListenerTest {
 
         listener.dispatch(event, null);
 
-        assertThat(captor.getValue()).isEqualTo("Error: db down");
+        assertThat(captor.getValue()).isEqualTo("An unexpected error occurred, try again later.");
     }
 }

@@ -91,7 +91,7 @@ class UtilityCommandListener {
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
             log.error("info command error", e);
-            event.getHook().editOriginal("An error occurred: " + e.getMessage()).queue();
+            event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }
 
@@ -192,7 +192,7 @@ class UtilityCommandListener {
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
             log.error("[/user] Error", e);
-            event.getHook().editOriginal("Error: " + e.getMessage()).queue();
+            event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }
 }
