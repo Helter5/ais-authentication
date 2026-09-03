@@ -22,6 +22,7 @@ import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -142,7 +143,7 @@ public class RoleMenuController {
         discordBotService.jda().map(jda -> jda.getGuildById(guildId))
                 .ifPresent(guild -> roleMenuService.deleteMenuMessage(guild, config));
         roleMenuConfigRepository.deleteByIdAndGuildId(id, guildId);
-        java.util.Map<String, Object> deletedDetails = new java.util.LinkedHashMap<>();
+        Map<String, Object> deletedDetails = new LinkedHashMap<>();
         deletedDetails.put("configName", config.getConfigName());
         deletedDetails.put("title", config.getTitle());
         dashboardAuditLogger.log(claims, guildId, "Deleted role menu", deletedDetails);

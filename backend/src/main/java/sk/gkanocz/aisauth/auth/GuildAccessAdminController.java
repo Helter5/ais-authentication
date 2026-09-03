@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -107,8 +108,8 @@ public class GuildAccessAdminController {
         // Not tied to one guild by nature, but the Logs page is always viewed per-guild - log once
         // per guild actually added/removed so it shows up on the dashboard of the guild it concerns,
         // instead of once with no guild at all (which no Logs tab could ever show).
-        java.util.Set<String> previousSet = java.util.Set.copyOf(previous);
-        java.util.Set<String> newSet = java.util.Set.copyOf(unique);
+        Set<String> previousSet = Set.copyOf(previous);
+        Set<String> newSet = Set.copyOf(unique);
         unique.stream().filter(id -> !previousSet.contains(id))
                 .forEach(id -> dashboardAuditLogger.log(claims, id, "Guild allowed", Map.of()));
         previous.stream().filter(id -> !newSet.contains(id))

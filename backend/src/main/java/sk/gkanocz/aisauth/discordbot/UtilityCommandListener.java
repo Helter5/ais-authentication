@@ -19,6 +19,7 @@ import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
 
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -127,7 +128,7 @@ class UtilityCommandListener {
                     .setThumbnail(member != null ? member.getEffectiveAvatarUrl() : targetUser.getEffectiveAvatarUrl())
                     .setFooter("ID: " + targetUser.getId() + " • Requested by " + event.getUser().getName(),
                             event.getUser().getEffectiveAvatarUrl())
-                    .setTimestamp(java.time.Instant.now())
+                    .setTimestamp(Instant.now())
                     .addField("Account Created", targetUser.getTimeCreated().format(TS_FORMAT), false);
 
             if (member != null) {

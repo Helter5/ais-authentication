@@ -16,6 +16,7 @@ import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
 import sk.gkanocz.aisauth.shared.InvalidRequestException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,7 +72,7 @@ public class SemesterRollbackService {
 
     public record HistoryView(
             Long id, String migrationId, String operationType, String label, String actorId, String actorName,
-            java.time.LocalDateTime createdAt, boolean canRevertPosition, boolean positionReverted, RevertStatus status,
+            LocalDateTime createdAt, boolean canRevertPosition, boolean positionReverted, RevertStatus status,
             String rolledBackByActorName) {
     }
 

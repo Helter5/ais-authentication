@@ -32,6 +32,7 @@ import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -214,7 +215,7 @@ public class WipeService {
 
             List<String> logLines = state.logs.stream().map(e -> "[" + e.time() + "] " + e.msg()).toList();
             List<Map<String, Object>> removedUsers = inactiveEntries.stream().map(entry -> {
-                Map<String, Object> row = new java.util.LinkedHashMap<>();
+                Map<String, Object> row = new LinkedHashMap<>();
                 row.put("discordId", entry.user().getDiscordId());
                 row.put("username", entry.member() == null ? null : entry.member().getUser().getName());
                 row.put("aisId", entry.user().getAisId());
