@@ -43,26 +43,38 @@ public class SubjectRoleAutoCompleteListener extends ListenerAdapter {
         }
         Guild guild = event.getGuild();
         if (guild == null) {
-            event.replyChoices(List.of()).queue();
+            reply(event, List.of());
             return;
         }
 
-        String semesterType = semesterOperationService.currentSemesterType(guild.getId());
-        Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId(), semesterType);
-        Member member = event.getMember();
-        Set<String> memberRoleIds = member == null
-                ? Set.of()
-                : member.getRoles().stream().map(Role::getId).collect(Collectors.toSet());
-        String typed = event.getFocusedOption().getValue().toLowerCase();
+        List<Command.Choice> choices;
+        try {
+            String semesterType = semesterOperationService.currentSemesterType(guild.getId());
+            Set<String> allowedRoleIds = SubjectRoleSettings.allowedRoleIds(adminSettingsService, guild.getId(), semesterType);
+            Member member = event.getMember();
+            Set<String> memberRoleIds = member == null
+                    ? Set.of()
+                    : member.getRoles().stream().map(Role::getId).collect(Collectors.toSet());
+            String typed = event.getFocusedOption().getValue().toLowerCase();
 
-        List<Command.Choice> choices = guild.getRoles().stream()
-                .filter(role -> allowedRoleIds.contains(role.getId()))
-                .filter(role -> !memberRoleIds.contains(role.getId()))
-                .filter(role -> role.getName().toLowerCase().contains(typed))
-                .limit(MAX_CHOICES)
-                .map(role -> new Command.Choice(role.getName(), role.getId()))
-                .toList();
+            choices = guild.getRoles().stream()
+                    .filter(role -> allowedRoleIds.contains(role.getId()))
+                    .filter(role -> !memberRoleIds.contains(role.getId()))
+                    .filter(role -> role.getName().toLowerCase().contains(typed))
+                    .limit(MAX_CHOICES)
+                    .map(role -> new Command.Choice(role.getName(), role.getId()))
+                    .toList();
+        } catch (RuntimeException e) {
+            // Autocomplete is a best-effort UI hint - if the settings lookup fails (DB down) just
+            // offer nothing rather than logging.
+            choices = List.of();
+        }
+        reply(event, choices);
+    }
 
-        event.replyChoices(choices).queue();
+    /** Empty failure callback: a slow settings read during a DB outage can push the reply past
+     *  Discord's autocomplete deadline, and that 10062 is not worth an ERROR + stack trace. */
+    private void reply(CommandAutoCompleteInteractionEvent event, List<Command.Choice> choices) {
+        event.replyChoices(choices).queue(ok -> { }, err -> { });
     }
 }

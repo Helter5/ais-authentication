@@ -32,13 +32,21 @@ class LdapUptimeProbeJob {
     @Scheduled(fixedRate = 60, timeUnit = TimeUnit.SECONDS)
     void probe() {
         long start = System.nanoTime();
+        boolean up = true;
+        String error = null;
         try {
             ldapTemplate.lookup("");
-            ldapConnectionSampleRepository.save(new LdapConnectionSample(true, elapsedMs(start), null));
         } catch (Exception e) {
             log.warn("LDAP uptime probe failed: {}", e.getMessage());
-            ldapConnectionSampleRepository.save(
-                    new LdapConnectionSample(false, elapsedMs(start), e.getClass().getSimpleName()));
+            up = false;
+            error = e.getClass().getSimpleName();
+        }
+        try {
+            ldapConnectionSampleRepository.save(new LdapConnectionSample(up, elapsedMs(start), error));
+        } catch (RuntimeException e) {
+            // Postgres unreachable - skip this sample rather than letting it bubble out as an
+            // "Unexpected error occurred in scheduled task" ERROR every 60s during an outage.
+            log.warn("Could not record LDAP uptime sample - database unavailable");
         }
     }
 

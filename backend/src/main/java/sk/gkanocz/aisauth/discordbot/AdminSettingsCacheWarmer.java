@@ -31,6 +31,7 @@ class AdminSettingsCacheWarmer implements ApplicationRunner {
             for (String guildId : discordBotProperties.guildIds()) {
                 adminSettingReader.rawValue("cmd_states_" + guildId);
                 adminSettingReader.rawValue("rolemenu_enabled_" + guildId);
+                adminSettingReader.rawValue("semester_current_plan_" + guildId); // /pridatpredmet autocomplete reads this
                 for (String command : CommandInteractionListener.KNOWN_COMMANDS) {
                     adminSettingReader.rawValue("cmd_perms_" + guildId + "_" + command);
                     adminSettingReader.rawValue("cmd_settings_" + guildId + "_" + command);
