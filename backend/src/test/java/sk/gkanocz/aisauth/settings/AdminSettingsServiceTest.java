@@ -29,7 +29,10 @@ class AdminSettingsServiceTest {
 
     @BeforeEach
     void setUp() {
-        adminSettingsService = new AdminSettingsService(adminSettingRepository, objectMapper);
+        // Real (un-proxied) reader over the mocked repo: no Spring cache proxy in a unit test, so it's
+        // a straight pass-through and the findById(...) stubs below still drive every read.
+        AdminSettingReader adminSettingReader = new AdminSettingReader(adminSettingRepository);
+        adminSettingsService = new AdminSettingsService(adminSettingReader, adminSettingRepository, objectMapper);
     }
 
     @Test

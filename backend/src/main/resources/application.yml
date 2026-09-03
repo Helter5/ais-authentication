@@ -9,6 +9,17 @@ spring:
     hikari:
       maximum-pool-size: 20 # default 10 was too thin - a burst of page navigation firing several DB-backed calls at once queued up past it
       connection-timeout: 10000 # default 30000 - fail fast instead of a request silently hanging ~30s waiting for a free connection
+      keepalive-time: 30000 # ping idle connections every 30s so one silently dropped (Postgres restart, NAT/proxy timeout) is evicted in the background, not discovered - at a 10s cost - by the request that grabs it
+      max-lifetime: 600000 # 10min (default 30) - recycle connections well before any middlebox would, so the pool doesn't accumulate half-dead ones
+      validation-timeout: 3000 # default 5000 - cap how long a single borrow can spend proving a connection is alive
+
+  cache:
+    type: caffeine
+    caffeine:
+      # adminSettings: guild allowlist / maintenance flag / per-guild command config, all read on the
+      # slash-command hot path before the interaction is acknowledged. Short TTL keeps that path off
+      # the DB and rides out brief Postgres blips; dashboard writes evict their key immediately.
+      spec: maximumSize=1000,expireAfterWrite=60s
 
   jpa:
     open-in-view: false # inak SSE endpointy (napr. maintenance/stream) drzia Hikari connection po celu dobu spojenia

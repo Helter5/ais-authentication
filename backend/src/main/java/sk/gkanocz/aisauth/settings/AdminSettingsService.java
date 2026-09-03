@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class AdminSettingsService {
 
+    private final AdminSettingReader adminSettingReader;
     private final AdminSettingRepository adminSettingRepository;
     private final ObjectMapper objectMapper;
 
@@ -36,15 +37,13 @@ public class AdminSettingsService {
     }
 
     public <T> T get(String key, Class<T> type, T fallback) {
-        return adminSettingRepository.findById(key)
-                .map(setting -> readOrFallback(fallback, () -> objectMapper.readValue(setting.getValue(), type)))
-                .orElse(fallback);
+        String json = adminSettingReader.rawValueOrNull(key);
+        return json == null ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, type));
     }
 
     public <T> T get(String key, TypeReference<T> typeReference, T fallback) {
-        return adminSettingRepository.findById(key)
-                .map(setting -> readOrFallback(fallback, () -> objectMapper.readValue(setting.getValue(), typeReference)))
-                .orElse(fallback);
+        String json = adminSettingReader.rawValueOrNull(key);
+        return json == null ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, typeReference));
     }
 
     @Transactional
@@ -54,11 +53,13 @@ public class AdminSettingsService {
                 .ifPresentOrElse(
                         existing -> existing.updateValue(json),
                         () -> adminSettingRepository.save(new AdminSetting(key, json)));
+        adminSettingReader.evict(key);
     }
 
     @Transactional
     public void remove(String key) {
         adminSettingRepository.deleteById(key);
+        adminSettingReader.evict(key);
     }
 
     private <T> T readOrFallback(T fallback, Supplier<T> reader) {

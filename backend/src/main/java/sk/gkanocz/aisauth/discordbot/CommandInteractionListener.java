@@ -8,7 +8,9 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionException;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
@@ -57,42 +59,52 @@ class CommandInteractionListener extends ListenerAdapter {
 
         String guildId = event.getGuild().getId();
 
-        if (!adminSettingsService.isGuildAllowed(guildId)) {
-            logCommand(event, "blocked", startedAt, "Server is not allowed");
-            event.reply("**Bot príkazy nie sú povolené na tomto serveri.**").queue();
+        Boolean ephemeralOverride;
+        try {
+            if (!adminSettingsService.isGuildAllowed(guildId)) {
+                logCommand(event, "blocked", startedAt, "Server is not allowed");
+                event.reply("**Bot príkazy nie sú povolené na tomto serveri.**").queue();
+                return;
+            }
+
+            if (adminSettingsService.isMaintenanceMode()) {
+                logCommand(event, "blocked", startedAt, "Maintenance mode");
+                event.reply("Bot is currently in maintenance mode. All commands are temporarily disabled.")
+                        .setEphemeral(true).queue();
+                return;
+            }
+
+            Map<String, Boolean> states = adminSettingsService.get(
+                    "cmd_states_" + guildId, new TypeReference<Map<String, Boolean>>() { }, Map.of());
+            if (Boolean.FALSE.equals(states.get("/" + event.getName()))) {
+                logCommand(event, "blocked", startedAt, "Command is disabled");
+                event.reply("This command is currently disabled.").setEphemeral(true).queue();
+                return;
+            }
+
+            CommandPermissions permissions = adminSettingsService.get(
+                    "cmd_perms_" + guildId + "_" + event.getName(), CommandPermissions.class, CommandPermissions.empty());
+            Member member = event.getMember();
+            List<String> memberRoleIds = member == null ? List.of() : member.getRoles().stream().map(Role::getId).toList();
+            boolean isAdministrator = member != null && member.hasPermission(Permission.ADMINISTRATOR);
+            String blockReason = permissions.blockReason(event.getChannel().getId(), memberRoleIds, isAdministrator);
+            if (blockReason != null) {
+                logCommand(event, "blocked", startedAt, blockReason);
+                event.reply("You do not have permission to use this command.").setEphemeral(true).queue();
+                return;
+            }
+
+            Map<String, Object> commandSettings = adminSettingsService.get(
+                    "cmd_settings_" + guildId + "_" + event.getName(), new TypeReference<Map<String, Object>>() { }, Map.of());
+            ephemeralOverride = commandSettings.get("ephemeral") instanceof Boolean bool ? bool : null;
+        } catch (TransactionException | DataAccessException e) {
+            // Only reachable when the DB is unreachable AND the adminSettings cache is cold (fresh
+            // start during an outage); a normal blip is served from cache. Reply instead of letting
+            // it bubble out as an uncaught listener exception with no user feedback.
+            log.warn("Slash command gating hit an unavailable database in guild {}: {}", guildId, e.getMessage());
+            event.reply("⚠️ Databáza je dočasne nedostupná, skús to o chvíľu.").setEphemeral(true).queue();
             return;
         }
-
-        if (adminSettingsService.isMaintenanceMode()) {
-            logCommand(event, "blocked", startedAt, "Maintenance mode");
-            event.reply("Bot is currently in maintenance mode. All commands are temporarily disabled.")
-                    .setEphemeral(true).queue();
-            return;
-        }
-
-        Map<String, Boolean> states = adminSettingsService.get(
-                "cmd_states_" + guildId, new TypeReference<Map<String, Boolean>>() { }, Map.of());
-        if (Boolean.FALSE.equals(states.get("/" + event.getName()))) {
-            logCommand(event, "blocked", startedAt, "Command is disabled");
-            event.reply("This command is currently disabled.").setEphemeral(true).queue();
-            return;
-        }
-
-        CommandPermissions permissions = adminSettingsService.get(
-                "cmd_perms_" + guildId + "_" + event.getName(), CommandPermissions.class, CommandPermissions.empty());
-        Member member = event.getMember();
-        List<String> memberRoleIds = member == null ? List.of() : member.getRoles().stream().map(Role::getId).toList();
-        boolean isAdministrator = member != null && member.hasPermission(Permission.ADMINISTRATOR);
-        String blockReason = permissions.blockReason(event.getChannel().getId(), memberRoleIds, isAdministrator);
-        if (blockReason != null) {
-            logCommand(event, "blocked", startedAt, blockReason);
-            event.reply("You do not have permission to use this command.").setEphemeral(true).queue();
-            return;
-        }
-
-        Map<String, Object> commandSettings = adminSettingsService.get(
-                "cmd_settings_" + guildId + "_" + event.getName(), new TypeReference<Map<String, Object>>() { }, Map.of());
-        Boolean ephemeralOverride = commandSettings.get("ephemeral") instanceof Boolean bool ? bool : null;
 
         try {
             verificationCommandHandler.dispatch(event, ephemeralOverride);
