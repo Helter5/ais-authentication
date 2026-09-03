@@ -14,12 +14,10 @@ spring:
       validation-timeout: 3000 # default 5000 - cap how long a single borrow can spend proving a connection is alive
 
   cache:
+    # caffeine here selects CacheConfig (which programmatically sets refreshAfterWrite so the
+    # slash-command hot path never blocks on a down/blipping Postgres); the test suite overrides
+    # this to `none` via surefire so nothing caches across its reused Spring context.
     type: caffeine
-    caffeine:
-      # adminSettings: guild allowlist / maintenance flag / per-guild command config, all read on the
-      # slash-command hot path before the interaction is acknowledged. Short TTL keeps that path off
-      # the DB and rides out brief Postgres blips; dashboard writes evict their key immediately.
-      spec: maximumSize=1000,expireAfterWrite=60s
 
   jpa:
     open-in-view: false # inak SSE endpointy (napr. maintenance/stream) drzia Hikari connection po celu dobu spojenia

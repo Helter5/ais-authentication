@@ -37,13 +37,13 @@ public class AdminSettingsService {
     }
 
     public <T> T get(String key, Class<T> type, T fallback) {
-        String json = adminSettingReader.rawValueOrNull(key);
-        return json == null ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, type));
+        String json = adminSettingReader.rawValue(key);
+        return json.isEmpty() ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, type));
     }
 
     public <T> T get(String key, TypeReference<T> typeReference, T fallback) {
-        String json = adminSettingReader.rawValueOrNull(key);
-        return json == null ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, typeReference));
+        String json = adminSettingReader.rawValue(key);
+        return json.isEmpty() ? fallback : readOrFallback(fallback, () -> objectMapper.readValue(json, typeReference));
     }
 
     @Transactional

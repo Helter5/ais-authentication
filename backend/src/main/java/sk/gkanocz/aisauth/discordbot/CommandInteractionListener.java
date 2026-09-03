@@ -31,7 +31,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 class CommandInteractionListener extends ListenerAdapter {
 
-    private static final Set<String> KNOWN_COMMANDS = Set.of(
+    static final Set<String> KNOWN_COMMANDS = Set.of(
             "verify", "code", "find", "manualverify", "warn", "mywarns", "info", "user", "pridatpredmet", "odpocet", "faq", "refresh");
     private static final Set<String> OMIT_OPTIONS = Set.of("code");
 

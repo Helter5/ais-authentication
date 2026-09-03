@@ -1,0 +1,52 @@
+package sk.gkanocz.aisauth.config;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import sk.gkanocz.aisauth.settings.AdminSetting;
+import sk.gkanocz.aisauth.settings.AdminSettingRepository;
+
+import java.time.Duration;
+
+/**
+ * The {@code adminSettings} cache is read on the slash-command hot path <em>before</em> the Discord
+ * interaction is acknowledged, so a synchronous DB hit there (Postgres down or blipping) blocks
+ * ~10s on the dead connection pool and blows Discord's 3s deadline.
+ *
+ * <p>{@code refreshAfterWrite} is what makes that safe: once a key has been loaded, a read always
+ * returns the cached value <em>immediately</em> and only reloads in the background - and if that
+ * reload fails, Caffeine keeps serving the stale value. So any outage shorter than
+ * {@code expireAfterWrite} is invisible to the gating path for every key already seen once - and
+ * {@code AdminSettingsCacheWarmer} loads them all at startup, while the DB is still guaranteed up
+ * from the Flyway migration that just ran.
+ *
+ * <p>Guarded on {@code spring.cache.type=caffeine} so the test suite (which sets it to {@code none})
+ * gets Spring Boot's no-op manager and never caches across its reused context.
+ */
+@Configuration
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "spring.cache.type", havingValue = "caffeine")
+public class CacheConfig {
+
+    /** Loader sentinel for "no row" - admin setting values are always JSON, never blank. */
+    static final String ABSENT = "";
+
+    private final AdminSettingRepository adminSettingRepository;
+
+    @Bean
+    CacheManager cacheManager() {
+        CaffeineCacheManager manager = new CaffeineCacheManager();
+        manager.setCaffeine(Caffeine.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(Duration.ofMinutes(10))
+                .refreshAfterWrite(Duration.ofSeconds(30)));
+        manager.setCacheLoader(key -> adminSettingRepository.findById((String) key)
+                .map(AdminSetting::getValue)
+                .orElse(ABSENT));
+        return manager;
+    }
+}
