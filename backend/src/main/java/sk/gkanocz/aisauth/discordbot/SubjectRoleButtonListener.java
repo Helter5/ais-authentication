@@ -14,7 +14,9 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.text.TextInput;
 import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
 import net.dv8tion.jda.api.interactions.modals.Modal;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionException;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
@@ -75,7 +77,14 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
             return;
         }
 
-        Optional<SubjectRoleRequest> found = subjectRoleRequestRepository.findByIdAndGuildId(requestId, guild.getId());
+        Optional<SubjectRoleRequest> found;
+        try {
+            found = subjectRoleRequestRepository.findByIdAndGuildId(requestId, guild.getId());
+        } catch (TransactionException | DataAccessException e) {
+            log.warn("Subject-role decision hit an unavailable database in guild {}: {}", guild.getId(), e.getMessage());
+            event.reply("⚠️ Databáza je dočasne nedostupná, skús to o chvíľu.").setEphemeral(true).queue();
+            return;
+        }
         if (found.isEmpty() || found.get().getStatus() != SubjectRoleRequestStatus.PENDING) {
             event.reply("Táto žiadosť už bola vybavená.").setEphemeral(true).queue();
             return;
@@ -167,7 +176,14 @@ public class SubjectRoleButtonListener extends ListenerAdapter {
         }
         String originalMessageId = parts.length > 1 ? parts[1] : null;
 
-        Optional<SubjectRoleRequest> found = subjectRoleRequestRepository.findByIdAndGuildId(requestId, guild.getId());
+        Optional<SubjectRoleRequest> found;
+        try {
+            found = subjectRoleRequestRepository.findByIdAndGuildId(requestId, guild.getId());
+        } catch (TransactionException | DataAccessException e) {
+            log.warn("Subject-role rejection hit an unavailable database in guild {}: {}", guild.getId(), e.getMessage());
+            event.reply("⚠️ Databáza je dočasne nedostupná, skús to o chvíľu.").setEphemeral(true).queue();
+            return;
+        }
         if (found.isEmpty() || found.get().getStatus() != SubjectRoleRequestStatus.PENDING) {
             event.reply("Táto žiadosť už bola vybavená.").setEphemeral(true).queue();
             return;

@@ -6,7 +6,11 @@ import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
+import net.dv8tion.jda.api.requests.RestAction;
 import net.dv8tion.jda.api.requests.restaction.AuditableRestAction;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +18,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.verification.MemberVerificationChecker;
@@ -23,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -31,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT) // handlers now reply via event.getHook(); leftover event.reply(..) stubs are harmless
 class RoleMenuInteractionListenerTest {
 
     @Mock
@@ -48,6 +56,17 @@ class RoleMenuInteractionListenerTest {
     private Member self;
     @Mock
     private Member member;
+    @Mock
+    private InteractionHook hook;
+
+    /** Stub the deferReply + hook path every handler now goes through to acknowledge the interaction. */
+    @SuppressWarnings("unchecked")
+    private void stubAck(IReplyCallback event) {
+        when(event.deferReply(anyBoolean())).thenReturn(mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF));
+        when(event.getHook()).thenReturn(hook);
+        when(hook.sendMessage(anyString())).thenReturn(mock(WebhookMessageCreateAction.class, Mockito.RETURNS_SELF));
+        when(hook.deleteOriginal()).thenReturn(mock(RestAction.class, Mockito.RETURNS_SELF));
+    }
 
     private final RoleMenuService roleMenuService = new RoleMenuService(new ObjectMapper());
     private RoleMenuInteractionListener listener;
@@ -127,6 +146,7 @@ class RoleMenuInteractionListenerTest {
         when(event.getComponentId()).thenReturn("rolemenu:1:" + optionIndex);
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(event.getMember()).thenReturn(member);
+        stubAck(event);
         return event;
     }
 
@@ -173,7 +193,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event, never()).reply(anyString());
+        verify(hook, never()).sendMessage(anyString());
     }
 
     // ---- onButtonInteraction: access checks ----
@@ -186,12 +206,11 @@ class RoleMenuInteractionListenerTest {
         when(event.getComponentId()).thenReturn("rolemenu:1:0");
         when(event.getGuild()).thenReturn(guild);
         when(event.getMember()).thenReturn(null);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class, Mockito.RETURNS_SELF);
-        when(event.reply(anyString())).thenReturn(replyAction);
+        stubAck(event);
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("Something went wrong.");
+        verify(hook).sendMessage("Something went wrong.");
     }
 
     @Test
@@ -211,7 +230,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You're not allowed to use this role menu.");
+        verify(hook).sendMessage("You're not allowed to use this role menu.");
     }
 
     @Test
@@ -230,7 +249,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You don't have permission to use this role menu.");
+        verify(hook).sendMessage("You don't have permission to use this role menu.");
     }
 
     @Test
@@ -244,7 +263,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You need to verify first (/verify) before using this role menu.");
+        verify(hook).sendMessage("You need to verify first (/verify) before using this role menu.");
     }
 
     // ---- onButtonInteraction: role resolution ----
@@ -259,7 +278,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("No changes.");
+        verify(hook).sendMessage("No changes.");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -275,7 +294,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("No changes.\nCouldn't update: Role One (contact a moderator).");
+        verify(hook).sendMessage("No changes.\nCouldn't update: Role One (contact a moderator).");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -296,7 +315,7 @@ class RoleMenuInteractionListenerTest {
         listener.onButtonInteraction(event);
 
         verify(guild).addRoleToMember(member, clicked);
-        verify(event).reply("Added: Role One");
+        verify(hook).sendMessage("Added: Role One");
     }
 
     @Test
@@ -314,7 +333,7 @@ class RoleMenuInteractionListenerTest {
         listener.onButtonInteraction(event);
 
         verify(guild).removeRoleFromMember(member, clicked);
-        verify(event).reply("Removed: Role One");
+        verify(hook).sendMessage("Removed: Role One");
     }
 
     @Test
@@ -336,7 +355,7 @@ class RoleMenuInteractionListenerTest {
 
         verify(guild).removeRoleFromMember(member, sibling);
         verify(guild).addRoleToMember(member, clicked);
-        verify(event).reply("Added: Role One\nRemoved: Role Two");
+        verify(hook).sendMessage("Added: Role One\nRemoved: Role Two");
     }
 
     @Test
@@ -362,7 +381,7 @@ class RoleMenuInteractionListenerTest {
         verify(guild).removeRoleFromMember(member, roleTwo);
         verify(guild, never()).removeRoleFromMember(eq(member), eq(roleOne));
         verify(guild, never()).addRoleToMember(any(), any());
-        verify(event).reply("Removed: 2 ROCNIK");
+        verify(hook).sendMessage("Removed: 2 ROCNIK");
     }
 
     @Test
@@ -378,7 +397,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You can only have up to 1 role(s) from this menu - remove one first.");
+        verify(hook).sendMessage("You can only have up to 1 role(s) from this menu - remove one first.");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -396,7 +415,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You already have this role.");
+        verify(hook).sendMessage("You already have this role.");
         verify(guild, never()).removeRoleFromMember(any(), any());
     }
 
@@ -415,7 +434,7 @@ class RoleMenuInteractionListenerTest {
         listener.onButtonInteraction(event);
 
         verify(guild).addRoleToMember(member, clicked);
-        verify(event).reply("Added: Role One");
+        verify(hook).sendMessage("Added: Role One");
     }
 
     @Test
@@ -430,7 +449,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("You don't have this role.");
+        verify(hook).sendMessage("You don't have this role.");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -449,7 +468,7 @@ class RoleMenuInteractionListenerTest {
         listener.onButtonInteraction(event);
 
         verify(guild).removeRoleFromMember(member, clicked);
-        verify(event).reply("Removed: Role One");
+        verify(hook).sendMessage("Removed: Role One");
     }
 
     @Test
@@ -468,7 +487,7 @@ class RoleMenuInteractionListenerTest {
         listener.onButtonInteraction(event);
 
         verify(guild).addRoleToMember(member, clicked);
-        verify(event).reply("Added: Role One");
+        verify(hook).sendMessage("Added: Role One");
     }
 
     @Test
@@ -484,7 +503,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onButtonInteraction(event);
 
-        verify(event).reply("Your choice from this menu is final and can't be changed.");
+        verify(hook).sendMessage("Your choice from this menu is final and can't be changed.");
         verify(guild, never()).addRoleToMember(any(), any());
         verify(guild, never()).removeRoleFromMember(any(), any());
     }
@@ -508,6 +527,7 @@ class RoleMenuInteractionListenerTest {
         Mockito.lenient().when(event.getGuild()).thenReturn(guild);
         Mockito.lenient().when(event.getMember()).thenReturn(member);
         Mockito.lenient().when(event.getValues()).thenReturn(values);
+        stubAck(event);
         return event;
     }
 
@@ -523,7 +543,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onStringSelectInteraction(event);
 
-        verify(event).reply("You can select at most 1 role(s) from this menu.");
+        verify(hook).sendMessage("You can select at most 1 role(s) from this menu.");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -546,7 +566,7 @@ class RoleMenuInteractionListenerTest {
 
         verify(guild).addRoleToMember(member, toAdd);
         verify(guild).removeRoleFromMember(member, toRemove);
-        verify(event).reply("Added: Role One\nRemoved: Role Two");
+        verify(hook).sendMessage("Added: Role One\nRemoved: Role Two");
     }
 
     @Test
@@ -561,7 +581,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onStringSelectInteraction(event);
 
-        verify(event).reply("No changes.");
+        verify(hook).sendMessage("No changes.");
         verify(guild, never()).addRoleToMember(any(), any());
         verify(guild, never()).removeRoleFromMember(any(), any());
     }
@@ -579,7 +599,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onStringSelectInteraction(event);
 
-        verify(event).reply("No changes.\nCouldn't update: Role One (contact a moderator).");
+        verify(hook).sendMessage("No changes.\nCouldn't update: Role One (contact a moderator).");
         verify(guild, never()).addRoleToMember(any(), any());
     }
 
@@ -600,7 +620,7 @@ class RoleMenuInteractionListenerTest {
 
         verify(guild).addRoleToMember(member, toAdd);
         verify(guild, never()).removeRoleFromMember(any(), any());
-        verify(event).reply("Added: Role One");
+        verify(hook).sendMessage("Added: Role One");
     }
 
     @Test
@@ -620,7 +640,7 @@ class RoleMenuInteractionListenerTest {
 
         verify(guild, never()).addRoleToMember(any(), any());
         verify(guild).removeRoleFromMember(member, toRemove);
-        verify(event).reply("Removed: Role Two");
+        verify(hook).sendMessage("Removed: Role Two");
     }
 
     @Test
@@ -642,7 +662,7 @@ class RoleMenuInteractionListenerTest {
         verify(guild).removeRoleFromMember(member, roleTwo);
         verify(guild, never()).removeRoleFromMember(eq(member), eq(roleOne));
         verify(guild, never()).addRoleToMember(any(), any());
-        verify(event).reply("Removed: 2 ROCNIK");
+        verify(hook).sendMessage("Removed: 2 ROCNIK");
     }
 
     @Test
@@ -658,7 +678,7 @@ class RoleMenuInteractionListenerTest {
 
         listener.onStringSelectInteraction(event);
 
-        verify(event).reply("Your choice from this menu is final and can't be changed.");
+        verify(hook).sendMessage("Your choice from this menu is final and can't be changed.");
         verify(guild, never()).addRoleToMember(any(), any());
         verify(guild, never()).removeRoleFromMember(any(), any());
     }

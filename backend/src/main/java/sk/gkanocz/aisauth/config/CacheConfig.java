@@ -42,7 +42,11 @@ public class CacheConfig {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(1000)
-                .expireAfterWrite(Duration.ofMinutes(10))
+                // 24h is only a backstop against a genuinely dead key lingering forever; the 30s
+                // refresh is what keeps entries current, and it hands back the stale value (rather
+                // than evicting) whenever the reload fails - so a multi-hour Postgres outage never
+                // forces the gating path back onto the database.
+                .expireAfterWrite(Duration.ofHours(24))
                 .refreshAfterWrite(Duration.ofSeconds(30)));
         manager.setCacheLoader(key -> adminSettingRepository.findById((String) key)
                 .map(AdminSetting::getValue)

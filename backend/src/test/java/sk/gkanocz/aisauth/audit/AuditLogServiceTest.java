@@ -12,6 +12,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,7 +36,7 @@ class AuditLogServiceTest {
                 "chan-1", "general", "user-1", "someone", Map.of("field", "value")));
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        verify(auditLogRepository, timeout(2000)).save(captor.capture());
 
         AuditLog saved = captor.getValue();
         assertThat(saved.getCategory()).isEqualTo("dashboard");
@@ -50,7 +51,7 @@ class AuditLogServiceTest {
                 "dashboard", "Ran job", "guild-1", "My Guild", null, null, "user-1", "someone", null));
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
+        verify(auditLogRepository, timeout(2000)).save(captor.capture());
 
         assertThat(captor.getValue().getDetails()).isNull();
     }

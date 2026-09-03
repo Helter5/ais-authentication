@@ -7,9 +7,12 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.GenericComponentInteractionCreateEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionException;
 import sk.gkanocz.aisauth.audit.AuditLogEntry;
 import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.discordbot.BotPermissionChecker;
@@ -62,12 +65,19 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         if (configId == null || optionIndexRaw == null) {
             return;
         }
+        if (event.getGuild() == null) {
+            return;
+        }
         int optionIndex = optionIndexRaw.intValue();
 
-        withConfig(event.getGuild(), configId, config -> {
+        // Ack first: the config lookup + verification check below hit the DB, and during a Postgres
+        // outage that blocks ~10s on the dead connection pool - long past Discord's 3s deadline.
+        event.deferReply(true).queue();
+        event.getHook().setEphemeral(true); // hook followups don't inherit deferReply's flag on their own
+        withDbGuard(event, () -> withConfig(event, configId, config -> {
             String denied = accessDeniedReason(event.getGuild(), event.getMember(), config);
             if (denied != null) {
-                event.reply(denied).setEphemeral(true).queue();
+                event.getHook().sendMessage(denied).queue();
                 return;
             }
 
@@ -75,7 +85,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             Member member = event.getMember();
             List<RoleMenuOption> options = roleMenuService.readOptions(config.getOptions());
             if (optionIndex < 0 || optionIndex >= options.size()) {
-                event.reply("That role isn't part of this menu anymore.").setEphemeral(true).queue();
+                event.getHook().sendMessage("That role isn't part of this menu anymore.").queue();
                 return;
             }
             RoleMenuOption clicked = options.get(optionIndex);
@@ -103,26 +113,26 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 }
                 case "VERIFY" -> {
                     if (alreadyHas) {
-                        event.reply("You already have this role.").setEphemeral(true).queue();
+                        event.getHook().sendMessage("You already have this role.").queue();
                         return;
                     }
                     if (config.getMaxSelectable() != null && countHeld(guild, member, options) >= config.getMaxSelectable()) {
-                        event.reply("You can only have up to " + config.getMaxSelectable()
-                                + " role(s) from this menu.").setEphemeral(true).queue();
+                        event.getHook().sendMessage("You can only have up to " + config.getMaxSelectable()
+                                + " role(s) from this menu.").queue();
                         return;
                     }
                     applyOption(guild, member, clicked, true, Set.of(), added, removed, blocked);
                 }
                 case "DROP" -> {
                     if (!alreadyHas) {
-                        event.reply("You don't have this role.").setEphemeral(true).queue();
+                        event.getHook().sendMessage("You don't have this role.").queue();
                         return;
                     }
                     applyOption(guild, member, clicked, false, Set.of(), added, removed, blocked);
                 }
                 case "BINDING" -> {
                     if (options.stream().anyMatch(o -> hasOption(guild, member, o))) {
-                        event.reply("Your choice from this menu is final and can't be changed.").setEphemeral(true).queue();
+                        event.getHook().sendMessage("Your choice from this menu is final and can't be changed.").queue();
                         return;
                     }
                     applyOption(guild, member, clicked, true, Set.of(), added, removed, blocked);
@@ -130,19 +140,17 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 default -> { // NORMAL
                     if (!alreadyHas && config.getMaxSelectable() != null
                             && countHeld(guild, member, options) >= config.getMaxSelectable()) {
-                        event.reply("You can only have up to " + config.getMaxSelectable()
-                                + " role(s) from this menu - remove one first.").setEphemeral(true).queue();
+                        event.getHook().sendMessage("You can only have up to " + config.getMaxSelectable()
+                                + " role(s) from this menu - remove one first.").queue();
                         return;
                     }
                     applyOption(guild, member, clicked, !alreadyHas, Set.of(), added, removed, blocked);
                 }
             }
 
-            // Acknowledge before the audit-log write, not after - a slow "rolemenu" insert must not
-            // eat into Discord's 3s interaction deadline (10062 Unknown interaction).
-            event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
+            event.getHook().sendMessage(summarize(added, removed, blocked)).queue();
             logSelfService(guild, member, configId, added, removed, blocked);
-        });
+        }));
     }
 
     /** True if the member holds every one of this option's roles that still exist on the server. */
@@ -204,11 +212,16 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
         if (configId == null) {
             return;
         }
+        if (event.getGuild() == null) {
+            return;
+        }
 
-        withConfig(event.getGuild(), configId, config -> {
+        event.deferReply(true).queue(); // see onButtonInteraction - ack before the DB reads
+        event.getHook().setEphemeral(true);
+        withDbGuard(event, () -> withConfig(event, configId, config -> {
             String denied = accessDeniedReason(event.getGuild(), event.getMember(), config);
             if (denied != null) {
-                event.reply(denied).setEphemeral(true).queue();
+                event.getHook().sendMessage(denied).queue();
                 return;
             }
 
@@ -219,7 +232,7 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
             String messageType = config.getMessageType();
 
             if ("BINDING".equals(messageType) && options.stream().anyMatch(o -> hasOption(guild, member, o))) {
-                event.reply("Your choice from this menu is final and can't be changed.").setEphemeral(true).queue();
+                event.getHook().sendMessage("Your choice from this menu is final and can't be changed.").queue();
                 return;
             }
 
@@ -237,8 +250,8 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                     }
                 }
                 if (currentlyHeld + newPicks > config.getMaxSelectable()) {
-                    event.reply("You can select at most " + config.getMaxSelectable() + " role(s) from this menu.")
-                            .setEphemeral(true).queue();
+                    event.getHook().sendMessage(
+                            "You can select at most " + config.getMaxSelectable() + " role(s) from this menu.").queue();
                     return;
                 }
             }
@@ -271,25 +284,40 @@ public class RoleMenuInteractionListener extends ListenerAdapter {
                 applyOption(guild, member, option, shouldHave, keep, added, removed, blocked);
             }
 
-            // See onButtonInteraction - reply before the audit-log write, not after.
-            event.reply(summarize(added, removed, blocked)).setEphemeral(true).queue();
+            event.getHook().sendMessage(summarize(added, removed, blocked)).queue();
             logSelfService(guild, member, configId, added, removed, blocked);
-        });
+        }));
     }
 
-    private void withConfig(Guild guild, Long configId, java.util.function.Consumer<RoleMenuConfig> action) {
-        if (guild == null) {
-            return;
+    /**
+     * Runs the (DB-touching) handler body; if the database is unreachable - config lookup or the
+     * verification check on a cold cache during a Postgres outage - the interaction has already
+     * been deferred, so resolve the spinner with a message instead of letting it hang or bubbling
+     * out as an uncaught listener exception.
+     */
+    private void withDbGuard(GenericComponentInteractionCreateEvent event, Runnable body) {
+        try {
+            body.run();
+        } catch (TransactionException | DataAccessException e) {
+            String guildId = event.getGuild() == null ? "?" : event.getGuild().getId();
+            log.warn("Role menu interaction hit an unavailable database in guild {}: {}", guildId, e.getMessage());
+            event.getHook().sendMessage("⚠️ Databáza je dočasne nedostupná, skús to o chvíľu.").queue();
         }
-        if (adminSettingsService.isMaintenanceMode()) {
-            return;
-        }
-        if (!adminSettingsService.get("rolemenu_enabled_" + guild.getId(), Boolean.class, false)) {
+    }
+
+    private void withConfig(GenericComponentInteractionCreateEvent event, Long configId,
+            java.util.function.Consumer<RoleMenuConfig> action) {
+        Guild guild = event.getGuild();
+        if (guild == null
+                || adminSettingsService.isMaintenanceMode()
+                || !adminSettingsService.get("rolemenu_enabled_" + guild.getId(), Boolean.class, false)) {
+            // Nothing to say to the user - drop the deferred "thinking..." placeholder.
+            event.getHook().deleteOriginal().queue(ok -> { }, err -> { });
             return;
         }
         roleMenuConfigRepository.findById(configId)
                 .filter(config -> config.getGuildId().equals(guild.getId()))
-                .ifPresent(action);
+                .ifPresentOrElse(action, () -> event.getHook().deleteOriginal().queue(ok -> { }, err -> { }));
     }
 
     /** Returns null if the member may use this menu, or the rejection message to reply with. */

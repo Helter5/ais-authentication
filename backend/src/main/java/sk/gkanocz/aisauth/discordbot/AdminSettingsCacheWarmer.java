@@ -30,6 +30,7 @@ class AdminSettingsCacheWarmer implements ApplicationRunner {
             adminSettingReader.rawValue("maintenance_mode");
             for (String guildId : discordBotProperties.guildIds()) {
                 adminSettingReader.rawValue("cmd_states_" + guildId);
+                adminSettingReader.rawValue("rolemenu_enabled_" + guildId);
                 for (String command : CommandInteractionListener.KNOWN_COMMANDS) {
                     adminSettingReader.rawValue("cmd_perms_" + guildId + "_" + command);
                     adminSettingReader.rawValue("cmd_settings_" + guildId + "_" + command);
