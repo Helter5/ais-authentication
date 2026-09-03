@@ -226,15 +226,20 @@ export function PortalPickerDropdown({ dropRef, dropRect, search, onSearch, maxH
 
 // ─── Multi-select picker ──────────────────────────────────────────────────────
 
-export function MultiPicker({ options, selected, onChange, placeholder }: {
+export function MultiPicker({ options, selected, onChange, placeholder, hideFromSuggestions }: {
   options: { id: string; name: string }[];
   selected: string[];
   onChange: (ids: string[]) => void;
   placeholder: string;
+  /** Ids to drop from the dropdown suggestions only - still rendered (and removable) if already selected.
+   *  Use this instead of pre-filtering `options`, which also hides selected chips and makes stray entries un-removable. */
+  hideFromSuggestions?: string[];
 }) {
   const { open, dropRect, search, setSearch, triggerRef, dropRef, handleOpen } = usePortalPicker();
 
-  const filtered = options.filter(o => !selected.includes(o.id) && o.name.toLowerCase().includes(search.toLowerCase()));
+  const hidden = new Set(hideFromSuggestions ?? []);
+  const filtered = options.filter(o =>
+    !selected.includes(o.id) && !hidden.has(o.id) && o.name.toLowerCase().includes(search.toLowerCase()));
   const selectedItems = options.filter(o => selected.includes(o.id));
   const add = (id: string) => { onChange([...selected, id]); setSearch(""); };
   const remove = (id: string) => onChange(selected.filter(s => s !== id));

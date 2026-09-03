@@ -106,6 +106,11 @@ class SubjectRoleSlashCommandListener {
         LocalDateTime resetAt = subjectRoleService.semesterResetAt(guild.getId());
         long activeCount = subjectRoleService.activeCount(guild.getId(), member.getId(), resetAt);
 
+        Set<String> bypassLimitRoleIds = SubjectRoleSettings.bypassLimitRoleIds(adminSettingsService, guild.getId());
+        boolean bypassLimit = member.getRoles().stream().map(Role::getId).anyMatch(bypassLimitRoleIds::contains);
+        int autoGrantLimit = SubjectRoleSettings.autoGrantLimit(adminSettingsService, guild.getId());
+        long effectiveLimit = bypassLimit ? Long.MAX_VALUE : autoGrantLimit;
+
         List<String> granted = new ArrayList<>();
         List<String> alreadyHave = new ArrayList<>();
         List<String> pending = new ArrayList<>();
@@ -132,7 +137,7 @@ class SubjectRoleSlashCommandListener {
                 continue;
             }
 
-            if (activeCount < SubjectRoleService.AUTO_GRANT_LIMIT) {
+            if (activeCount < effectiveLimit) {
                 guild.addRoleToMember(member, role).reason("/pridatpredmet").queue();
                 subjectRoleService.recordGranted(guild.getId(), member.getId(), role.getId());
                 granted.add(role.getName());
@@ -146,7 +151,8 @@ class SubjectRoleSlashCommandListener {
         }
 
         String blockedLine = blocked.isEmpty() ? null : blockedMessage(event, guild.getId(), blocked);
-        event.getHook().sendMessage(formatSummary(granted, alreadyHave, pending, blockedLine, unavailable)).queue();
+        event.getHook().sendMessage(
+                formatSummary(granted, alreadyHave, pending, blockedLine, unavailable, autoGrantLimit)).queue();
     }
 
     /**
@@ -207,7 +213,7 @@ class SubjectRoleSlashCommandListener {
     }
 
     private String formatSummary(List<String> granted, List<String> alreadyHave, List<String> pending,
-                                  String blockedLine, List<String> unavailable) {
+                                  String blockedLine, List<String> unavailable, int autoGrantLimit) {
         StringBuilder sb = new StringBuilder();
         if (!granted.isEmpty()) {
             sb.append("✅ Pridelené role: ").append(String.join(", ", granted)).append('\n');
@@ -216,7 +222,7 @@ class SubjectRoleSlashCommandListener {
             sb.append("ℹ️ Už si mal: ").append(String.join(", ", alreadyHave)).append('\n');
         }
         if (!pending.isEmpty()) {
-            sb.append("⏳ Čaká na schválenie adminom (už máš ").append(SubjectRoleService.AUTO_GRANT_LIMIT)
+            sb.append("⏳ Čaká na schválenie adminom (už máš ").append(autoGrantLimit)
                     .append("+ predmetových rolí tento semester): ").append(String.join(", ", pending)).append('\n');
         }
         if (blockedLine != null) {

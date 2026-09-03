@@ -19,8 +19,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubjectRoleService {
 
-    /** First two subject-role requests per guild+user+semester auto-grant; the 3rd+ needs admin approval. */
-    public static final int AUTO_GRANT_LIMIT = 2;
+    /** Fallback auto-grant limit per guild+user+semester when an admin hasn't configured one in
+     *  /pridatpredmet Settings - the first N requests auto-grant, the rest need admin approval. */
+    public static final int DEFAULT_AUTO_GRANT_LIMIT = 2;
 
     private static final List<SubjectRoleRequestStatus> ACTIVE_STATUSES =
             List.of(SubjectRoleRequestStatus.GRANTED, SubjectRoleRequestStatus.APPROVED, SubjectRoleRequestStatus.PENDING);

@@ -42,7 +42,13 @@ type CmdSettingsData = {
   allowedRoleIds?: string[];
   allowedRoleIdsWinter?: string[];
   allowedRoleIdsSummer?: string[];
+  /** Roles allowed in both semesters at once - unioned into each semester's list by the bot. */
+  allowedRoleIdsBoth?: string[];
   approverRoleIds?: string[];
+  /** How many /pridatpredmet selections auto-grant per semester before the rest need approval. */
+  autoGrantLimit?: number;
+  /** Holders of any of these roles skip the auto-grant limit entirely. */
+  bypassLimitRoleIds?: string[];
   excludeRoleIds?: string[];
   subcommandEphemeral?: Record<string, boolean>;
 };
@@ -80,6 +86,7 @@ const CMD_SUBCOMMANDS: Record<string, { key: string; label: string }[]> = {
 const CMD_SETTINGS_SCHEMA: Record<string, {
   dmUser?: boolean; ephemeral?: boolean; includeBots?: boolean; message?: boolean;
   allowedRoles?: boolean; approverRoles?: boolean; excludeRoles?: boolean; subcommandEphemeral?: boolean;
+  autoGrantLimit?: boolean; bypassLimitRoles?: boolean;
 }> = {
   warn:         { subcommandEphemeral: true },
   wipe:         { dmUser: true, ephemeral: true },
@@ -90,7 +97,7 @@ const CMD_SETTINGS_SCHEMA: Record<string, {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: true },
-  pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true },
+  pridatpredmet: { ephemeral: true, message: true, allowedRoles: true, approverRoles: true, autoGrantLimit: true, bypassLimitRoles: true },
   faq:          { ephemeral: true, message: true },
   odpocet:      { subcommandEphemeral: true },
   refresh:      { ephemeral: true, message: true, excludeRoles: true },
@@ -106,7 +113,7 @@ const CMD_SETTINGS_DEFAULTS: Record<string, CmdSettingsData> = {
   mywarns:      { ephemeral: true },
   info:         { ephemeral: true },
   user:         { ephemeral: false },
-  pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIdsWinter: [], allowedRoleIdsSummer: [], approverRoleIds: [] },
+  pridatpredmet: { ephemeral: true, message: DEFAULT_BLOCKED_SUBJECT_MESSAGE, allowedRoleIdsWinter: [], allowedRoleIdsSummer: [], allowedRoleIdsBoth: [], approverRoleIds: [], autoGrantLimit: 2, bypassLimitRoleIds: [] },
   faq:          { ephemeral: true, message: DEFAULT_FAQ_MESSAGE },
   odpocet:      { subcommandEphemeral: { add: false, list: true } },
   refresh:      { ephemeral: true, message: DEFAULT_REFRESH_MESSAGE, excludeRoleIds: [] },
@@ -144,7 +151,7 @@ const CMD_CATEGORIES: Record<CmdCategory, CmdDef[]> = {
   ],
   Utility: [
     { name: "/info", description: "Show bot configuration and server information.", hasSettings: true },
-    { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. First 2 per semester auto-grant, the rest need approval. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
+    { name: "/pridatpredmet", description: "Self-assign up to 5 subject roles (autocomplete-filtered to the roles allowed in Settings) for a repeated or extra-enrolled subject. The first few per semester auto-grant (limit configurable below, default 2), the rest need approval - members with a bypass role skip the limit. Refuses to run until allowed subject roles and approvers are both configured below. The per-semester counter resets when a Switch Semester is started (not resumed) on the Semester page - there's no separate manual reset.", hasSettings: true },
     { name: "/odpocet", description: "Countdown to a BP/DP defense date - renames a room's channel name daily (e.g. \"30-dni-do-bp\") until the day arrives, then stops. Manage active counters via the Thesis Countdown module, ephemeral response per subcommand below.", hasSettings: true, settingsHref: "/modules/thesiscounter" },
     { name: "/faq", description: "Ephemeral FAQ reply. The whole message is configured below - write out the commands/info you want students to see.", hasSettings: true },
     { name: "/refresh", description: "Self-service: a returning member restores whichever of their previous roles are still trackable, from a snapshot taken when they left/were kicked/were banned (30-day retention). Roles with an elevated Discord permission are never snapshotted or restored, no matter what's configured below.", hasSettings: true },
@@ -274,7 +281,10 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
   const [message, setMessage] = useState(defaults.message ?? "");
   const [allowedRoleIdsWinter, setAllowedRoleIdsWinter] = useState<string[]>(defaults.allowedRoleIdsWinter ?? []);
   const [allowedRoleIdsSummer, setAllowedRoleIdsSummer] = useState<string[]>(defaults.allowedRoleIdsSummer ?? []);
+  const [allowedRoleIdsBoth, setAllowedRoleIdsBoth] = useState<string[]>(defaults.allowedRoleIdsBoth ?? []);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>(defaults.approverRoleIds ?? []);
+  const [autoGrantLimit, setAutoGrantLimit] = useState<number>(defaults.autoGrantLimit ?? 2);
+  const [bypassLimitRoleIds, setBypassLimitRoleIds] = useState<string[]>(defaults.bypassLimitRoleIds ?? []);
   const [excludeRoleIds, setExcludeRoleIds] = useState<string[]>(defaults.excludeRoleIds ?? []);
   const [subcommandEphemeral, setSubcommandEphemeral] = useState<Record<string, boolean>>(defaults.subcommandEphemeral ?? {});
   const [loading, setLoading] = useState(true);
@@ -298,10 +308,17 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
         if (schema.message)     setMessage(data.message ?? defaults.message ?? "");
         if (schema.allowedRoles) {
           // Fall back to the pre-split flat list for a guild that hasn't re-saved Settings yet.
-          setAllowedRoleIdsWinter(data.allowedRoleIdsWinter ?? data.allowedRoleIds ?? defaults.allowedRoleIdsWinter ?? []);
-          setAllowedRoleIdsSummer(data.allowedRoleIdsSummer ?? data.allowedRoleIds ?? defaults.allowedRoleIdsSummer ?? []);
+          // dedupe: the pre-split flat list was seeded into both semester lists, so re-saves could
+          // accumulate duplicates (and, when a picker hid them, un-removable strays).
+          const both = [...new Set(data.allowedRoleIdsBoth ?? defaults.allowedRoleIdsBoth ?? [])];
+          const bothSet = new Set(both);
+          setAllowedRoleIdsBoth(both);
+          setAllowedRoleIdsWinter([...new Set(data.allowedRoleIdsWinter ?? data.allowedRoleIds ?? defaults.allowedRoleIdsWinter ?? [])].filter(id => !bothSet.has(id)));
+          setAllowedRoleIdsSummer([...new Set(data.allowedRoleIdsSummer ?? data.allowedRoleIds ?? defaults.allowedRoleIdsSummer ?? [])].filter(id => !bothSet.has(id)));
         }
         if (schema.approverRoles) setApproverRoleIds(data.approverRoleIds ?? defaults.approverRoleIds ?? []);
+        if (schema.autoGrantLimit) setAutoGrantLimit(data.autoGrantLimit ?? defaults.autoGrantLimit ?? 2);
+        if (schema.bypassLimitRoles) setBypassLimitRoleIds(data.bypassLimitRoleIds ?? defaults.bypassLimitRoleIds ?? []);
         if (schema.excludeRoles) setExcludeRoleIds(data.excludeRoleIds ?? defaults.excludeRoleIds ?? []);
         if (schema.subcommandEphemeral) setSubcommandEphemeral({ ...defaults.subcommandEphemeral, ...data.subcommandEphemeral });
       })
@@ -316,6 +333,8 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     schema.message,
     schema.allowedRoles,
     schema.approverRoles,
+    schema.autoGrantLimit,
+    schema.bypassLimitRoles,
     schema.excludeRoles,
     schema.subcommandEphemeral,
     defaults.dmUser,
@@ -324,7 +343,10 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     defaults.message,
     defaults.allowedRoleIdsWinter,
     defaults.allowedRoleIdsSummer,
+    defaults.allowedRoleIdsBoth,
     defaults.approverRoleIds,
+    defaults.autoGrantLimit,
+    defaults.bypassLimitRoleIds,
     defaults.excludeRoleIds,
     defaults.subcommandEphemeral,
   ]);
@@ -355,8 +377,11 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
     if (schema.allowedRoles) {
       data.allowedRoleIdsWinter = allowedRoleIdsWinter;
       data.allowedRoleIdsSummer = allowedRoleIdsSummer;
+      data.allowedRoleIdsBoth = allowedRoleIdsBoth;
     }
     if (schema.approverRoles) data.approverRoleIds = approverRoleIds;
+    if (schema.autoGrantLimit) data.autoGrantLimit = autoGrantLimit;
+    if (schema.bypassLimitRoles) data.bypassLimitRoleIds = bypassLimitRoleIds;
     if (schema.excludeRoles) data.excludeRoleIds = excludeRoleIds;
     if (schema.subcommandEphemeral) data.subcommandEphemeral = subcommandEphemeral;
     try {
@@ -446,29 +471,54 @@ function CommandSettingsModal({ title, commandKey, guildId, roles, channels, onC
               <p className="text-sm font-bold text-zinc-200">Allowed subject roles</p>
               <p className="text-xs text-zinc-500 -mt-3">
                 Only these roles can be self-assigned via /pridatpredmet, and only during their own semester - everything else is blocked. Also filters what the command's autocomplete suggests.
-                A role picked here drops out of the other semester's list below - a subject only ever belongs to one, so this keeps both lists free of ones already placed.
+                A role already placed in one list is hidden from the other two's suggestions (a subject belongs to one), but stays visible and removable wherever it's actually listed. "Both semesters" makes a year-round role count as allowed in winter and summer alike.
               </p>
               <div>
                 <p className="text-xs font-semibold text-sky-300 mb-2">❄️ Winter (ZS)</p>
-                <MultiPicker options={roles.filter(r => !allowedRoleIdsSummer.includes(r.id))} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role" />
+                <MultiPicker options={roles} selected={allowedRoleIdsWinter} onChange={setAllowedRoleIdsWinter} placeholder="Select Role"
+                  hideFromSuggestions={[...allowedRoleIdsSummer, ...allowedRoleIdsBoth]} />
               </div>
               <div>
                 <p className="text-xs font-semibold text-amber-300 mb-2">☀️ Summer (LS)</p>
-                <MultiPicker options={roles.filter(r => !allowedRoleIdsWinter.includes(r.id))} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role" />
+                <MultiPicker options={roles} selected={allowedRoleIdsSummer} onChange={setAllowedRoleIdsSummer} placeholder="Select Role"
+                  hideFromSuggestions={[...allowedRoleIdsWinter, ...allowedRoleIdsBoth]} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-emerald-300 mb-2">❄️☀️ Both semesters</p>
+                <MultiPicker options={roles} selected={allowedRoleIdsBoth} onChange={setAllowedRoleIdsBoth} placeholder="Select Role" />
               </div>
             </div>
           )}
-          {schema.approverRoles && (
+          {schema.bypassLimitRoles && (
             <div>
-              <p className="text-sm font-bold text-zinc-200">Who can approve/reject requests</p>
+              <p className="text-sm font-bold text-zinc-200">Roles that bypass the auto-grant limit</p>
               <p className="text-xs text-zinc-500 mt-0.5 mb-2">
-                Members with one of these roles (plus server Administrators) can approve or reject 3rd+ requests. Empty = only Administrators can.
+                Members holding any of these roles skip the auto-grant limit below entirely - every selection is granted immediately, nothing queues for approval. Empty = the limit applies to everyone.
+              </p>
+              <MultiPicker options={roles} selected={bypassLimitRoleIds} onChange={setBypassLimitRoleIds} placeholder="Select Role" />
+            </div>
+          )}
+          {schema.autoGrantLimit && (
+            <CmdSettingsRow
+              label="Auto-grant limit"
+              hint="How many subject roles a member can self-assign per semester before the rest wait for an approver. Counter resets on a semester switch.">
+              <NumberStepper value={autoGrantLimit} onChange={setAutoGrantLimit} min={0} max={25} ariaLabel="Auto-grant limit" />
+            </CmdSettingsRow>
+          )}
+          {schema.approverRoles && (
+            <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-4">
+              <p className="flex items-center gap-2 text-sm font-bold text-indigo-200">
+                <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                Who can approve/reject requests
+              </p>
+              <p className="text-xs text-indigo-200/70 mt-1 mb-2">
+                Members with one of these roles (plus server Administrators) can approve or reject requests over the auto-grant limit. Empty = only Administrators can.
               </p>
               <MultiPicker options={roles} selected={approverRoleIds} onChange={setApproverRoleIds} placeholder="Select Role" />
             </div>
           )}
           {schema.allowedRoles && schema.approverRoles
-            && ((allowedRoleIdsWinter.length === 0 && allowedRoleIdsSummer.length === 0) || approverRoleIds.length === 0) && (
+            && ((allowedRoleIdsWinter.length === 0 && allowedRoleIdsSummer.length === 0 && allowedRoleIdsBoth.length === 0) || approverRoleIds.length === 0) && (
             <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-3 py-2">
               /pridatpredmet will refuse to run until at least one semester has allowed subject roles and approvers are set.
             </p>
