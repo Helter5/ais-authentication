@@ -12,6 +12,7 @@ import sk.gkanocz.aisauth.audit.AuditLogService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.warn.Warn;
 import sk.gkanocz.aisauth.warn.WarnService;
@@ -133,7 +134,7 @@ class WarnSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Warn command failed", e);
+            DbErrors.report(log, "Warn command failed", e);
             event.getHook().sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.").queue();
         }
     }

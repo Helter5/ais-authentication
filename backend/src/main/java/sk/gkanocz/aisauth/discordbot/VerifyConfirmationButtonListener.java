@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.directory.VerificationProperties;
 import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.verification.VerificationCode;
 import sk.gkanocz.aisauth.verification.VerificationFacade;
@@ -104,7 +105,7 @@ public class VerifyConfirmationButtonListener extends ListenerAdapter {
             } catch (DomainException e) {
                 event.getHook().editOriginal(e.getMessage()).setEmbeds(List.of()).setComponents(List.of()).queue();
             } catch (Exception e) {
-                sk.gkanocz.aisauth.shared.DbErrors.report(log, "Verify confirmation failed", e);
+                DbErrors.report(log, "Verify confirmation failed", e);
                 event.getHook().editOriginal(GENERIC_ERROR_MESSAGE).setEmbeds(List.of()).setComponents(List.of()).queue();
             } finally {
                 confirmInFlight.decrementAndGet();

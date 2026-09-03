@@ -17,6 +17,7 @@ import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.verification.VerificationService;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
@@ -179,7 +180,7 @@ class VerificationSlashCommandListener {
             } catch (DomainException e) {
                 replaceProgressMessage(event, progressMessageId, e.getMessage());
             } catch (Exception e) {
-                sk.gkanocz.aisauth.shared.DbErrors.report(log, "Verify command failed", e);
+                DbErrors.report(log, "Verify command failed", e);
                 replaceProgressMessage(event, progressMessageId, GENERIC_ERROR_MESSAGE);
             } finally {
                 verifyInFlight.decrementAndGet();
@@ -268,7 +269,7 @@ class VerificationSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Code command failed", e);
+            DbErrors.report(log, "Code command failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }
@@ -371,7 +372,7 @@ class VerificationSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "Manual verify command failed", e);
+            DbErrors.report(log, "Manual verify command failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }

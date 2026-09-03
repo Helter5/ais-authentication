@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.semester.SemesterOperationService;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.subjectrole.SubjectRoleRequest;
 import sk.gkanocz.aisauth.subjectrole.SubjectRoleService;
 import tools.jackson.core.type.TypeReference;
@@ -71,7 +72,7 @@ class SubjectRoleSlashCommandListener {
         try {
             process(event);
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "/pridatpredmet failed", e);
+            DbErrors.report(log, "/pridatpredmet failed", e);
             event.getHook().sendMessage(GENERIC_ERROR_MESSAGE).queue();
         }
     }

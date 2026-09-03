@@ -13,6 +13,7 @@ import sk.gkanocz.aisauth.settings.GuildSettings;
 import sk.gkanocz.aisauth.settings.GuildSettingsService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.verification.VerifiedUser;
 import sk.gkanocz.aisauth.verification.VerifiedUserRepository;
 import sk.gkanocz.aisauth.warn.Warn;
@@ -90,7 +91,7 @@ class UtilityCommandListener {
 
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "info command error", e);
+            DbErrors.report(log, "info command error", e);
             event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }
@@ -191,7 +192,7 @@ class UtilityCommandListener {
 
             event.getHook().editOriginalEmbeds(embed.build()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "[/user] Error", e);
+            DbErrors.report(log, "[/user] Error", e);
             event.getHook().editOriginal("An unexpected error occurred, try again later.").queue();
         }
     }

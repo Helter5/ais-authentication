@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import sk.gkanocz.aisauth.settings.AdminSettingsService;
+import sk.gkanocz.aisauth.shared.DbErrors;
 import sk.gkanocz.aisauth.shared.DomainException;
 import sk.gkanocz.aisauth.thesiscounter.ThesisCounterConfig;
 import sk.gkanocz.aisauth.thesiscounter.ThesisCounterConfigRepository;
@@ -88,7 +89,7 @@ class ThesisCounterSlashCommandListener {
         } catch (DomainException e) {
             event.getHook().sendMessage(e.getMessage() + dashboardHint()).queue();
         } catch (Exception e) {
-            sk.gkanocz.aisauth.shared.DbErrors.report(log, "odpocet add failed", e);
+            DbErrors.report(log, "odpocet add failed", e);
             event.getHook().sendMessage("Nastala neočakávaná chyba, skús to prosím neskôr.").queue();
         }
     }
