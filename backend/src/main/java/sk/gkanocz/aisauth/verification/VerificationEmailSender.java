@@ -28,10 +28,21 @@ class VerificationEmailSender {
         return """
                 Ahoj.
 
-                Tvoj overovací kód je: %s
+                >>> PREČÍTAJ SI TOTO NAJPRV <<<
 
-                Na discorde napíš ručne príkaz:
-                /code %s
+                Po overení si nezabudni nastaviť roly na Discorde:
+                  * svoj odbor                  -> kanál #odbor-roles
+                  * povinne voliteľné predmety  -> kanál #pv-predmety-roles
+                  * záujmy (gaming, anime, motorsport...) -> kanál #zaujmy-roles
+
+                Ak máš nejaký všeobecný problém, napíš nám na Discorde cez kanál #kontakt-ticket.
+
+                ============================================
+                     TVOJ OVEROVACÍ KÓD:   %s
+                ============================================
+
+                Na Discorde napíš ručne príkaz:
+                    /code %s
 
                 Kód platí 15 minút.
                 """.formatted(code, code);
