@@ -12,9 +12,11 @@ infra/vpn/client.ovpn
 # OS
 .DS_Store
 
-# Claude Code (celý priečinok - lokálne skills/settings, netreba v public repe)
+# AI tooling (lokálne skills/settings, netreba v public repe)
 .claude/
 CLAUDE.md
+.claude-flow/
+.token-optimizer/
 
 # IDE (repo-wide, projektové .gitignore v backend/frontend riešia zvyšok)
 .idea/
