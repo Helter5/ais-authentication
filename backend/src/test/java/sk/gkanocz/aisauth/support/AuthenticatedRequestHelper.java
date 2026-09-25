@@ -110,6 +110,7 @@ public class AuthenticatedRequestHelper {
             lenient().when(discordBotService.jda()).thenReturn(Optional.of(jda));
         }
         lenient().when(jda.getGuildById(guildId)).thenReturn(guild);
+        lenient().when(discordBotService.requireGuild(guildId)).thenReturn(guild);
     }
 
     public record IssuedToken(String token, String jti, LocalDateTime expiresAt) {
