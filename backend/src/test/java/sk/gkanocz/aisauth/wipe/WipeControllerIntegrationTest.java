@@ -107,7 +107,7 @@ class WipeControllerIntegrationTest {
     }
 
     @Test
-    void startWipeForbiddenForManagerEvenOnTheirOwnGuild() throws Exception {
+    void startWipeAuthorizedForManagerOnTheirOwnGuild() throws Exception {
         String guildId = "guild-wipe-manager-owned";
         String token = auth.managerTokenFor(guildId);
 
@@ -115,7 +115,7 @@ class WipeControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token))
                         .content("{\"guildId\":\"" + guildId + "\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -168,7 +168,7 @@ class WipeControllerIntegrationTest {
     }
 
     @Test
-    void accessDeniedForManagerEvenWithRecapChannelConfigured() throws Exception {
+    void accessAllowedForManagerWithRecapChannelConfigured() throws Exception {
         String guildId = "guild-wipe-access-4";
         logChannelSubscriptionRepository.save(new LogChannelSubscription(guildId, "channel-1", LogEventType.WIPE_RECAP));
         String token = auth.managerTokenFor(guildId);
@@ -177,7 +177,6 @@ class WipeControllerIntegrationTest {
                         .param("guildId", guildId)
                         .header(HttpHeaders.AUTHORIZATION, auth.bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.allowed").value(false))
-                .andExpect(jsonPath("$.reason").value("no_permission"));
+                .andExpect(jsonPath("$.allowed").value(true));
     }
 }

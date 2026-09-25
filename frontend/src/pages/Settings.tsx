@@ -277,8 +277,8 @@ function ManagerRolesSection({ roles, selected, onChange }: {
     >
       <div className="space-y-3">
         <p className="rounded border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs leading-relaxed text-indigo-200">
-          Managers can sign in and access Dashboard, Codes, Users Directory, Semester, and Logs.
-          They cannot access the Super Admin area: Admin, Settings, Modules, Commands, or Wipe.
+          Managers can sign in and access Dashboard, Codes, Users Directory, Semester, Modules, Commands, Wipe, and Logs.
+          They cannot access the Super Admin area: Admin or Settings.
         </p>
         <ManagerRolePicker roles={roles} value={selected} onChange={onChange} />
       </div>

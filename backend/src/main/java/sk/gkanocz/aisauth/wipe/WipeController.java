@@ -13,7 +13,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import sk.gkanocz.aisauth.auth.GuildAccessService;
 import sk.gkanocz.aisauth.auth.ManagerAccess;
 import sk.gkanocz.aisauth.auth.PublicToAuthenticated;
-import sk.gkanocz.aisauth.auth.SuperAdminAccess;
 import sk.gkanocz.aisauth.discordbot.DiscordBotService;
 import sk.gkanocz.aisauth.settings.LogEventType;
 import sk.gkanocz.aisauth.settings.LogRoutingService;
@@ -52,7 +51,7 @@ public class WipeController {
         if (guildId == null) {
             return Map.of("allowed", false, "reason", "no_guild");
         }
-        if (!guildAccessService.isSuperAdmin(claims)) {
+        if (!guildAccessService.canManageGuild(claims, guildId)) {
             return Map.of("allowed", false, "reason", "no_permission");
         }
         if (logRoutingService.channelIdFor(guildId, LogEventType.WIPE_RECAP).isEmpty()) {
@@ -68,14 +67,10 @@ public class WipeController {
         return wipeService.status(guildId);
     }
 
-    @SuperAdminAccess
+    @ManagerAccess
     @PostMapping
     public Map<String, Object> startWipe(@AuthenticationPrincipal Claims claims, @RequestBody StartWipeRequest request) {
-        // Old app stacked requireSuperAdmin + requireGuildManager on this route - since super
-        // admins already auto-pass canManageGuild too, that combo was effectively super-admin-only
-        // for this destructive action. assertCanManageGuild alone would let any per-guild manager
-        // trigger a wipe, which is a real permission widening on a mass-removal action.
-        guildAccessService.assertSuperAdmin(claims);
+        guildAccessService.assertCanManageGuild(claims, request.guildId());
         Guild guild = discordBotService.requireGuild(request.guildId());
         List<String> keepRoleIds = request.keepRoleIds() == null ? List.of() : request.keepRoleIds();
         int total = wipeService.start(

@@ -52,17 +52,17 @@ function App() {
                 <Route path="/semester/switch" element={<SwitchSemesterModule />} />
                 <Route path="/semester/setup" element={<SwitchSemesterModule />} />
                 <Route path="/access-logs" element={<Logs />} />
+                <Route path="/modules" element={<Modules />} />
+                <Route path="/modules/hacked-account-trap" element={<HackedAccountTrapModule />} />
+                <Route path="/modules/autodelete" element={<AutoDeleteModule />} />
+                <Route path="/modules/rolemenu" element={<RoleMenuModule />} />
+                <Route path="/modules/automentions" element={<AutoMentionsModule />} />
+                <Route path="/modules/thesiscounter" element={<ThesisCounterModule />} />
+                <Route path="/commands/switchsemester" element={<SwitchSemesterModule />} />
+                {/* legacy redirect handled by duplicate route above */}
+                <Route path="/commands" element={<Commands />} />
+                <Route path="/wipe" element={<Wipe />} />
                 <Route element={<SuperAdminRoute />}>
-                  <Route path="/modules" element={<Modules />} />
-                  <Route path="/modules/hacked-account-trap" element={<HackedAccountTrapModule />} />
-                  <Route path="/modules/autodelete" element={<AutoDeleteModule />} />
-                  <Route path="/modules/rolemenu" element={<RoleMenuModule />} />
-                  <Route path="/modules/automentions" element={<AutoMentionsModule />} />
-                  <Route path="/modules/thesiscounter" element={<ThesisCounterModule />} />
-                  <Route path="/commands/switchsemester" element={<SwitchSemesterModule />} />
-                  {/* legacy redirect handled by duplicate route above */}
-                  <Route path="/commands" element={<Commands />} />
-                  <Route path="/wipe" element={<Wipe />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/admin" element={<Admin />} />
                 </Route>

@@ -44,15 +44,15 @@ export function Sidebar({ isMobile, onNavItemClick, maintenanceBannerShown }: { 
     { name: "Codes", href: "/codes", icon: Ticket },
     { name: "Users Directory", href: "/users", icon: Users },
     ...(canSemester ? [{ name: "Semester", href: "/semester", icon: CalendarDays }] : []),
+    { name: "Modules", href: "/modules", icon: LayoutGrid },
+    { name: "Commands", href: "/commands", icon: Sliders },
     { name: "Logs", href: "/access-logs", icon: ScrollText },
+    { name: "Wipe", href: "/wipe", icon: Trash2 },
   ];
 
   const superAdminLinks = [
     { name: "Admin", href: "/admin", icon: Shield, danger: true },
     { name: "Settings", href: "/settings", icon: Settings, danger: true },
-    { name: "Modules", href: "/modules", icon: LayoutGrid, danger: false },
-    { name: "Commands", href: "/commands", icon: Sliders, danger: false },
-    { name: "Wipe", href: "/wipe", icon: Trash2, danger: false },
   ];
 
   return (
@@ -76,7 +76,9 @@ export function Sidebar({ isMobile, onNavItemClick, maintenanceBannerShown }: { 
         <nav className="grid items-start px-4 text-xs sm:text-sm font-medium gap-1">
           {links.map((link) => {
             const isActive = location.pathname === link.href ||
-              (link.href === "/semester" && location.pathname.startsWith("/semester"));
+              (link.href === "/semester" && location.pathname.startsWith("/semester")) ||
+              (link.href === "/modules" && location.pathname.startsWith("/modules/")) ||
+              (link.href === "/commands" && location.pathname.startsWith("/commands/"));
             const Icon = link.icon;
             return (
               <Link
@@ -100,9 +102,7 @@ export function Sidebar({ isMobile, onNavItemClick, maintenanceBannerShown }: { 
       <div className="border-t border-zinc-800 px-4 py-3 space-y-1">
         {isSuperAdmin && superAdminLinks.map(link => {
           const Icon = link.icon;
-          const isActive = location.pathname === link.href
-            || (link.href === "/modules" && location.pathname.startsWith("/modules/"))
-            || (link.href === "/commands" && location.pathname.startsWith("/commands/"));
+          const isActive = location.pathname === link.href;
 
           return (
             <Link
