@@ -101,6 +101,7 @@ public class AuthenticatedRequestHelper {
         Member member = mock(Member.class);
         lenient().when(member.getRoles()).thenReturn(List.of(role));
         Guild guild = mock(Guild.class);
+        lenient().when(guild.getId()).thenReturn(guildId);
         lenient().when(guild.getMemberById(TEST_MANAGER_DISCORD_ID)).thenReturn(member);
 
         JDA jda = discordBotService.jda().orElse(null);
