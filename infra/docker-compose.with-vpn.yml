@@ -61,6 +61,13 @@ services:
       dockerfile: Dockerfile
     container_name: ais-auth-backend
     restart: unless-stopped
+    # Explicit here: Podman OCI builds may omit the Dockerfile HEALTHCHECK.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/liveness | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 25s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
