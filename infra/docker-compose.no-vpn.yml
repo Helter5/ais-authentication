@@ -1,0 +1,102 @@
+# Standalone alternative to docker-compose.yml for hosts with direct STU LDAP access.
+# Run from infra/: docker compose -f docker-compose.no-vpn.yml up -d --build
+# Do not combine with docker-compose.yml: this file intentionally has no VPN service.
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    container_name: ais-auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER must be set} -d ${DB_NAME:?DB_NAME must be set}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.29.7
+    container_name: ais-auth-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ais-auth-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:?DB_NAME must be set}
+      DB_USER: ${DB_USER:?DB_USER must be set}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Verifikácia <noreply@stuba.sk>}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
+      MAIL_SMTP_SSL: ${MAIL_SMTP_SSL:-false}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      SUPER_ADMIN_IDS: ${SUPER_ADMIN_IDS:?SUPER_ADMIN_IDS must be set - nobody could reach the admin dashboard otherwise}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID must be set}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?DISCORD_CLIENT_SECRET must be set}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/api/auth/discord/callback}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN must be set}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
+      # Direct connection: the host/container network must be allowed to reach STU LDAP.
+      # ldap:// is unencrypted here (no VPN tunnel); use only on an approved trusted network.
+      LDAP_URL: ${LDAP_URL:-ldap://ldap.stuba.sk:389}
+      LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
+      LDAP_USERNAME: ${LDAP_USERNAME:-}
+      LDAP_PASSWORD: ${LDAP_PASSWORD:-}
+      VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
+    container_name: ais-auth-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    container_name: ais-auth-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

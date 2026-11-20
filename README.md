@@ -46,6 +46,29 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
 
 `vpn` kontajner (tunel k univerzitnému LDAP) potrebuje `infra/vpn/client.ovpn` — stiahni si vlastný profil podľa [STU CVT návodu](https://www.stuba.sk/sk/pracoviska/centrum-vypoctovej-techniky/navody/vpn-pristup-do-siete-stu/openvpn-v.3-connect.html?page_id=16269) a ulož ho tam. VPN prihlasovacie údaje idú cez `infra/.env` (`VPN_USERNAME`/`VPN_PASSWORD`).
 
+### Docker na serveri s priamym prístupom k LDAP (bez VPN)
+
+Ak server dosiahne `ldap://ldap.stuba.sk:389` bez VPN (napr. v sieti FEI), použi samostatný `infra/docker-compose.no-vpn.yml`. Pôvodný Compose s VPN zostáva nezmenený. **Tieto dva súbory nekombinuj cez viacero `-f`.**
+
+Z adresára `infra/`:
+
+```bash
+# Len ak súbory ešte nemáš; potom vyplň .env a doménu v Caddyfile.
+[ -f .env ] || cp .env.example .env
+[ -f Caddyfile ] || cp Caddyfile.example Caddyfile
+chmod 600 .env
+
+docker compose -f docker-compose.no-vpn.yml up -d --build
+docker compose -f docker-compose.no-vpn.yml ps
+docker compose -f docker-compose.no-vpn.yml logs --tail=100 backend
+```
+
+Vyplň DB/JWT/Discord údaje, produkčné `FRONTEND_URL` a `DISCORD_REDIRECT_URI` a reálne SMTP pre doručovanie kódov. `MAIL_HOST=localhost` zo vzorového `.env` nie je pre backend v Dockeri správne: použi adresu reálneho SMTP, alebo `mailpit` s portom `1025` len na testovanie (maily sa nedoručia). `VPN_USERNAME`, `VPN_PASSWORD` ani `vpn/client.ovpn` tento variant nepotrebuje. `LDAP_URL` sa číta z `.env`, s defaultom `ldap://ldap.stuba.sk:389`; `LDAP_USERNAME` a `LDAP_PASSWORD` nechaj prázdne pre anonymný prístup.
+
+Dostupnosť over aj po nasadení cez LDAP stav na dashboarde — Docker sieť môže mať iné obmedzenia než hostiteľ. Pri `ldap://` ide komunikácia bez šifrovania a bez VPN tunela; používaj ju iba v schválenej dôveryhodnej sieti.
+
+Pri ďalších aktualizáciách používaj rovnaký `-f docker-compose.no-vpn.yml`. Ak prechádzaš z už spusteného VPN variantu v rovnakom adresári/projekte, môžeš pridať `--remove-orphans` na odstránenie starého VPN kontajnera; databázové volumes nemaž (`down -v` nepoužívaj).
+
 Frontend (za Caddy, proxuje `/api/` na backend) beží na `http://localhost:8081`, backend priamo na `http://localhost:8080` (potrebné pre Discord OAuth redirect).
 
 Pre reálne prihlásenie treba vlastnú Discord OAuth aplikáciu (`DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`) a Discord bota (`DISCORD_BOT_TOKEN`) — bez nich appka beží, ale login/bot sa nepripoja.
