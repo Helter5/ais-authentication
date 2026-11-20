@@ -1,7 +1,8 @@
+# Default stack for hosts with direct STU LDAP access (no VPN).
+# Run from infra/: docker compose up -d --build
+# For VPN access use docker-compose.with-vpn.yml alone, not as an override.
 services:
   postgres:
-    # Digest-pinned (not just tag-pinned), same reasoning as mailpit's exact version pin below -
-    # re-pin deliberately when picking up new patches: `docker buildx imagetools inspect postgres:16-alpine`.
     image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     container_name: ais-auth-postgres
     restart: unless-stopped
@@ -10,7 +11,7 @@ services:
       POSTGRES_USER: ${DB_USER:?DB_USER must be set}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     ports:
-      - "127.0.0.1:5432:5432" # loopback only - backend reaches this over the compose network
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,40 +21,11 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1.29.7 # pinned - :latest silently changes what ships on every rebuild
+    image: axllent/mailpit:v1.29.7
     container_name: ais-auth-mailpit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1025:1025" # SMTP, loopback only - unauthenticated, for local dev tools on this host
-    # web UI (8025) deliberately not published - backend only needs SMTP:1025
-
-  vpn:
-    build:
-      context: ./vpn
-      dockerfile: Dockerfile
-    container_name: ais-auth-vpn
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - ./vpn/client.ovpn:/vpn/client.ovpn:ro
-    tmpfs:
-      - /run # VPN_AUTH_FILE (entrypoint.sh) lives here - memory-only, never touches disk
-    environment:
-      VPN_USERNAME: ${VPN_USERNAME:?VPN_USERNAME must be set}
-      VPN_PASSWORD: ${VPN_PASSWORD:?VPN_PASSWORD must be set}
-      LDAP_PROXY_PORT: 1389
-      LDAP_UPSTREAM_HOST: ldap.stuba.sk
-      LDAP_UPSTREAM_PORT: 389
-      LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/vpn-ldap-healthcheck"]
-      interval: 10s
-      timeout: 8s
-      retries: 12
-      start_period: 30s
+      - "127.0.0.1:1025:1025"
 
   backend:
     build:
@@ -66,12 +38,7 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
-      vpn:
-        condition: service_healthy
     environment:
-      # Activates ProductionSecretsValidator (fails fast on a default/placeholder JWT_SECRET) and
-      # application-prod.yml's stricter logging level - this is the real deployment path, unlike
-      # the bare `./mvnw spring-boot:run` local quickstart in README, which stays profile-less.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
@@ -94,36 +61,27 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN must be set}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
-      # Plaintext ldap:// - STU's server doesn't offer StartTLS/LDAPS. Accepted risk: this hop is
-      # confined to the internal compose network (never exposed on a host port), and the outer
-      # vpn->ldap.stuba.sk leg is already inside the OpenVPN tunnel. Revisit if STU ever adds TLS.
-      LDAP_URL: ldap://vpn:1389
+      # Direct connection: the host/container network must be allowed to reach STU LDAP.
+      # ldap:// is unencrypted here (no VPN tunnel); use only on an approved trusted network.
+      LDAP_URL: ${LDAP_URL:-ldap://ldap.stuba.sk:389}
       LDAP_BASE: ${LDAP_BASE:-ou=People,dc=stuba,dc=sk}
-      # STU's LDAP allows anonymous read on ou=People - blank is the working config, not a placeholder.
       LDAP_USERNAME: ${LDAP_USERNAME:-}
       LDAP_PASSWORD: ${LDAP_PASSWORD:-}
       VERIFICATION_TESTING_MODE: ${VERIFICATION_TESTING_MODE:-false}
-    # No host port publish - only `frontend`'s nginx proxy (/api/) should reach this, over the
-    # internal compose network. Add a port mapping back in a local dev-override file if you need
-    # to hit the backend directly for debugging.
 
   frontend:
     build:
       context: ../frontend
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: /api # relativna cesta - nginx proxuje /api/ na backend, jeden origin, ziadne CORS netreba
+        VITE_API_URL: /api
     container_name: ais-auth-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
-    # No host port publish - Caddy reaches this over the internal compose network and terminates
-    # TLS in front of it. Add a port mapping back in a local dev-override file for direct access.
 
   caddy:
-    # Digest-pinned, same reasoning as postgres/backend base images above -
-    # re-pin deliberately when picking up new patches: `docker buildx imagetools inspect caddy:2-alpine`.
     image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: ais-auth-caddy
     restart: unless-stopped

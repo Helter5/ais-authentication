@@ -44,11 +44,18 @@ cp infra/Caddyfile.example infra/Caddyfile   # nahraď your-domain.example vlast
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
 ```
 
-`vpn` kontajner (tunel k univerzitnému LDAP) potrebuje `infra/vpn/client.ovpn` — stiahni si vlastný profil podľa [STU CVT návodu](https://www.stuba.sk/sk/pracoviska/centrum-vypoctovej-techniky/navody/vpn-pristup-do-siete-stu/openvpn-v.3-connect.html?page_id=16269) a ulož ho tam. VPN prihlasovacie údaje idú cez `infra/.env` (`VPN_USERNAME`/`VPN_PASSWORD`).
+Predvolený Compose je **bez VPN** a vyžaduje priamy prístup k univerzitnému LDAP. Ak potrebuješ VPN, použi namiesto neho samostatný variant:
+
+```bash
+# Z adresára infra/:
+docker compose -f docker-compose.with-vpn.yml up -d --build
+```
+
+V tomto variante `vpn` kontajner (tunel k univerzitnému LDAP) potrebuje `infra/vpn/client.ovpn` — stiahni si vlastný profil podľa [STU CVT návodu](https://www.stuba.sk/sk/pracoviska/centrum-vypoctovej-techniky/navody/vpn-pristup-do-siete-stu/openvpn-v.3-connect.html?page_id=16269) a ulož ho tam. VPN prihlasovacie údaje idú cez `infra/.env` (`VPN_USERNAME`/`VPN_PASSWORD`).
 
 ### Docker na serveri s priamym prístupom k LDAP (bez VPN)
 
-Ak server dosiahne `ldap://ldap.stuba.sk:389` bez VPN (napr. v sieti FEI), použi samostatný `infra/docker-compose.no-vpn.yml`. Pôvodný Compose s VPN zostáva nezmenený. **Tieto dva súbory nekombinuj cez viacero `-f`.**
+Ak server dosiahne `ldap://ldap.stuba.sk:389` bez VPN (napr. v sieti FEI), použi predvolený `infra/docker-compose.yml`. Variant s VPN je v `infra/docker-compose.with-vpn.yml`. **Tieto dva súbory nekombinuj cez viacero `-f`.**
 
 Z adresára `infra/`:
 
@@ -58,16 +65,16 @@ Z adresára `infra/`:
 [ -f Caddyfile ] || cp Caddyfile.example Caddyfile
 chmod 600 .env
 
-docker compose -f docker-compose.no-vpn.yml up -d --build
-docker compose -f docker-compose.no-vpn.yml ps
-docker compose -f docker-compose.no-vpn.yml logs --tail=100 backend
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 backend
 ```
 
 Vyplň DB/JWT/Discord údaje, produkčné `FRONTEND_URL` a `DISCORD_REDIRECT_URI` a reálne SMTP pre doručovanie kódov. `MAIL_HOST=localhost` zo vzorového `.env` nie je pre backend v Dockeri správne: použi adresu reálneho SMTP, alebo `mailpit` s portom `1025` len na testovanie (maily sa nedoručia). `VPN_USERNAME`, `VPN_PASSWORD` ani `vpn/client.ovpn` tento variant nepotrebuje. `LDAP_URL` sa číta z `.env`, s defaultom `ldap://ldap.stuba.sk:389`; `LDAP_USERNAME` a `LDAP_PASSWORD` nechaj prázdne pre anonymný prístup.
 
 Dostupnosť over aj po nasadení cez LDAP stav na dashboarde — Docker sieť môže mať iné obmedzenia než hostiteľ. Pri `ldap://` ide komunikácia bez šifrovania a bez VPN tunela; používaj ju iba v schválenej dôveryhodnej sieti.
 
-Pri ďalších aktualizáciách používaj rovnaký `-f docker-compose.no-vpn.yml`. Ak prechádzaš z už spusteného VPN variantu v rovnakom adresári/projekte, môžeš pridať `--remove-orphans` na odstránenie starého VPN kontajnera; databázové volumes nemaž (`down -v` nepoužívaj).
+Pri ďalších aktualizáciách stačí `docker compose up -d --build` z adresára `infra/`. Pre VPN variant vždy použi `-f docker-compose.with-vpn.yml`. Ak prechádzaš z už spusteného VPN variantu v rovnakom adresári/projekte, môžeš pridať `--remove-orphans` na odstránenie starého VPN kontajnera; databázové volumes nemaž (`down -v` nepoužívaj).
 
 Frontend (za Caddy, proxuje `/api/` na backend) beží na `http://localhost:8081`, backend priamo na `http://localhost:8080` (potrebné pre Discord OAuth redirect).
 
